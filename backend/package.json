@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "hostinger:build": "npm --prefix ../frontend ci && npm --prefix ../frontend run build",
+    "hostinger:build": "npm --prefix ../frontend ci --include=dev && npm --prefix ../frontend run build",
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js"
   },
