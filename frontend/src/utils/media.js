@@ -1,0 +1,193 @@
+import { apiOrigin } from '../lib/apiClient.js'
+
+function normalizeBaseUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '')
+}
+
+function sanitizeMediaSource(value) {
+  if (value == null) {
+    return ''
+  }
+
+  const normalizedValue = String(value).trim()
+  const routeNotFoundMatch = normalizedValue.match(/Route not found:\s*(\/\S+)/i)
+
+  if (routeNotFoundMatch?.[1]) {
+    return routeNotFoundMatch[1]
+      .replace(/%20404%20\(Not%20Found\)$/i, '')
+      .replace(/\s+404\s*\(Not Found\)$/i, '')
+      .trim()
+  }
+
+  return normalizedValue
+    .replace(/\s+404\s*\(Not Found\)$/i, '')
+    .replace(/%20404%20\(Not%20Found\)$/i, '')
+    .replace(/\s+Route not found:.*$/i, '')
+    .trim()
+}
+
+function resolveUploadsOrigin() {
+  const envOrigin = normalizeBaseUrl(import.meta.env.VITE_UPLOADS_ORIGIN)
+
+  if (envOrigin) {
+    return envOrigin
+  }
+
+  try {
+    const parsedApiOrigin = new URL(apiOrigin)
+    const hostName = parsedApiOrigin.hostname || ''
+    const port = parsedApiOrigin.port ? `:${parsedApiOrigin.port}` : ''
+
+    if (hostName.startsWith('api.')) {
+      return `${parsedApiOrigin.protocol}//upload.${hostName.slice(4)}${port}`
+    }
+
+    if (hostName.startsWith('api-')) {
+      return `${parsedApiOrigin.protocol}//upload-${hostName.slice(4)}${port}`
+    }
+  } catch {
+    return ''
+  }
+
+  return ''
+}
+
+function resolvePreferredUploadsOrigin(defaultOrigin) {
+  if (typeof window === 'undefined') {
+    return defaultOrigin
+  }
+
+  const protocol = window.location.protocol || 'https:'
+  const hostname = String(window.location.hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '')
+
+  if (!hostname) {
+    return defaultOrigin
+  }
+
+  if (hostname === 'demo.nest-sc.com') {
+    return `${protocol}//upload-demo.nest-sc.com`
+  }
+
+  if (hostname === 'nest-sc.com') {
+    return `${protocol}//upload.nest-sc.com`
+  }
+
+  return defaultOrigin
+}
+
+function pushUniqueUrl(target, value) {
+  if (!value || target.includes(value)) {
+    return
+  }
+
+  target.push(value)
+}
+
+function normalizeMediaPath(pathname) {
+  if (!pathname) {
+    return ''
+  }
+
+  if (pathname.startsWith('/uploads/')) {
+    return `/media/${pathname.replace(/^\/uploads\//, '')}`
+  }
+
+  if (pathname.startsWith('/media/')) {
+    return pathname
+  }
+
+  return ''
+}
+
+function buildAbsoluteMediaUrl(origin, mediaPath, search = '', hash = '') {
+  if (!origin || !mediaPath) {
+    return ''
+  }
+
+  return `${normalizeBaseUrl(origin)}${mediaPath}${search}${hash}`
+}
+
+const uploadsOrigin = resolveUploadsOrigin()
+const preferredUploadsOrigin = resolvePreferredUploadsOrigin(uploadsOrigin)
+
+export function resolveMediaUrlCandidates(url) {
+  const sanitizedUrl = sanitizeMediaSource(url)
+
+  if (!sanitizedUrl) {
+    return []
+  }
+
+  if (sanitizedUrl.startsWith('blob:') || sanitizedUrl.startsWith('data:')) {
+    return [sanitizedUrl]
+  }
+
+  if (sanitizedUrl.startsWith('http://') || sanitizedUrl.startsWith('https://')) {
+    try {
+      const parsedUrl = new URL(sanitizedUrl)
+      const mediaPath = normalizeMediaPath(parsedUrl.pathname || '')
+
+      if (!mediaPath) {
+        return [sanitizedUrl]
+      }
+
+      const candidates = []
+      const search = parsedUrl.search || ''
+      const hash = parsedUrl.hash || ''
+
+      pushUniqueUrl(
+        candidates,
+        buildAbsoluteMediaUrl(preferredUploadsOrigin, mediaPath, search, hash),
+      )
+      pushUniqueUrl(
+        candidates,
+        buildAbsoluteMediaUrl(parsedUrl.origin, mediaPath, search, hash),
+      )
+      pushUniqueUrl(
+        candidates,
+        buildAbsoluteMediaUrl(uploadsOrigin, mediaPath, search, hash),
+      )
+      pushUniqueUrl(
+        candidates,
+        buildAbsoluteMediaUrl(apiOrigin, mediaPath, search, hash),
+      )
+
+      return candidates
+    } catch {
+      return [sanitizedUrl]
+    }
+  }
+
+  if (sanitizedUrl.startsWith('/')) {
+    const mediaPath = normalizeMediaPath(sanitizedUrl)
+
+    if (!mediaPath) {
+      return [sanitizedUrl]
+    }
+
+    const candidates = []
+    pushUniqueUrl(candidates, buildAbsoluteMediaUrl(preferredUploadsOrigin, mediaPath))
+    pushUniqueUrl(candidates, buildAbsoluteMediaUrl(uploadsOrigin, mediaPath))
+    pushUniqueUrl(candidates, buildAbsoluteMediaUrl(apiOrigin, mediaPath))
+
+    return candidates
+  }
+
+  const normalizedRelative = sanitizedUrl.startsWith('media/')
+    ? `/${sanitizedUrl}`
+    : sanitizedUrl.startsWith('uploads/')
+      ? `/uploads/${sanitizedUrl.replace(/^uploads\//, '')}`
+      : ''
+
+  if (!normalizedRelative) {
+    return [`${apiOrigin}/${sanitizedUrl}`]
+  }
+
+  return resolveMediaUrlCandidates(normalizedRelative)
+}
+
+export function resolveMediaUrl(url) {
+  return resolveMediaUrlCandidates(url)[0] || ''
+}

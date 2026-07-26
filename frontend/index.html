@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        const savedTheme = window.localStorage.getItem('Nest Social')
+        const theme =
+          savedTheme === 'dark' || savedTheme === 'light'
+            ? savedTheme
+            : window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+        document.documentElement.classList.toggle('dark', theme === 'dark')
+        document.documentElement.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      (() => {
+        const gtagId = 'G-K71B9ENCSS'
+        const bootstrapGtag = () => {
+          if (window.__nestGtagLoaded) return
+          window.__nestGtagLoaded = true
+          window.dataLayer = window.dataLayer || []
+          window.gtag = function gtag() {
+            window.dataLayer.push(arguments)
+          }
+          window.gtag('js', new Date())
+          window.gtag('config', gtagId)
+
+          const script = document.createElement('script')
+          script.async = true
+          script.src = `https://www.googletagmanager.com/gtag/js?id=${gtagId}`
+          document.head.appendChild(script)
+        }
+
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(bootstrapGtag, { timeout: 3000 })
+        } else {
+          window.setTimeout(bootstrapGtag, 1500)
+        }
+      })()
+    </script>
+    <title>Nest Social</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,2078 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import ActionToast from '../components/feedback/ActionToast.jsx'
+import ReportDialog from '../components/feedback/ReportDialog.jsx'
+import UserAvatar from '../components/common/UserAvatar.jsx'
+import Seo from '../components/seo/Seo.jsx'
+import MediaGallery from '../features/posts/MediaGallery.jsx'
+import SocialLayout from '../layouts/SocialLayout.jsx'
+import {
+  blockConversation,
+  deleteMessage,
+  getConversationMessages,
+  getConversations,
+  hideConversation,
+  markConversationRead,
+  sendMessage,
+  updateMessage,
+} from '../services/messagesService.js'
+import { connectSocketClient, disconnectSocketClient } from '../services/socketClient.js'
+import { useAuth } from '../store/AuthContext.jsx'
+import { formatClockTime, getFullName } from '../utils/social.js'
+import { resolveMediaUrl } from '../utils/media.js'
+import { compressImageToFile, formatBytes } from '../utils/imageUpload.js'
+import {
+  BackIcon,
+  CheckIcon,
+  ChevronIcon,
+  CloseIcon,
+  CopyIcon,
+  DownloadIcon,
+  InfoIcon,
+  MessageIcon,
+  MoreIcon,
+  PencilIcon,
+  PhotoIcon,
+  PlayIcon,
+  PlusIcon,
+  SearchIcon,
+  SendIcon,
+  TrashIcon,
+  VideoIcon,
+} from './MessagesPageIcons.jsx'
+
+const MESSAGE_IMAGE_MAX_BYTES = 1.2 * 1024 * 1024
+const MESSAGE_VIDEO_MAX_BYTES = 12 * 1024 * 1024
+
+function getConversationPeer(conversation) {
+  return conversation?.participants?.[0] || null
+}
+
+function findConversationIdForPeer(conversations, target) {
+  if (!target) {
+    return ''
+  }
+
+  const matchedConversation = conversations.find((conversation) => {
+    const peer = getConversationPeer(conversation)
+
+    return (
+      (target._id && peer?._id?.toString?.() === target._id?.toString?.()) ||
+      (target.id && peer?._id?.toString?.() === target.id?.toString?.()) ||
+      (target.username && peer?.username === target.username)
+    )
+  })
+
+  return matchedConversation?.id || ''
+}
+
+function createPreviewItems(files) {
+  return files.map((file) => ({
+    id: `${file.name}-${file.lastModified}`,
+    url: URL.createObjectURL(file),
+    type: file.type.startsWith('video/') ? 'video' : 'image',
+    name: file.name,
+  }))
+}
+
+function useIsMobileViewport() {
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  )
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobileViewport(window.innerWidth < 768)
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
+  return isMobileViewport
+}
+
+function formatPresence(lastLoginAt, t) {
+  if (!lastLoginAt) {
+    return t('messages.presence.ready')
+  }
+
+  const diff = Date.now() - new Date(lastLoginAt).getTime()
+
+  if (diff <= 5 * 60 * 1000) {
+    return t('messages.presence.active')
+  }
+
+  if (diff <= 60 * 60 * 1000) {
+    return t('messages.presence.recent')
+  }
+
+  return t('messages.presence.today')
+}
+
+function MediaLightbox({ items = [], activeIndex = 0, onClose, onNavigate, t }) {
+  const activeMedia = items[activeIndex] || null
+  const [isZoomed, setIsZoomed] = useState(false)
+
+  useEffect(() => {
+    setIsZoomed(false)
+  }, [activeIndex])
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose()
+        return
+      }
+
+      if (items.length <= 1) {
+        return
+      }
+
+      if (event.key === 'ArrowLeft') {
+        onNavigate(-1)
+      }
+
+      if (event.key === 'ArrowRight') {
+        onNavigate(1)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [items.length, onClose, onNavigate])
+
+  if (!activeMedia?.url) {
+    return null
+  }
+
+  const mediaUrl = resolveMediaUrl(activeMedia.url)
+  const canNavigate = items.length > 1
+  const activeCounterLabel = `${activeIndex + 1} / ${items.length}`
+
+  return (
+    <div className="fixed inset-0 z-[110] bg-black/88 px-4 py-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3">
+        <div className="rounded-full bg-white/12 px-3 py-2 text-sm font-medium text-white">
+          {activeCounterLabel}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href={mediaUrl}
+            download
+            target="_blank"
+            rel="noreferrer"
+            className="grid size-11 place-items-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+            aria-label={t('messages.downloadMedia')}
+            title={t('messages.downloadMedia')}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <DownloadIcon />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-11 place-items-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+            aria-label={t('messages.closeMedia')}
+          >
+            <CloseIcon />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex h-full items-center justify-center gap-3" onClick={(event) => event.stopPropagation()}>
+        {canNavigate ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(-1)}
+            className="hidden md:grid size-12 place-items-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+            aria-label={t('messages.previousMedia')}
+          >
+            <ChevronIcon direction="left" />
+          </button>
+        ) : null}
+
+        <div className="relative flex max-h-full max-w-full flex-1 items-center justify-center overflow-auto">
+          {activeMedia.type === 'video' ? (
+            <video
+              src={mediaUrl}
+              controls
+              autoPlay
+              playsInline
+              className="max-h-full max-w-full rounded-[24px] bg-black"
+            />
+          ) : (
+            <img
+              src={mediaUrl}
+              alt={t('messages.mediaAlt')}
+              onClick={() => setIsZoomed((current) => !current)}
+              className={`max-h-full max-w-full rounded-[24px] object-contain transition duration-300 ${
+                isZoomed ? 'cursor-zoom-out scale-[1.35]' : 'cursor-zoom-in scale-100'
+              }`}
+            />
+          )}
+
+          {!isZoomed && !activeMedia.type?.includes('video') ? (
+            <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white">
+              {t('messages.clickToZoom')}
+            </div>
+          ) : null}
+        </div>
+
+        {canNavigate ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(1)}
+            className="hidden md:grid size-12 place-items-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+            aria-label={t('messages.nextMedia')}
+          >
+            <ChevronIcon direction="right" />
+          </button>
+        ) : null}
+      </div>
+
+      {canNavigate ? (
+        <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-white">
+          {items.map((item, index) => (
+            <button
+              key={`${item.url}-${index}`}
+              type="button"
+              onClick={() => onNavigate(index - activeIndex)}
+              className={`size-2.5 rounded-full transition ${
+                index === activeIndex ? 'bg-white' : 'bg-white/35'
+              }`}
+              aria-label={t('messages.mediaNumber', { number: index + 1 })}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {canNavigate ? (
+        <div className="absolute inset-x-0 bottom-20 flex justify-center gap-3 md:hidden">
+          <button
+            type="button"
+            onClick={() => onNavigate(-1)}
+            className="grid size-11 place-items-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+            aria-label={t('messages.previousMedia')}
+          >
+            <ChevronIcon direction="left" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate(1)}
+            className="grid size-11 place-items-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+            aria-label={t('messages.nextMedia')}
+          >
+            <ChevronIcon direction="right" />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MessageBubble({
+  message,
+  isMine,
+  isMenuOpen,
+  isEditing,
+  editingText,
+  onEditChange,
+  onEditCancel,
+  onEditSave,
+  onOpenMenu,
+  onCopy,
+  onDelete,
+  onStartEdit,
+  onReport,
+  onOpenMedia,
+  t,
+}) {
+  const showSeen = isMine && Boolean(message.readAt)
+
+  return (
+    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex max-w-[min(88%,620px)] items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div
+          className={`rounded-lg px-4 py-3 shadow-sm transition ${
+            isMine
+              ? 'bg-primary text-inverse'
+              : 'border border-border bg-card text-text'
+          }`}
+        >
+          {isEditing ? (
+            <div className="space-y-3">
+              <textarea
+                rows={2}
+                value={editingText}
+                onChange={(event) => onEditChange(event.target.value)}
+                className="min-h-[76px] w-full resize-none rounded-2xl border border-border bg-secondary px-3 py-2 text-sm leading-6 text-text outline-none"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onEditCancel}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium opacity-80 transition hover:opacity-100"
+                >
+                  {t('common.cancel', { defaultValue: t('profile.photoActions.cancel') })}
+                </button>
+                <button
+                  type="button"
+                  onClick={onEditSave}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    isMine
+                      ? 'bg-card text-text'
+                      : 'bg-primary text-inverse'
+                  }`}
+                >
+                  {t('common.save')}
+                </button>
+              </div>
+            </div>
+          ) : message.text ? (
+            <p className="text-base leading-6">{message.text}</p>
+          ) : null}
+          {(message.media || []).length ? (
+            <MediaGallery
+              items={message.media || []}
+              className={`max-w-[200px] sm:max-w-[236px] ${message.text ? 'mt-3' : 'mt-0'}`}
+              interactive
+              onItemClick={(_, index) => onOpenMedia(message.media || [], index)}
+            />
+          ) : null}
+          <div
+            className={`mt-2 flex items-center justify-end gap-2 text-[11px] ${
+              isMine ? 'text-[rgb(var(--color-text-inverse)/0.7)]' : 'text-soft'
+            }`}
+          >
+            <span>{formatClockTime(message.createdAt)}</span>
+            {isMine ? (
+              <span className="inline-flex items-center gap-1">
+                <CheckIcon double={showSeen} />
+                <span>{showSeen ? t('messages.seen') : t('messages.sent')}</span>
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="relative shrink-0" data-message-menu-shell="true">
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              className="grid size-9 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
+              aria-label={t('messages.messageActions')}
+              title={t('messages.messageActions')}
+            >
+              <MoreIcon />
+            </button>
+
+            {isMenuOpen ? (
+              <div className={`absolute top-[calc(100%+8px)] z-20 w-[180px] overflow-hidden rounded-lg border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)] ${
+                isMine ? 'right-0' : 'left-0'
+              }`}>
+                <button
+                  type="button"
+                  onClick={onCopy}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                >
+                  <CopyIcon />
+                  <span>{t('messages.copy')}</span>
+                </button>
+
+                {isMine ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onStartEdit}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                    >
+                      <PencilIcon />
+                      <span>{t('messages.edit')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
+                    >
+                      <TrashIcon />
+                      <span>{t('messages.delete')}</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onReport({ kind: 'message', id: message._id || message.id })}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
+                  >
+                    <MoreIcon />
+                    <span>{t('messages.report')}</span>
+                  </button>
+                )}
+              </div>
+            ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MessagesPage() {
+  const { lang } = useParams()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { t } = useTranslation()
+  const { isAuthenticated, status, user } = useAuth()
+  const isMobileViewport = useIsMobileViewport()
+  const imageInputRef = useRef(null)
+  const videoInputRef = useRef(null)
+  const textareaRef = useRef(null)
+  const messagesViewportRef = useRef(null)
+  const composerRef = useRef(null)
+  const mobileSwipeRef = useRef({
+    startX: 0,
+    startY: 0,
+    tracking: false,
+  })
+  const [conversationsState, setConversationsState] = useState({ items: [], isLoading: true, error: '' })
+  const [activeConversationId, setActiveConversationId] = useState('')
+  const [messagesState, setMessagesState] = useState({ items: [], isLoading: false, error: '' })
+  const [messageDraft, setMessageDraft] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [isOptimizingMedia, setIsOptimizingMedia] = useState(false)
+  const [messageFiles, setMessageFiles] = useState([])
+  const [messagePreviews, setMessagePreviews] = useState([])
+  const [sendError, setSendError] = useState('')
+  const [reportTarget, setReportTarget] = useState(null)
+  const [mobileChatOpen, setMobileChatOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState('')
+  const [messageSearchValue, setMessageSearchValue] = useState('')
+  const [showMessageSearch, setShowMessageSearch] = useState(false)
+  const [showConversationSearchOverlay, setShowConversationSearchOverlay] = useState(false)
+  const [showChatMenu, setShowChatMenu] = useState(false)
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+  const [openConversationMenuId, setOpenConversationMenuId] = useState('')
+  const [openMessageMenuId, setOpenMessageMenuId] = useState('')
+  const [editingMessageId, setEditingMessageId] = useState('')
+  const [editingMessageText, setEditingMessageText] = useState('')
+  const [toast, setToast] = useState(null)
+  const [composeTarget, setComposeTarget] = useState(null)
+  const [lightboxMedia, setLightboxMedia] = useState(null)
+  const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0)
+  const [mobileComposerHeight, setMobileComposerHeight] = useState(60)
+
+  useEffect(
+    () => () => {
+      messagePreviews.forEach((item) => URL.revokeObjectURL(item.url))
+    },
+    [messagePreviews],
+  )
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileKeyboardOffset(0)
+      return undefined
+    }
+
+    const visualViewport = window.visualViewport
+
+    function updateMobileViewportMetrics() {
+      const layoutHeight = window.innerHeight
+      const visibleHeight = visualViewport?.height ?? layoutHeight
+      const offsetTop = visualViewport?.offsetTop ?? 0
+      const keyboardOffset = Math.max(0, layoutHeight - visibleHeight - offsetTop)
+
+      setMobileKeyboardOffset(keyboardOffset)
+    }
+
+    updateMobileViewportMetrics()
+
+    visualViewport?.addEventListener('resize', updateMobileViewportMetrics)
+    visualViewport?.addEventListener('scroll', updateMobileViewportMetrics)
+    window.addEventListener('resize', updateMobileViewportMetrics)
+
+    return () => {
+      visualViewport?.removeEventListener('resize', updateMobileViewportMetrics)
+      visualViewport?.removeEventListener('scroll', updateMobileViewportMetrics)
+      window.removeEventListener('resize', updateMobileViewportMetrics)
+    }
+  }, [isMobileViewport])
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileComposerHeight(60)
+      return undefined
+    }
+
+    const composerElement = composerRef.current
+
+    if (!composerElement) {
+      return undefined
+    }
+
+    function updateComposerHeight() {
+      setMobileComposerHeight(composerElement.getBoundingClientRect().height)
+    }
+
+    updateComposerHeight()
+
+    const resizeObserver = new ResizeObserver(updateComposerHeight)
+    resizeObserver.observe(composerElement)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [isMobileViewport, sendError, isOptimizingMedia, messagePreviews.length])
+
+  useEffect(() => {
+    const recipientId = searchParams.get('recipientId')
+    const username = searchParams.get('username')
+    const fullName = searchParams.get('name')
+    const avatarUrl = searchParams.get('avatarUrl')
+
+    if (!recipientId && !username) {
+      setComposeTarget(null)
+      return
+    }
+
+    setComposeTarget({
+      _id: recipientId || '',
+      id: recipientId || '',
+      username: username || '',
+      fullName: fullName || username || t('common.unknownUser'),
+      firstName: fullName || username || t('common.unknownUser'),
+      avatarUrl: avatarUrl || '',
+    })
+
+    if (isMobileViewport) {
+      setMobileChatOpen(true)
+    }
+  }, [isMobileViewport, searchParams, t])
+
+  useEffect(() => {
+    if (!isMobileViewport && conversationsState.items.length && !activeConversationId) {
+      setActiveConversationId(conversationsState.items[0].id)
+    }
+  }, [activeConversationId, conversationsState.items, isMobileViewport])
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileChatOpen(Boolean(activeConversationId))
+    }
+  }, [activeConversationId, isMobileViewport])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setConversationsState({ items: [], isLoading: false, error: '' })
+      return
+    }
+
+    let cancelled = false
+
+    async function loadConversations() {
+      setConversationsState((currentState) => ({ ...currentState, isLoading: true, error: '' }))
+
+      try {
+        const payload = await getConversations()
+
+        if (cancelled) {
+          return
+        }
+
+        setConversationsState({ items: payload.conversations, isLoading: false, error: '' })
+
+        const targetConversationId = findConversationIdForPeer(payload.conversations, composeTarget)
+
+        if (targetConversationId) {
+          setActiveConversationId(targetConversationId)
+          return
+        }
+
+        if (!isMobileViewport) {
+          setActiveConversationId((currentId) => currentId || payload.conversations[0]?.id || '')
+        }
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        setConversationsState({
+          items: [],
+          isLoading: false,
+          error: error.message || t('messages.errors.conversationsLoadFailed'),
+        })
+      }
+    }
+
+    loadConversations()
+
+    return () => {
+      cancelled = true
+    }
+  }, [composeTarget, isAuthenticated, isMobileViewport, t])
+
+  useEffect(() => {
+    if (!activeConversationId || !isAuthenticated) {
+      setMessagesState({ items: [], isLoading: false, error: '' })
+      return
+    }
+
+    let cancelled = false
+
+    async function loadMessages() {
+      setMessagesState((currentState) => ({ ...currentState, isLoading: true, error: '' }))
+
+      try {
+        const payload = await getConversationMessages(activeConversationId)
+
+        if (cancelled) {
+          return
+        }
+
+        setMessagesState({ items: payload.messages, isLoading: false, error: '' })
+        await markConversationRead(activeConversationId)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        setMessagesState({
+          items: [],
+          isLoading: false,
+          error: error.message || t('messages.errors.messagesLoadFailed'),
+        })
+      }
+    }
+
+    loadMessages()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeConversationId, isAuthenticated, t])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return undefined
+    }
+
+    const socket = connectSocketClient()
+
+    async function refreshConversationList() {
+      try {
+        const payload = await getConversations()
+        setConversationsState({ items: payload.conversations, isLoading: false, error: '' })
+        const targetConversationId = findConversationIdForPeer(payload.conversations, composeTarget)
+
+        if (targetConversationId) {
+          setActiveConversationId(targetConversationId)
+        } else if (!isMobileViewport) {
+          setActiveConversationId((currentId) => currentId || payload.conversations[0]?.id || '')
+        }
+      } catch {
+        // Realtime refresh is best-effort here.
+      }
+    }
+
+    async function handleIncomingMessage(message) {
+      await refreshConversationList()
+
+      if (message.conversationId !== activeConversationId) {
+        return
+      }
+
+      setMessagesState((currentState) => {
+        const exists = currentState.items.some(
+          (item) => item._id === message.id || item.id === message.id,
+        )
+
+        if (exists) {
+          return currentState
+        }
+
+        return {
+          ...currentState,
+          items: [
+            ...currentState.items,
+            {
+              _id: message.id,
+              conversation: message.conversationId,
+              sender: message.sender,
+              recipient: message.recipient,
+              text: message.text,
+              media: message.media || [],
+              createdAt: message.createdAt,
+              readAt: message.readAt,
+            },
+          ],
+        }
+      })
+
+      if (message.recipient === user.id) {
+        await markConversationRead(message.conversationId)
+      }
+    }
+
+    function handleMessagesRead(payload) {
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: currentState.items.map((item) => {
+          if (
+            item.conversation?.toString?.() === payload.conversationId ||
+            item.conversation === payload.conversationId
+          ) {
+            if (
+              item.sender?.toString?.() === payload.userId ||
+              item.sender === payload.userId
+            ) {
+              return item
+            }
+
+            return { ...item, readAt: payload.readAt }
+          }
+
+          return item
+        }),
+      }))
+    }
+
+    socket.on('new_message', handleIncomingMessage)
+    socket.on('messages_read', handleMessagesRead)
+
+    return () => {
+      socket.off('new_message', handleIncomingMessage)
+      socket.off('messages_read', handleMessagesRead)
+      disconnectSocketClient()
+    }
+  }, [activeConversationId, composeTarget, isAuthenticated, isMobileViewport, user?.id])
+
+  useEffect(() => {
+    scrollMessagesToBottom()
+  }, [messagesState.items])
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      return
+    }
+
+    scrollMessagesToBottom()
+  }, [isMobileViewport, mobileKeyboardOffset, mobileComposerHeight])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+
+    if (!textarea) {
+      return
+    }
+
+    textarea.style.height = '0px'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`
+    textarea.style.overflowY = textarea.scrollHeight > 140 ? 'auto' : 'hidden'
+  }, [messageDraft])
+
+  useEffect(() => {
+    setMessageSearchValue('')
+    setShowMessageSearch(false)
+    setShowConversationSearchOverlay(false)
+    setShowChatMenu(false)
+    setShowAttachmentMenu(false)
+    setOpenConversationMenuId('')
+    setOpenMessageMenuId('')
+    setEditingMessageId('')
+    setEditingMessageText('')
+  }, [activeConversationId])
+
+  useEffect(() => {
+    if (!toast?.message) {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToast(null)
+    }, 2400)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    function handlePointerDown(event) {
+      const target = event.target
+
+      if (!(target instanceof Element)) {
+        return
+      }
+
+      if (!target.closest('[data-message-menu-shell="true"]')) {
+        setOpenMessageMenuId('')
+      }
+
+      if (!target.closest('[data-conversation-menu-shell="true"]')) {
+        setOpenConversationMenuId('')
+      }
+
+      if (!target.closest('[data-attachment-menu-shell="true"]')) {
+        setShowAttachmentMenu(false)
+      }
+
+      if (!target.closest('[data-conversation-search-shell="true"]')) {
+        setShowConversationSearchOverlay(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [])
+
+  const filteredConversations = useMemo(() => {
+    const query = searchValue.trim().toLowerCase()
+
+    if (!query) {
+      return conversationsState.items
+    }
+
+    return conversationsState.items.filter((conversation) => {
+      const peer = getConversationPeer(conversation)
+      const text = `${getFullName(peer)} ${peer?.username || ''} ${conversation.lastMessagePreview || ''}`.toLowerCase()
+      return text.includes(query)
+    })
+  }, [conversationsState.items, searchValue])
+  const totalUnreadCount = useMemo(
+    () =>
+      conversationsState.items.reduce(
+        (count, conversation) => count + (conversation.unreadCount || 0),
+        0,
+      ),
+    [conversationsState.items],
+  )
+
+  const activeConversation = useMemo(
+    () =>
+      conversationsState.items.find(
+        (conversation) => conversation.id === activeConversationId,
+      ) || null,
+    [activeConversationId, conversationsState.items],
+  )
+
+  const activePeer = getConversationPeer(activeConversation) || composeTarget
+  const shouldShowMobileChat = !isMobileViewport || mobileChatOpen || Boolean(composeTarget)
+  const activePresenceLabel = formatPresence(activePeer?.lastLoginAt, t)
+  const filteredMessages = useMemo(() => {
+    const query = messageSearchValue.trim().toLowerCase()
+
+    if (!query) {
+      return messagesState.items
+    }
+
+    return messagesState.items.filter((message) => {
+      const haystack = `${message.text || ''}`.toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [messageSearchValue, messagesState.items])
+  const matchedMessagesCount = filteredMessages.length
+
+  function scrollMessagesToBottom() {
+    const viewport = messagesViewportRef.current
+
+    if (!viewport) {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      viewport.scrollTop = viewport.scrollHeight
+
+      window.requestAnimationFrame(() => {
+        viewport.scrollTop = viewport.scrollHeight
+      })
+    })
+  }
+
+  function replaceMessageFiles(nextFiles) {
+    messagePreviews.forEach((item) => URL.revokeObjectURL(item.url))
+    setMessageFiles(nextFiles)
+    setMessagePreviews(createPreviewItems(nextFiles))
+  }
+
+  function upsertConversationAfterSend(messageItem) {
+    const normalizedConversationId = messageItem.conversationId || messageItem.conversation || activeConversationId || ''
+    const sentAt = messageItem.createdAt || new Date().toISOString()
+    const sentPreview = messageItem.text?.trim() || (messageItem.media?.length ? t('messages.mediaPreview') : t('messages.noMessagesYet'))
+
+    setConversationsState((currentState) => {
+      const existingIndex = currentState.items.findIndex((conversation) => {
+        if (normalizedConversationId && conversation.id === normalizedConversationId) {
+          return true
+        }
+
+        const peer = getConversationPeer(conversation)
+        return (
+          (activePeer?._id && peer?._id?.toString?.() === activePeer._id?.toString?.()) ||
+          (activePeer?.id && peer?._id?.toString?.() === activePeer.id?.toString?.()) ||
+          (activePeer?.username && peer?.username === activePeer.username)
+        )
+      })
+
+      if (existingIndex === -1) {
+        return currentState
+      }
+
+      const nextItems = [...currentState.items]
+      const matchedConversation = nextItems[existingIndex]
+
+      nextItems[existingIndex] = {
+        ...matchedConversation,
+        id: normalizedConversationId || matchedConversation.id,
+        lastMessageAt: sentAt,
+        lastMessagePreview: sentPreview,
+      }
+
+      const [updatedConversation] = nextItems.splice(existingIndex, 1)
+      nextItems.unshift(updatedConversation)
+
+      return {
+        ...currentState,
+        items: nextItems,
+      }
+    })
+
+    if (normalizedConversationId) {
+      setActiveConversationId(normalizedConversationId)
+    }
+
+    setComposeTarget(null)
+  }
+
+  function openConversation(conversationId) {
+    setActiveConversationId(conversationId)
+    setComposeTarget(null)
+    if (isMobileViewport) {
+      setMobileChatOpen(true)
+    }
+  }
+
+  function handleBackToInbox() {
+    setMobileChatOpen(false)
+    setActiveConversationId('')
+    setComposeTarget(null)
+    setMessagesState({ items: [], isLoading: false, error: '' })
+  }
+
+  function handleMobileTouchStart(event) {
+    if (!isMobileViewport) {
+      return
+    }
+
+    const touch = event.touches?.[0]
+
+    if (!touch) {
+      return
+    }
+
+    mobileSwipeRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      tracking: touch.clientX <= 28,
+    }
+  }
+
+  function handleMobileTouchEnd(event) {
+    if (!isMobileViewport || !mobileSwipeRef.current.tracking) {
+      return
+    }
+
+    const touch = event.changedTouches?.[0]
+
+    if (!touch) {
+      return
+    }
+
+    const deltaX = touch.clientX - mobileSwipeRef.current.startX
+    const deltaY = Math.abs(touch.clientY - mobileSwipeRef.current.startY)
+
+    if (deltaX > 84 && deltaY < 40) {
+      handleBackToInbox()
+    }
+
+    mobileSwipeRef.current.tracking = false
+  }
+
+  async function handleSelectImages(event) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+
+    if (!files.length) {
+      return
+    }
+
+    if (messageFiles.some((file) => file.type.startsWith('video/'))) {
+      setSendError(t('messages.errors.mediaLimitMixed'))
+      return
+    }
+
+    if (files.some((file) => !file.type.startsWith('image/'))) {
+      setSendError(t('messages.errors.imageOnly'))
+      return
+    }
+
+    if (messageFiles.length + files.length > 4) {
+      setSendError(t('messages.errors.imageLimit'))
+      return
+    }
+
+    setIsOptimizingMedia(true)
+    setSendError('')
+
+    try {
+      const optimizedFiles = await Promise.all(
+        files.map((file) =>
+          compressImageToFile(file, {
+            maxWidth: 1200,
+            maxHeight: 1200,
+            quality: 0.72,
+            type: 'image/webp',
+            maxBytes: MESSAGE_IMAGE_MAX_BYTES,
+            fileNamePrefix: 'message',
+          }),
+        ),
+      )
+
+      replaceMessageFiles([...messageFiles, ...optimizedFiles])
+    } catch (error) {
+      setSendError(error.message || t('messages.errors.imageOptimizeFailed'))
+    } finally {
+      setIsOptimizingMedia(false)
+    }
+  }
+
+  function handleSelectVideo(event) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+
+    if (!files.length) {
+      return
+    }
+
+    const [videoFile] = files
+
+    if (!videoFile.type.startsWith('video/')) {
+      setSendError(t('messages.errors.videoOnly'))
+      return
+    }
+
+    if (videoFile.size > MESSAGE_VIDEO_MAX_BYTES) {
+      setSendError(t('messages.errors.videoTooLarge', { maxSize: formatBytes(MESSAGE_VIDEO_MAX_BYTES) }))
+      return
+    }
+
+    if (messageFiles.length) {
+      setSendError(t('messages.errors.removeMediaBeforeVideo'))
+      return
+    }
+
+    setSendError('')
+    replaceMessageFiles([videoFile])
+  }
+
+  function removePreview(previewId) {
+    const nextFiles = messageFiles.filter(
+      (file) => `${file.name}-${file.lastModified}` !== previewId,
+    )
+
+    setSendError('')
+    replaceMessageFiles(nextFiles)
+  }
+
+  async function handleCopyMessage(message) {
+    try {
+      if (!message.text?.trim()) {
+        setToast({ tone: 'error', message: t('messages.errors.noTextToCopy') })
+        return
+      }
+
+      await navigator.clipboard.writeText(message.text)
+      setToast({ tone: 'success', message: t('messages.copySuccess') })
+      setOpenMessageMenuId('')
+    } catch {
+      setToast({ tone: 'error', message: t('messages.errors.copyFailed') })
+    }
+  }
+
+  function handleStartEditMessage(message) {
+    setEditingMessageId(message._id || message.id)
+    setEditingMessageText(message.text || '')
+    setOpenMessageMenuId('')
+  }
+
+  function handleCancelEditMessage() {
+    setEditingMessageId('')
+    setEditingMessageText('')
+  }
+
+  async function handleSaveEditedMessage(message) {
+    const messageId = message._id || message.id
+    const nextText = editingMessageText.trim()
+
+    if (!nextText) {
+      setToast({ tone: 'error', message: t('messages.errors.emptyMessage') })
+      return
+    }
+
+    try {
+      const response = await updateMessage(messageId, { text: nextText })
+
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: currentState.items.map((item) =>
+          (item._id || item.id) === messageId
+            ? { ...item, text: response.messageItem.text }
+            : item,
+        ),
+      }))
+
+      setEditingMessageId('')
+      setEditingMessageText('')
+      setToast({ tone: 'success', message: t('messages.updateSuccess') })
+    } catch (error) {
+      setToast({ tone: 'error', message: error.message || t('messages.errors.updateFailed') })
+    }
+  }
+
+  async function handleDeleteMessage(message) {
+    const messageId = message._id || message.id
+
+    try {
+      await deleteMessage(messageId)
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: currentState.items.filter((item) => (item._id || item.id) !== messageId),
+      }))
+      setOpenMessageMenuId('')
+      if (editingMessageId === messageId) {
+        setEditingMessageId('')
+        setEditingMessageText('')
+      }
+      setToast({ tone: 'success', message: t('messages.deleteSuccess') })
+    } catch (error) {
+      setToast({ tone: 'error', message: error.message || t('messages.errors.deleteFailed') })
+    }
+  }
+
+  async function handleMarkConversationRead(conversationId) {
+    try {
+      await markConversationRead(conversationId)
+      setConversationsState((currentState) => ({
+        ...currentState,
+        items: currentState.items.map((item) =>
+          item.id === conversationId ? { ...item, unreadCount: 0 } : item,
+        ),
+      }))
+      setOpenConversationMenuId('')
+      setToast({ tone: 'success', message: t('messages.markReadSuccess') })
+    } catch (error) {
+      setToast({ tone: 'error', message: error.message || t('messages.errors.actionFailed') })
+    }
+  }
+
+  async function handleHideConversation(conversationId) {
+    try {
+      await hideConversation(conversationId)
+      setConversationsState((currentState) => ({
+        ...currentState,
+        items: currentState.items.filter((item) => item.id !== conversationId),
+      }))
+      if (activeConversationId === conversationId) {
+        setActiveConversationId('')
+        setComposeTarget(null)
+        setMessagesState({ items: [], isLoading: false, error: '' })
+      }
+      setOpenConversationMenuId('')
+      setToast({ tone: 'success', message: t('messages.hideConversationSuccess') })
+    } catch (error) {
+      setToast({ tone: 'error', message: error.message || t('messages.errors.hideConversationFailed') })
+    }
+  }
+
+  async function handleBlockConversation(conversationId) {
+    try {
+      await blockConversation(conversationId)
+      setConversationsState((currentState) => ({
+        ...currentState,
+        items: currentState.items.filter((item) => item.id !== conversationId),
+      }))
+      if (activeConversationId === conversationId) {
+        setActiveConversationId('')
+        setComposeTarget(null)
+        setMessagesState({ items: [], isLoading: false, error: '' })
+      }
+      setOpenConversationMenuId('')
+      setToast({ tone: 'success', message: t('messages.blockSuccess') })
+    } catch (error) {
+      setToast({ tone: 'error', message: error.message || t('messages.errors.blockFailed') })
+    }
+  }
+
+  async function handleSendMessage() {
+    if (isOptimizingMedia || isSending) {
+      return
+    }
+
+    const trimmedMessage = messageDraft.trim()
+
+    if (!activePeer?._id || (!trimmedMessage && !messageFiles.length)) {
+      return
+    }
+
+    setIsSending(true)
+    setSendError('')
+
+    try {
+      let payloadBody = { recipientId: activePeer._id, text: trimmedMessage, media: [] }
+
+      if (messageFiles.length) {
+        const formData = new FormData()
+        formData.set('recipientId', activePeer._id)
+        formData.set('text', trimmedMessage)
+        messageFiles.forEach((file) => {
+          formData.append('media', file)
+        })
+        payloadBody = formData
+      }
+
+      const response = await sendMessage(payloadBody)
+      const payload = response.messageItem
+
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: [
+          ...currentState.items,
+          {
+            _id: payload.id || payload._id,
+            conversation: payload.conversationId || payload.conversation,
+            sender: payload.sender,
+            recipient: payload.recipient,
+            text: payload.text,
+            media: payload.media || [],
+            createdAt: payload.createdAt,
+            readAt: payload.readAt || null,
+          },
+        ],
+      }))
+
+      setMessageDraft('')
+      replaceMessageFiles([])
+      upsertConversationAfterSend(payload)
+      setIsSending(false)
+
+      if (isMobileViewport) {
+        window.requestAnimationFrame(() => {
+          textareaRef.current?.focus({ preventScroll: true })
+          scrollMessagesToBottom()
+        })
+      }
+    } catch (error) {
+      setSendError(error.message || t('messages.errors.sendFailed'))
+      setIsSending(false)
+    }
+  }
+
+  function handleMessageKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  function handleNavigateLightbox(step) {
+    setLightboxMedia((current) => {
+      if (!current?.items?.length) {
+        return current
+      }
+
+      const itemCount = current.items.length
+      const nextIndex =
+        typeof step === 'number' && Math.abs(step) === 1
+          ? (current.index + step + itemCount) % itemCount
+          : Math.max(0, Math.min(itemCount - 1, current.index + step))
+
+      return {
+        ...current,
+        index: nextIndex,
+      }
+    })
+  }
+
+  const mobileMessagesViewportStyle = isMobileViewport
+    ? { paddingBottom: `${mobileComposerHeight + mobileKeyboardOffset + 16}px` }
+    : undefined
+
+  const mobileComposerStyle = isMobileViewport
+    ? {
+        bottom: `${mobileKeyboardOffset}px`,
+        paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
+      }
+    : undefined
+
+  if (status === 'loading') {
+    return null
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to={`/${lang}/login`} replace />
+  }
+
+  return (
+    <>
+      <Seo
+        title={t('messages.seoTitle')}
+        description={t('messages.seoDescription')}
+      />
+
+      <SocialLayout
+        pageTitle={t('nav.messages')}
+        activeKey="messages"
+        showDesktopPageHeader={false}
+        initialSidebarOpen={false}
+        desktopSidebarMode="drawer"
+        fixedViewport
+        hideMobileBottomBar={isMobileViewport && shouldShowMobileChat}
+        mainClassName="h-full"
+        mobileBleed
+        mobileFlushTop
+        hideHeaderOnMobile
+      >
+        <section className="h-full min-h-0 overflow-hidden border-y border-border bg-card shadow-sm md:rounded-lg md:border md:shadow-sm">
+          <div className="grid h-full min-h-0 md:grid-cols-[340px_minmax(0,1fr)]">
+            {(!isMobileViewport || !shouldShowMobileChat) ? (
+              <aside className="flex h-full min-h-0 flex-col border-r border-border">
+                {isMobileViewport ? (
+                  <div className="sticky top-0 z-10 border-b border-border bg-card">
+                    <div className="flex h-12 items-center gap-3 px-1">
+                      <button
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="grid size-9 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
+                        aria-label={t('messages.back')}
+                      >
+                        <BackIcon />
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-text">
+                            {t('messages.title')}
+                          </p>
+                          {totalUnreadCount ? (
+                            <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                              {totalUnreadCount}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="truncate text-[11px] text-muted">
+                          {totalUnreadCount
+                            ? t('messages.unreadCount', { count: totalUnreadCount })
+                            : t('messages.allConversationsHere')}
+                        </p>
+                      </div>
+
+                      <div className="relative" data-conversation-search-shell="true">
+                        <button
+                          type="button"
+                          onClick={() => setShowConversationSearchOverlay(true)}
+                          className="grid size-9 place-items-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
+                          aria-label={t('messages.searchConversations')}
+                        >
+                          <SearchIcon />
+                        </button>
+
+                        {showConversationSearchOverlay ? (
+                          <div className="fixed inset-0 z-[60] bg-white dark:bg-zinc-950">
+                            <div className="flex h-12 items-center gap-3 border-b border-zinc-200 px-3 dark:border-zinc-800">
+                              <button
+                                type="button"
+                                onClick={() => setShowConversationSearchOverlay(false)}
+                                className="grid size-9 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
+                                aria-label={t('messages.closeSearch')}
+                              >
+                                <BackIcon />
+                              </button>
+                              <div className="flex h-9 flex-1 items-center gap-3 rounded-lg border border-border bg-secondary px-4">
+                                <SearchIcon />
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={searchValue}
+                                  onChange={(event) => setSearchValue(event.target.value)}
+                                  placeholder={t('messages.searchConversations')}
+                                  className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-b border-border px-4 py-4">
+                    <div className="rounded-lg border border-border bg-secondary px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-soft">
+                          <SearchIcon />
+                        </span>
+                        <input
+                          type="text"
+                          value={searchValue}
+                          onChange={(event) => setSearchValue(event.target.value)}
+                          placeholder={t('messages.searchConversations')}
+                          className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {conversationsState.error ? (
+                  <div className="px-4 py-3 text-sm text-rose-600">{conversationsState.error}</div>
+                ) : null}
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-0 py-1">
+                  {conversationsState.isLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 7 }).map((_, index) => (
+                        <div
+                          key={`conversation-skeleton-${index}`}
+                          className="h-[78px] animate-pulse rounded-[24px] bg-secondary"
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {!conversationsState.isLoading && !filteredConversations.length ? (
+                    <div className="rounded-[24px] border border-dashed border-border px-4 py-5 text-sm text-muted">
+                      {t('messages.emptyConversations')}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-0.5">
+                    {filteredConversations.map((conversation) => {
+                      const peer = getConversationPeer(conversation)
+                      const isActive = conversation.id === activeConversationId && shouldShowMobileChat
+
+                      return (
+                        <div
+                          key={conversation.id}
+                          className={`flex items-center gap-2 border-b border-border px-2 py-2 transition ${
+                            isActive
+                              ? 'bg-secondary cursor-pointer text-text '
+                              : 'hover:bg-secondary'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => openConversation(conversation.id)}
+                            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-1 py-1 text-left"
+                          >
+                            <div className="relative shrink-0">
+                              <UserAvatar
+                                user={peer}
+                                className={`size-13 ${
+                                  isActive
+                                    ? 'bg-[rgb(var(--color-card)/0.15)] text-inverse'
+                                    : 'bg-primary text-inverse'
+                                }`}
+                                textClassName="text-sm font-semibold"
+                              />
+                              {conversation.unreadCount ? (
+                                <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
+                                  {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="truncate text-sm font-semibold">{getFullName(peer)}</p>
+                                <span
+                                  className={`shrink-0 text-[11px] ${
+                                    isActive
+                                      ? 'text-muted'
+                                      : 'text-soft'
+                                  }`}
+                                >
+                                  {conversation.lastMessageAt
+                                    ? formatClockTime(conversation.lastMessageAt)
+                                    : '--:--'}
+                                </span>
+                              </div>
+                              <p
+                                className={`mt-1 truncate text-sm ${
+                                  isActive
+                                    ? 'text-muted'
+                                    : 'text-muted'
+                                }`}
+                              >
+                                {conversation.lastMessagePreview || t('messages.noMessagesYet')}
+                              </p>
+                            </div>
+                          </button>
+
+                          <div className="relative shrink-0" data-conversation-menu-shell="true">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenConversationMenuId((current) =>
+                                  current === conversation.id ? '' : conversation.id,
+                                )
+                              }
+                              className={`grid size-10 place-items-center cursor-pointer rounded-full transition ${
+                                isActive
+                                  ? 'text-muted hover:bg-[rgb(var(--color-card)/0.1)]'
+                                  : 'text-soft hover:bg-secondary hover:text-text'
+                              }`}
+                              aria-label={t('messages.conversationActions')}
+                            >
+                              <MoreIcon />
+                            </button>
+
+                            {openConversationMenuId === conversation.id ? (
+                              <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-[190px] overflow-hidden rounded-lg border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkConversationRead(conversation.id)}
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                                >
+                                  <CheckIcon />
+                                  <span>{t('messages.markRead')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleHideConversation(conversation.id)}
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                                >
+                                  <TrashIcon />
+                                  <span>{t('messages.deleteConversation')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleBlockConversation(conversation.id)}
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
+                                >
+                                  <InfoIcon />
+                                  <span>{t('messages.block')}</span>
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </aside>
+            ) : null}
+
+            {shouldShowMobileChat ? (
+              <div
+                className="flex h-full min-h-0 flex-col overflow-hidden bg-bg"
+                onTouchStart={handleMobileTouchStart}
+                onTouchEnd={handleMobileTouchEnd}
+              >
+                <div className="sticky top-0 z-10 border-b border-border bg-card">
+                  {activePeer ? (
+                    isMobileViewport ? (
+                      <div className="relative h-12 px-1">
+                        <div className="flex h-full items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={handleBackToInbox}
+                            className="grid size-9 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
+                            aria-label={t('messages.backToInbox')}
+                          >
+                            <BackIcon />
+                          </button>
+
+                          <Link
+                            to={`/${lang}/u/${activePeer.username}`}
+                            className="flex min-w-0 flex-1 items-center gap-2.5"
+                          >
+                            <UserAvatar
+                              user={activePeer}
+                              className="size-8 shrink-0 bg-primary text-inverse"
+                              textClassName="text-xs font-semibold"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-text">
+                                {getFullName(activePeer)}
+                              </p>
+                              <p className="truncate text-[11px] text-muted">
+                                {activePresenceLabel}
+                              </p>
+                            </div>
+                          </Link>
+
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowChatMenu((current) => !current)}
+                              className="grid size-9 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
+                              aria-label={t('messages.conversationActions')}
+                            >
+                              <MoreIcon />
+                            </button>
+
+                            {showChatMenu ? (
+                              <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-[190px] overflow-hidden rounded-lg border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleMarkConversationRead(activeConversationId)
+                                    setShowChatMenu(false)
+                                  }}
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                                >
+                                  <CheckIcon />
+                                  <span>{t('messages.markRead')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleHideConversation(activeConversationId)
+                                    setShowChatMenu(false)
+                                  }}
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                                >
+                                  <TrashIcon />
+                                  <span>{t('messages.deleteConversation')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleBlockConversation(activeConversationId)
+                                    setShowChatMenu(false)
+                                  }}
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
+                                >
+                                  <InfoIcon />
+                                  <span>{t('messages.block')}</span>
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to={`/${lang}/u/${activePeer.username}`}
+                            className="flex min-w-0 flex-1 items-center gap-3 "
+                          >
+                            <UserAvatar
+                              user={activePeer}
+                              className="size-12 shrink-0 bg-primary text-inverse"
+                              textClassName="text-sm font-semibold"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-text">
+                                {getFullName(activePeer)}
+                              </p>
+                              <p className="truncate text-xs text-muted">
+                                @{activePeer.username}
+                              </p>
+                            </div>
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowMessageSearch((current) => !current)}
+                            className={`grid size-11 cursor-pointer place-items-center rounded-full transition ${
+                              showMessageSearch
+                                ? 'bg-primary text-inverse'
+                                : 'text-muted hover:bg-secondary hover:text-text'
+                            }`}
+                            aria-label={t('messages.searchMessages')}
+                            title={t('messages.searchMessages')}
+                          >
+                            <SearchIcon />
+                          </button>
+
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowChatMenu((current) => !current)}
+                              className={`grid size-11 place-items-center cursor-pointer rounded-full transition ${
+                                showChatMenu
+                                ? 'bg-primary text-inverse'
+                                : 'text-muted hover:bg-secondary hover:text-text'
+                              }`}
+                              aria-label={t('messages.conversationDetails')}
+                              title={t('messages.conversationDetails')}
+                            >
+                              <InfoIcon />
+                            </button>
+
+                            {showChatMenu ? (
+                              <div className="absolute right-0 top-[calc(100%+10px)] z-20 w-[280px] rounded-[24px] border border-border bg-card p-3 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                                <div className="flex items-center gap-3 rounded-[20px] bg-secondary p-3">
+                                  <UserAvatar
+                                    user={activePeer}
+                                    className="size-12 shrink-0 bg-primary text-inverse"
+                                    textClassName="text-sm font-semibold"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-text">
+                                      {getFullName(activePeer)}
+                                    </p>
+                                    <p className="truncate text-xs text-muted">
+                                      @{activePeer.username}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 space-y-2 text-sm text-muted">
+                                  <div className="rounded-[18px] border border-border px-3 py-2">
+                                    {t('messages.lastMessage')}{' '}
+                                    <span className="font-medium text-text">
+                                      {activeConversation?.lastMessageAt
+                                        ? formatClockTime(activeConversation.lastMessageAt)
+                                        : '--:--'}
+                                    </span>
+                                  </div>
+                                  <div className="rounded-[18px] border border-border px-3 py-2">
+                                    {t('messages.visibleMessages')}{' '}
+                                    <span className="font-medium text-text">
+                                      {matchedMessagesCount}
+                                    </span>
+                                  </div>
+                                  <Link
+                                    to={`/${lang}/u/${activePeer.username}`}
+                                    className="flex items-center justify-between rounded-[18px] px-3 py-2 transition hover:bg-secondary"
+                                    onClick={() => setShowChatMenu(false)}
+                                  >
+                                    <span>{t('messages.viewProfile')}</span>
+                                    <span className="text-zinc-400">→</span>
+                                  </Link>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {showMessageSearch ? (
+                          <div className="rounded-[22px] border border-border bg-secondary px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="text-soft">
+                                <SearchIcon />
+                              </span>
+                              <input
+                                autoFocus
+                                type="text"
+                                value={messageSearchValue}
+                                onChange={(event) => setMessageSearchValue(event.target.value)}
+                                placeholder={t('messages.searchThisConversation')}
+                                className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                              />
+                              <span className="text-[11px] text-soft">
+                                {matchedMessagesCount}
+                              </span>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-muted">
+                      {t('messages.selectConversation')}
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  ref={messagesViewportRef}
+                  className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 ${isMobileViewport ? 'pb-4' : ''}`}
+                  style={mobileMessagesViewportStyle}
+                >
+                  {messagesState.error ? (
+                    <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/30">
+                      {messagesState.error}
+                    </div>
+                  ) : null}
+
+                  {messagesState.isLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <div
+                          key={`message-skeleton-${index}`}
+                          className={`h-16 animate-pulse rounded-[24px] ${
+                            index % 2 === 0
+                              ? 'mr-auto w-[72%] bg-white dark:bg-zinc-900'
+                              : 'ml-auto w-[60%] bg-zinc-200 dark:bg-zinc-800'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {!messagesState.isLoading && !messagesState.items.length && activePeer ? (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="max-w-sm rounded-lg border border-border bg-card px-5 py-6 text-center text-sm text-muted">
+                        {t('messages.emptyChat')}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!messagesState.isLoading &&
+                  Boolean(messageSearchValue.trim()) &&
+                  !filteredMessages.length ? (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="max-w-sm rounded-lg border border-border bg-card px-5 py-6 text-center text-sm text-muted">
+                        {t('messages.noSearchResults')}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-4">
+                    {filteredMessages.map((message) => {
+                      const isMine =
+                        message.sender?.toString?.() === user.id || message.sender === user.id
+
+                      return (
+                        <MessageBubble
+                          key={message._id || `${message.sender}-${message.createdAt}`}
+                          message={message}
+                          isMine={isMine}
+                          isMenuOpen={openMessageMenuId === (message._id || message.id)}
+                          isEditing={editingMessageId === (message._id || message.id)}
+                          editingText={editingMessageText}
+                          onEditChange={setEditingMessageText}
+                          onEditCancel={handleCancelEditMessage}
+                          onEditSave={() => handleSaveEditedMessage(message)}
+                          onOpenMenu={() =>
+                            setOpenMessageMenuId((current) =>
+                              current === (message._id || message.id)
+                                ? ''
+                                : message._id || message.id,
+                            )
+                          }
+                          onCopy={() => handleCopyMessage(message)}
+                          onDelete={() => handleDeleteMessage(message)}
+                          onStartEdit={() => handleStartEditMessage(message)}
+                          onReport={setReportTarget}
+                          t={t}
+                          onOpenMedia={(items, index) =>
+                            setLightboxMedia({
+                              items,
+                              index,
+                            })
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div
+                  ref={composerRef}
+                  className={`border-t border-border bg-card px-4 ${
+                    isMobileViewport
+                      ? 'fixed inset-x-0 z-20 py-[7px]'
+                      : 'py-2 md:sticky md:bottom-0'
+                  }`}
+                  style={mobileComposerStyle}
+                >
+                  {sendError ? (
+                    <div className={`${isMobileViewport ? 'mx-1 mb-2 mt-2' : 'mb-3'} rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/30`}>
+                      {sendError}
+                    </div>
+                  ) : null}
+                  {isOptimizingMedia ? (
+                    <div className={`${isMobileViewport ? 'mx-1 mb-2 mt-2' : 'mb-3'} rounded-2xl border border-border bg-secondary px-4 py-2 text-xs text-muted`}>
+                      {t('messages.optimizingMedia')}
+                    </div>
+                  ) : null}
+
+                  {messagePreviews.length ? (
+                    <div className={`${isMobileViewport ? 'absolute bottom-[calc(100%+8px)] left-2 right-2 z-10 flex overflow-x-auto rounded-[18px] border border-border bg-[rgb(var(--color-card)/0.96)] px-2 py-2 shadow-lg backdrop-blur' : 'mb-3 flex flex-wrap gap-2'}`}>
+                      {messagePreviews.map((item) => (
+                        <div
+                          key={item.id}
+                          className="relative h-16 w-16 overflow-hidden rounded-[16px] border border-border bg-secondary"
+                        >
+                          {item.type === 'video' ? (
+                            <video
+                              src={item.url}
+                              className="h-full w-full object-cover"
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <img
+                              src={item.url}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removePreview(item.id)}
+                            className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/72 text-white transition hover:bg-black/85"
+                            aria-label={t('messages.removeMedia')}
+                            title={t('messages.removeMedia')}
+                          >
+                            <CloseIcon />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className={`rounded-lg border border-border bg-secondary shadow-sm transition mb-2 focus-within:border-border-strong focus-within:bg-card ${isMobileViewport ? 'min-h-[46px] px-3 py-0' : 'px-3 py-0'}`}>
+                    <div className="flex min-h-[42px] items-end gap-2">
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleSelectImages}
+                        className="hidden"
+                      />
+                      <input
+                        ref={videoInputRef}
+                        type="file"
+                        accept="video/*"
+                        onChange={handleSelectVideo}
+                        className="hidden"
+                      />
+
+                      <div className="relative flex items-center gap-1 pb-1" data-attachment-menu-shell="true">
+                        <button
+                          type="button"
+                          onClick={() => setShowAttachmentMenu((current) => !current)}
+                          disabled={!activePeer || isSending || isOptimizingMedia}
+                          className={`grid place-items-center rounded-full text-muted transition hover:bg-secondary-hover hover:text-text disabled:cursor-not-allowed disabled:opacity-40 ${
+                            isMobileViewport ? 'size-8' : 'size-11'
+                          }`}
+                          aria-label={t('messages.addMedia')}
+                          title={t('messages.addMedia')}
+                        >
+                          <PlusIcon />
+                        </button>
+
+                        {showAttachmentMenu ? (
+                          <div className="absolute bottom-[calc(100%+10px)] left-0 z-20 w-[170px] overflow-hidden rounded-[20px] border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAttachmentMenu(false)
+                                imageInputRef.current?.click()
+                              }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                            >
+                              <PhotoIcon />
+                              <span>{t('messages.photo')}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAttachmentMenu(false)
+                                videoInputRef.current?.click()
+                              }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                            >
+                              <VideoIcon />
+                              <span>{t('messages.video')}</span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <textarea
+                        ref={textareaRef}
+                        rows={1}
+                        value={messageDraft}
+                        onChange={(event) => setMessageDraft(event.target.value)}
+                        onKeyDown={handleMessageKeyDown}
+                        disabled={!activePeer || isOptimizingMedia}
+                        placeholder={t('messages.placeholder')}
+                        className={`max-h-[140px] flex-1 resize-none overflow-y-auto bg-transparent px-2 text-sm leading-6 text-text outline-none placeholder:text-muted disabled:cursor-not-allowed ${
+                          isMobileViewport ? 'min-h-[24px] py-[10px]' : 'min-h-[44px] py-2'
+                        }`}
+                      />
+
+                      <button
+                        type="button"
+                        onPointerDown={(event) => {
+                          if (isMobileViewport) {
+                            event.preventDefault()
+                          }
+                        }}
+                        onMouseDown={(event) => {
+                          if (isMobileViewport) {
+                            event.preventDefault()
+                          }
+                        }}
+                        onTouchStart={(event) => {
+                          if (isMobileViewport) {
+                            event.preventDefault()
+                          }
+                        }}
+                        onClick={handleSendMessage}
+                        disabled={
+                          !activePeer ||
+                          isSending ||
+                          isOptimizingMedia ||
+                          (!messageDraft.trim() && !messageFiles.length)
+                        }
+                        className={`grid place-items-center rounded-full transition ${
+                          !activePeer ||
+                          isSending ||
+                          isOptimizingMedia ||
+                          (!messageDraft.trim() && !messageFiles.length)
+                            ? 'cursor-not-allowed bg-secondary-hover text-soft'
+                            : 'bg-primary text-inverse hover:scale-[1.02] hover:bg-primary-hover'
+                        } ${isMobileViewport ? 'size-8 mb-1' : 'size-10 mb-1'}`}
+                        aria-label={t('messages.sendMessage')}
+                        title={t('messages.sendMessage')}
+                      >
+                        <SendIcon />
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </SocialLayout>
+
+      <ReportDialog
+        open={Boolean(reportTarget)}
+        targetKind={reportTarget?.kind}
+        targetId={reportTarget?.id}
+        title={t('messages.reportMessage')}
+        onClose={() => setReportTarget(null)}
+      />
+      <MediaLightbox
+        items={lightboxMedia?.items || []}
+        activeIndex={lightboxMedia?.index || 0}
+        onClose={() => setLightboxMedia(null)}
+        onNavigate={handleNavigateLightbox}
+        t={t}
+      />
+      <ActionToast toast={toast} onClose={() => setToast(null)} />
+    </>
+  )
+}
+
+export default MessagesPage

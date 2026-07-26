@@ -1,0 +1,14 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    env_file:
+      - ./minio.env
+    command: server /data --console-address ":9001"
+    volumes:
+      - /opt/minio/data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+

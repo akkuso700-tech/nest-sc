@@ -1,0 +1,8 @@
+storage.nest-sc.com {
+  reverse_proxy 127.0.0.1:9000
+}
+
+minio-panel.nest-sc.com {
+  reverse_proxy 127.0.0.1:9001
+}
+

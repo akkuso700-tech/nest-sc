@@ -1,0 +1,35 @@
+# Secrets / env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+**/*.log
+**/logs/
+**/dev-*.log
+**/preview-*.log
+**/python-frontend*.log
+
+# Dependencies / build
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Uploaded media (local/dev)
+my-social-1/backend/uploads/
+uploads/
+my-social-1/deploy/hostinger/artifacts/
+
+# Archives / temp
+*.rar
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+.codex/
+backend/public/
+deploy/hostinger/artifacts/
