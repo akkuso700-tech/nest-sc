@@ -86,6 +86,82 @@ function resolveConsentText(language, providedText = '') {
   return getConsentTextByLanguage(normalizeLanguage(language))
 }
 
+const passwordResetEmailContent = {
+  tr: {
+    subject: 'Nest Social sifre sifirlama baglantin',
+    title: 'Sifreni sifirla',
+    intro: 'Nest Social hesabinin sifresini yenilemek icin asagidaki baglantiyi kullan.',
+    action: 'Yeni sifre belirle',
+    expiry: 'Bu baglanti guvenlik nedeniyle sinirli bir sure boyunca gecerlidir.',
+    ignore: 'Bu istegi sen yapmadiysan bu e-postayi yok sayabilirsin.',
+  },
+  en: {
+    subject: 'Your Nest Social password reset link',
+    title: 'Reset your password',
+    intro: 'Use the link below to set a new password for your Nest Social account.',
+    action: 'Set a new password',
+    expiry: 'For security, this link is only valid for a limited time.',
+    ignore: 'If you did not request this, you can ignore this email.',
+  },
+  de: {
+    subject: 'Dein Link zum Zurucksetzen des Nest Social Passworts',
+    title: 'Passwort zurucksetzen',
+    intro: 'Verwende den folgenden Link, um ein neues Passwort fur dein Nest Social Konto festzulegen.',
+    action: 'Neues Passwort festlegen',
+    expiry: 'Aus Sicherheitsgrunden ist dieser Link nur fur begrenzte Zeit gultig.',
+    ignore: 'Wenn du diese Anfrage nicht gestellt hast, kannst du diese E-Mail ignorieren.',
+  },
+  es: {
+    subject: 'Tu enlace para restablecer la contrasena de Nest Social',
+    title: 'Restablece tu contrasena',
+    intro: 'Usa el siguiente enlace para crear una nueva contrasena para tu cuenta de Nest Social.',
+    action: 'Crear una nueva contrasena',
+    expiry: 'Por seguridad, este enlace solo es valido durante un tiempo limitado.',
+    ignore: 'Si no solicitaste este cambio, puedes ignorar este correo.',
+  },
+}
+const passwordResetRequestMessage =
+  'Eger bu e-posta adresiyle kayitli bir hesap varsa sifre sifirlama baglantisi gonderildi.'
+
+function buildPasswordResetUrl(resetToken, language = 'tr') {
+  const supportedLanguage = passwordResetEmailContent[language] ? language : 'tr'
+  const frontendOrigin = String(env.clientUrl).replace(/\/+$/, '')
+  const resetUrl = new URL(`/${supportedLanguage}/reset-password`, `${frontendOrigin}/`)
+  resetUrl.searchParams.set('token', resetToken)
+  return resetUrl.toString()
+}
+
+async function sendPasswordResetEmail({ to, resetToken, language = 'tr' }) {
+  const supportedLanguage = passwordResetEmailContent[language] ? language : 'tr'
+  const content = passwordResetEmailContent[supportedLanguage]
+  const resetUrl = buildPasswordResetUrl(resetToken, supportedLanguage)
+
+  await sendEmail({
+    to,
+    subject: content.subject,
+    text: [
+      content.title,
+      '',
+      content.intro,
+      resetUrl,
+      '',
+      content.expiry,
+      content.ignore,
+    ].join('\n'),
+    html: `<div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;line-height:1.55;color:#18181b;">
+      <h2 style="margin:0 0 12px 0;">${content.title}</h2>
+      <p style="margin:0 0 20px 0;">${content.intro}</p>
+      <p style="margin:0 0 20px 0;">
+        <a href="${resetUrl}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#18181b;color:#ffffff;text-decoration:none;font-weight:700;">
+          ${content.action}
+        </a>
+      </p>
+      <p style="margin:0 0 8px 0;color:#52525b;font-size:13px;">${content.expiry}</p>
+      <p style="margin:0;color:#52525b;font-size:13px;">${content.ignore}</p>
+    </div>`,
+  })
+}
+
 function resolveRequestGeoSummary(req) {
   const ipAddress = String(req.ip || req.headers['x-forwarded-for'] || '').split(',')[0].trim()
   const country =
@@ -770,22 +846,39 @@ const checkLoginIdentifier = asyncHandler(async (req, res) => {
 
 const requestPasswordReset = asyncHandler(async (req, res) => {
   const normalizedEmail = req.validated.body.email.toLowerCase()
+  const language = req.validated.body.language || 'tr'
+
+  if (env.emailProvider === 'disabled' && !env.isDevelopment) {
+    throw new AppError('Sifre sifirlama e-posta servisi gecici olarak kullanilamiyor.', 503)
+  }
+
   const user = await User.findOne({ email: normalizedEmail }).select(
     'email username accountStatus +passwordHash',
   )
 
   if (!user || user.accountStatus === 'suspended') {
     res.json({
-      message: 'Eger boyle bir hesap varsa sifre sifirlama adimlari hazirlandi.',
+      message: passwordResetRequestMessage,
     })
     return
   }
 
   const { resetToken } = createPasswordResetToken(user)
 
+  if (env.emailProvider !== 'disabled') {
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        resetToken,
+        language,
+      })
+    } catch (error) {
+      console.error('Failed to send password reset email:', error?.message || error)
+    }
+  }
+
   res.json({
-    message:
-      'Sifre sifirlama istegi alindi. Gercek e-posta servisi kurulunca bu hesaba sifirlama baglantisi gonderilecek.',
+    message: passwordResetRequestMessage,
     ...(env.isDevelopment ? { resetToken } : {}),
   })
 })

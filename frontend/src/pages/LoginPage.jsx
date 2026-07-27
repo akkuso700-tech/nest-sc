@@ -202,6 +202,7 @@ function LoginPage() {
           method: 'POST',
           body: JSON.stringify({
             email: forgotState.email.trim(),
+            language: lang,
           }),
         },
         { skipRefreshRetry: true },

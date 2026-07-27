@@ -51,6 +51,7 @@ const loginIdentifierSchema = z.object({
 const passwordResetRequestSchema = z.object({
   body: z.object({
     email: z.string().trim().email(),
+    language: z.enum(['tr', 'en', 'de', 'es']).default('tr'),
   }),
   params: z.object({}).default({}),
   query: z.object({}).default({}),
