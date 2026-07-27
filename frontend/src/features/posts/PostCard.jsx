@@ -586,7 +586,7 @@ function PostCard({
     [quickComments, replyTargetId],
   )
   const canSubmitComment = editingCommentId ? Boolean(commentDraft.trim()) : (Boolean(commentDraft.trim()) || Boolean(commentFile))
-  const isMobileCommentsPanel = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  const isMobileCommentsPanel = isMobileViewport
   const panelComments = quickComments
   const sortedPanelComments = useMemo(
     () => sortCommentsByMode(panelComments, commentSort),

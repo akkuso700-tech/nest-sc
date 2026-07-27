@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HashtagText from '../../components/common/HashtagText.jsx'
@@ -537,18 +538,24 @@ function QuickCommentsPanel({
     return null
   }
 
+  function handleClose(event) {
+    event.stopPropagation()
+    onClose()
+  }
+
   if (isMobile) {
-    return (
+    return createPortal(
       <div
         className={`fixed inset-0 z-[90] flex flex-col bg-card transition-all duration-300 md:hidden ${
           isMobileSheetVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
         }`}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
           <p className="text-sm font-semibold text-text">{t('common.comment')}</p>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="grid min-h-11 cursor-pointer min-w-11 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
             aria-label={t('common.close')}
           >
@@ -696,15 +703,19 @@ function QuickCommentsPanel({
         <div className="shrink-0 border-t border-border bg-card px-4 py-1.5 pb-[max(12px,env(safe-area-inset-bottom))]">
           {composer}
         </div>
-      </div>
+      </div>,
+      document.body,
     )
   }
 
-  return (
-    <div className="fixed inset-0 z-[75] hidden items-center justify-center p-4 md:flex">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[75] hidden items-center justify-center p-4 md:flex"
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
-        onClick={onClose}
+        onClick={handleClose}
         className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
         aria-label={t('common.close')}
       />
@@ -719,7 +730,7 @@ function QuickCommentsPanel({
           </p>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="grid min-h-11 min-w-11 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
             aria-label={t('common.close')}
           >
@@ -869,7 +880,8 @@ function QuickCommentsPanel({
           {composer}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
