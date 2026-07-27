@@ -14,6 +14,29 @@ const initialFilters = {
   limit: 15,
 }
 
+function MetadataCell({ metadata }) {
+  const entries = Object.entries(metadata || {})
+  if (!entries.length) return <span className="text-zinc-400">Ek veri yok</span>
+
+  return (
+    <details className="group max-w-[300px]">
+      <summary className="cursor-pointer list-none text-xs font-semibold text-blue-600">
+        {entries.length} alanı görüntüle
+      </summary>
+      <dl className="mt-2 space-y-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
+        {entries.map(([key, value]) => (
+          <div key={key} className="grid grid-cols-[88px_1fr] gap-2 text-[11px]">
+            <dt className="truncate font-semibold text-zinc-500" title={key}>{key}</dt>
+            <dd className="break-words text-zinc-700">
+              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  )
+}
+
 function AdminAuditLogsPage() {
   const [filters, setFilters] = useState(initialFilters)
   const [draftFilters, setDraftFilters] = useState(initialFilters)
@@ -57,7 +80,7 @@ function AdminAuditLogsPage() {
           items: [],
           pagination: null,
           isLoading: false,
-          error: error.message || 'Islem kayitlari yuklenemedi.',
+          error: error.message || 'İşlem kayıtları yüklenemedi.',
         })
       }
     }
@@ -92,7 +115,7 @@ function AdminAuditLogsPage() {
   if (state.isLoading) {
     return (
       <div className="rounded-[28px] border border-zinc-200 bg-white px-5 py-6 text-sm text-zinc-500 shadow-sm">
-        Islem kayitlari yukleniyor...
+        İşlem kayıtları yükleniyor...
       </div>
     )
   }
@@ -210,7 +233,7 @@ function AdminAuditLogsPage() {
             onClick={handleResetFilters}
             className="flex-1 rounded-full border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700"
           >
-            Sifirla
+            Sıfırla
           </button>
         </div>
       </form>
@@ -221,11 +244,11 @@ function AdminAuditLogsPage() {
             <thead className="bg-zinc-50 text-xs uppercase tracking-[0.18em] text-zinc-400">
               <tr>
                 <th className="px-5 py-4">Zaman</th>
-                <th className="px-5 py-4">Islemi Yapan</th>
-                <th className="px-5 py-4">Islem</th>
+                <th className="px-5 py-4">İşlemi Yapan</th>
+                <th className="px-5 py-4">İşlem</th>
                 <th className="px-5 py-4">Hedef</th>
-                <th className="px-5 py-4">Ozet</th>
-                <th className="px-5 py-4">Meta Veri</th>
+                <th className="px-5 py-4">Özet</th>
+                <th className="px-5 py-4">Değişiklikler</th>
               </tr>
             </thead>
             <tbody>
@@ -253,11 +276,7 @@ function AdminAuditLogsPage() {
                   <td className="px-5 py-4 text-sm text-zinc-600">
                     {log.summary || '-'}
                   </td>
-                  <td className="px-5 py-4 text-xs text-zinc-500">
-                    <pre className="max-w-[280px] whitespace-pre-wrap break-words font-mono">
-                      {JSON.stringify(log.metadata || {}, null, 2)}
-                    </pre>
-                  </td>
+                  <td className="px-5 py-4 text-xs text-zinc-500"><MetadataCell metadata={log.metadata} /></td>
                 </tr>
               ))}
             </tbody>
@@ -276,7 +295,7 @@ function AdminAuditLogsPage() {
                 disabled={!state.pagination.hasPrevPage}
                 className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
               >
-                Onceki
+                Önceki
               </button>
               <button
                 type="button"

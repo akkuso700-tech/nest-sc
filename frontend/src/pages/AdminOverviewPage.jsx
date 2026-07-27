@@ -1,310 +1,228 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { getAdminOverview, getAdminPerformanceSummary } from '../services/adminService.js'
 
-function MetricCard({ label, value, helper }) {
+function formatNumber(value, compact = false) {
+  return new Intl.NumberFormat('tr-TR', compact ? { notation: 'compact', maximumFractionDigits: 1 } : {}).format(Number(value || 0))
+}
+
+function formatPercent(value, digits = 1) {
+  return `%${Number(value || 0).toFixed(digits)}`
+}
+
+function KpiCard({ label, value, helper, tone = 'blue', progress }) {
   return (
-    <article className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-bold tracking-tight text-zinc-950">{value}</p>
-      <p className="mt-2 text-sm text-zinc-500">{helper}</p>
+    <article className="overview-kpi-card">
+      <div className={`overview-kpi-icon is-${tone}`}>{label.slice(0, 2).toUpperCase()}</div>
+      <div className="overview-kpi-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{helper}</small>
+        {typeof progress === 'number' ? (
+          <div className="overview-progress" aria-label={`${label} ${progress.toFixed(1)} yüzde`}>
+            <i style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }} />
+          </div>
+        ) : null}
+      </div>
     </article>
   )
 }
 
-function formatPercent(value) {
-  const numericValue = Number(value || 0)
-  return `${numericValue.toFixed(2)}%`
-}
-
-function formatDecimal(value, digits = 2) {
-  const numericValue = Number(value || 0)
-  return numericValue.toFixed(digits)
-}
-
-function formatWebVitalValue(metric) {
-  if (!metric || metric.p75 === null || typeof metric.p75 === 'undefined') return '-'
-  return metric.name === 'CLS' ? formatDecimal(metric.p75, 3) : `${metric.p75} ms`
-}
-
-function formatWebVitalRating(rating) {
-  if (rating === 'good') return 'Iyi'
-  if (rating === 'needs-improvement') return 'Iyilestirilmeli'
-  if (rating === 'poor') return 'Zayif'
-  return 'Veri bekleniyor'
-}
-
-function BreakdownList({ title, items, emptyLabel = 'Henuz veri yok.' }) {
+function Panel({ title, subtitle, action, children, className = '' }) {
   return (
-    <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-zinc-950">{title}</h2>
-      <div className="mt-4 space-y-3">
-        {items.length ? (
-          items.map((item) => (
-            <div
-              key={`${item._id || 'unknown'}-${item.count}`}
-              className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3"
-            >
-              <span className="text-sm font-medium text-zinc-700">
-                {item._id || 'Unknown'}
-              </span>
-              <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-semibold text-white">
-                {item.count}
-              </span>
-            </div>
-          ))
-        ) : (
-          <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-5 text-sm text-zinc-500">
-            {emptyLabel}
-          </div>
-        )}
-      </div>
+    <section className={`overview-panel ${className}`}>
+      <header className="overview-panel-header">
+        <div><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div>
+        {action}
+      </header>
+      {children}
     </section>
   )
 }
 
+function EmptyState({ children }) {
+  return <div className="overview-empty">{children}</div>
+}
+
 function AdminOverviewPage() {
-  const [state, setState] = useState({
-    data: null,
-    isLoading: true,
-    error: '',
-  })
+  const { lang = 'tr' } = useParams()
+  const [state, setState] = useState({ data: null, loading: true, error: '' })
 
   useEffect(() => {
     let cancelled = false
-
-    async function loadOverview() {
-      setState({
-        data: null,
-        isLoading: true,
-        error: '',
+    Promise.all([
+      getAdminOverview(),
+      getAdminPerformanceSummary({ days: 7 }).catch(() => ({ totalSamples: 0, metrics: [], routes: [] })),
+    ])
+      .then(([overview, performance]) => {
+        if (!cancelled) setState({ data: { ...overview, performance }, loading: false, error: '' })
       })
-
-      try {
-        const [payload, webVitals] = await Promise.all([
-          getAdminOverview(),
-          getAdminPerformanceSummary({ days: 7 }).catch(() => ({
-            periodDays: 7,
-            totalSamples: 0,
-            metrics: [],
-            routes: [],
-          })),
-        ])
-
-        if (cancelled) {
-          return
-        }
-
-        setState({
-          data: { ...payload, webVitals },
-          isLoading: false,
-          error: '',
-        })
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-
-        setState({
-          data: null,
-          isLoading: false,
-          error: error.message || 'Genel bakis verileri yuklenemedi.',
-        })
-      }
-    }
-
-    loadOverview()
-
-    return () => {
-      cancelled = true
-    }
+      .catch((error) => {
+        if (!cancelled) setState({ data: null, loading: false, error: error.message || 'Yönetim analizleri yüklenemedi.' })
+      })
+    return () => { cancelled = true }
   }, [])
 
-  if (state.isLoading) {
+  const derived = useMemo(() => {
+    const data = state.data
+    if (!data) return null
+    const totalUsers = Number(data.metrics?.totalUsers || 0)
+    const weeklyActive = Number(data.metrics?.weeklyActiveUsers || 0)
+    const monthlyActive = Number(data.metrics?.activeUsers || 0)
+    const openReports = Number(data.moderationSummary?.openReports || 0) + Number(data.moderationSummary?.inReviewReports || 0)
+    const totalInteractions = ['likes', 'comments', 'shares', 'saves'].reduce((total, key) => total + Number(data.contentEngagement?.[key] || 0), 0)
+    const registrations = data.latestRegistrations || []
+    const newRegistrations = registrations.reduce((total, item) => total + Number(item.count || 0), 0)
+    return {
+      totalUsers,
+      weeklyActive,
+      monthlyActive,
+      openReports,
+      totalInteractions,
+      newRegistrations,
+      activationRate: totalUsers ? (weeklyActive / totalUsers) * 100 : 0,
+      monthlyRate: totalUsers ? (monthlyActive / totalUsers) * 100 : 0,
+      locationConsentRate: totalUsers ? (Number(data.moderationSummary?.usersWithLocationConsent || 0) / totalUsers) * 100 : 0,
+      maxRegistration: Math.max(...registrations.map((item) => Number(item.count || 0)), 1),
+    }
+  }, [state.data])
+
+  if (state.loading) {
     return (
-      <div className="rounded-[28px] border border-zinc-200 bg-white px-5 py-6 text-sm text-zinc-500 shadow-sm">
-        Yonetim analizleri yukleniyor...
+      <div className="overview-loading" aria-busy="true">
+        {Array.from({ length: 8 }, (_, index) => <div key={index} />)}
       </div>
     )
   }
 
-  if (state.error) {
-    return (
-      <div className="rounded-[28px] border border-rose-200 bg-rose-50 px-5 py-6 text-sm text-rose-600 shadow-sm">
-        {state.error}
-      </div>
-    )
-  }
+  if (state.error) return <div className="overview-error">{state.error}</div>
 
-  const {
-    metrics,
-    moderationSummary,
-    roleBreakdown,
-    countryBreakdown,
-    cityBreakdown,
-    latestRegistrations,
-    contentEngagement,
-    loopQuality,
-    webVitals,
-  } = state.data
-  const webVitalMetrics = new Map(
-    (webVitals?.metrics || []).map((metric) => [metric.name, metric]),
-  )
-  const maxRegistrationCount = Math.max(
-    ...latestRegistrations.map((item) => item.count),
-    1,
-  )
+  const { metrics, moderationSummary, roleBreakdown = [], countryBreakdown = [], latestRegistrations = [], contentEngagement = {}, loopQuality = {}, performance = {} } = state.data
+  const vitalMap = new Map((performance.metrics || []).map((metric) => [metric.name, metric]))
+  const rolesTotal = Math.max(roleBreakdown.reduce((total, item) => total + Number(item.count || 0), 0), 1)
+  const roleColors = ['#2563eb', '#7c3aed', '#0ea5e9', '#14b8a6']
+  let roleOffset = 0
+  const roleGradient = roleBreakdown.length
+    ? `conic-gradient(${roleBreakdown.map((item, index) => {
+        const start = roleOffset
+        roleOffset += (Number(item.count || 0) / rolesTotal) * 100
+        return `${roleColors[index % roleColors.length]} ${start}% ${roleOffset}%`
+      }).join(',')})`
+    : '#e2e8f0'
 
   return (
-    <div className="space-y-5">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <MetricCard label="Toplam Kullanici" value={metrics.totalUsers} helper="Platform genelindeki kayitli hesaplar." />
-        <MetricCard label="30 Gun Aktif" value={metrics.activeUsers} helper="Son 30 gunde giris yapan kullanicilar." />
-        <MetricCard label="7 Gun Aktif" value={metrics.weeklyActiveUsers} helper="Kisa vadeli saglik icin haftalik aktif hesaplar." />
-        <MetricCard label="Gonderiler" value={metrics.totalPosts} helper="Sistemde tutulan yayinlanmis icerikler." />
-        <MetricCard label="Mesajlar" value={metrics.totalMessages} helper="Yonetim kayitlarinda saklanan direkt mesajlar." />
-        <MetricCard label="Bildirimler" value={metrics.totalNotifications} helper="Kullanici aksiyonlariyla olusan sistem bildirimleri." />
-        <MetricCard label="Konum Izni Verenler" value={moderationSummary.usersWithLocationConsent} helper="Yakindaki kisiler icin yaklasik konum paylasan hesaplar." />
-        <MetricCard label="Yaklasik Konum Kaydi" value={moderationSummary.usersWithApproxLocation} helper="Sistemde son yaklasik konumu tutulan hesaplar." />
-        <MetricCard label="Yakindaki Kisi Kullanimi" value={moderationSummary.nearbyDiscoveryUsageTotal} helper="Yakindaki kisiler modunun toplam kullanim sayisi." />
+    <div className="admin-overview">
+      <section className="overview-kpi-grid">
+        <KpiCard label="Toplam kullanıcı" value={formatNumber(derived.totalUsers)} helper={`${formatNumber(derived.newRegistrations)} yeni kayıt · 30 gün`} tone="blue" />
+        <KpiCard label="Haftalık aktif" value={formatNumber(derived.weeklyActive)} helper={`${formatPercent(derived.activationRate)} aktivasyon oranı`} progress={derived.activationRate} tone="green" />
+        <KpiCard label="Toplam içerik" value={formatNumber(metrics.totalPosts)} helper={`${formatNumber(derived.totalInteractions, true)} toplam etkileşim`} tone="purple" />
+        <KpiCard label="Açık rapor" value={formatNumber(derived.openReports)} helper={`${formatNumber(moderationSummary.suspendedUsers)} askıdaki hesap`} tone={derived.openReports ? 'orange' : 'green'} />
       </section>
 
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-950">Gercek Kullanici Performansi</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Son 7 gunun p75 Web Vitals degerleri; toplam {webVitals?.totalSamples || 0} olcum.
-            </p>
-          </div>
-          <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
-            Anonim RUM
-          </span>
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {['LCP', 'INP', 'CLS', 'FCP', 'TTFB'].map((metricName) => {
-            const metric = webVitalMetrics.get(metricName)
-            return (
-              <MetricCard
-                key={metricName}
-                label={`${metricName} p75`}
-                value={formatWebVitalValue(metric)}
-                helper={`${formatWebVitalRating(metric?.rating)} · ${metric?.samples || 0} ornek`}
-              />
-            )
-          })}
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <MetricCard
-          label="Loop Videolari"
-          value={loopQuality?.totalLoops || 0}
-          helper="Sistemde loop tipinde yayinda olan toplam video sayisi."
-        />
-        <MetricCard
-          label="Loop Completion Rate"
-          value={formatPercent(loopQuality?.completionRate)}
-          helper="Izlemelerin tamamlama oranini gosterir."
-        />
-        <MetricCard
-          label="Replay / View"
-          value={formatDecimal(loopQuality?.replayPerView, 3)}
-          helper="Her izlenme basina ortalama tekrar izleme seviyesi."
-        />
-        <MetricCard
-          label="Ortalama Izleme Orani"
-          value={formatPercent((loopQuality?.avgWatchRatio || 0) * 100)}
-          helper="Loop sinyallerindeki ortalama izleme ilerleme orani."
-        />
-        <MetricCard
-          label="Ortalama Kaydirma Hizi"
-          value={`${formatDecimal(loopQuality?.avgSwipeVelocity, 2)} px/s`}
-          helper="Kullanici loop kartini ne kadar hizli kaydirdigini gosterir."
-        />
-        <MetricCard
-          label="Loop Izleme Sinyali"
-          value={loopQuality?.signals || 0}
-          helper="Siralama algoritmasinda kullanilan toplam loop sinyal sayisi."
-        />
-        <MetricCard
-          label="Ort. Gorunurluk Suresi"
-          value={`${loopQuality?.avgVisibleMs || 0} ms`}
-          helper="Loop videonun ekranda gorunur kaldigi ortalama sure."
-        />
-        <MetricCard
-          label="Sinyal Kapsami"
-          value={formatPercent(loopQuality?.signalCoverage)}
-          helper="Toplam izlenmeye gore ranking sinyali toplanma orani."
-        />
-        <MetricCard
-          label="Ranking Guven Skoru"
-          value={formatPercent(loopQuality?.rankingConfidenceScore)}
-          helper="Algoritmanin yeterli veriyle karar verme guven seviyesi."
-        />
-        <MetricCard
-          label="Gizlenen Loop"
-          value={loopQuality?.hiddenLoops || 0}
-          helper="Moderasyonda gizli durumda kalan loop icerikleri."
-        />
-        <MetricCard
-          label="Kaldirilan Loop"
-          value={loopQuality?.removedLoops || 0}
-          helper="Moderasyonla kaldirilan loop iceriklerinin adedi."
-        />
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <MetricCard label="Askidaki Kullanicilar" value={moderationSummary.suspendedUsers} helper="Giris yapmasi engellenmis hesaplar." />
-        <MetricCard label="Gizlenen Gonderiler" value={moderationSummary.hiddenPosts} helper="Geri alinabilir ama normal kullanicidan gizlenmis gonderiler." />
-        <MetricCard label="Kaldirilan Gonderiler" value={moderationSummary.removedPosts} helper="Moderatorden kaldirildi olarak isaretlenen gonderiler." />
-        <MetricCard label="Gizlenen Yorumlar" value={moderationSummary.hiddenComments} helper="Akislarda su an gizli olan yorumlar." />
-        <MetricCard label="Kaldirilan Yorumlar" value={moderationSummary.removedComments} helper="Kaldirildi olarak isaretlenen yorumlar." />
-        <MetricCard label="Acik Raporlar" value={moderationSummary.openReports + moderationSummary.inReviewReports} helper="Acik ve incelemede durumundaki tum raporlar." />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-950">Kayit Trendi</h2>
-          <div className="mt-5 space-y-3">
-            {latestRegistrations.length ? (
-              latestRegistrations.map((entry) => (
-                <div key={entry._id} className="grid grid-cols-[110px_1fr_54px] items-center gap-3">
-                  <span className="text-sm font-medium text-zinc-500">{entry._id}</span>
-                  <div className="h-3 overflow-hidden rounded-full bg-zinc-100">
-                    <div
-                      className="h-full rounded-full bg-zinc-950"
-                      style={{ width: `${Math.max((entry.count / maxRegistrationCount) * 100, 8)}%` }}
-                    />
-                  </div>
-                  <span className="text-right text-sm font-semibold text-zinc-900">{entry.count}</span>
+      <div className="overview-primary-grid">
+        <Panel
+          title="Kayıt trendi"
+          subtitle="Son 30 gündeki günlük yeni üyelikler"
+          action={<span className="overview-live-pill"><i /> Canlı veri</span>}
+          className="overview-registration-panel"
+        >
+          {latestRegistrations.length ? (
+            <div className="overview-bar-chart" aria-label="Günlük kayıt grafiği">
+              {latestRegistrations.map((item, index) => (
+                <div className="overview-bar-column" key={item._id} title={`${item._id}: ${item.count} kayıt`}>
+                  <span>{item.count}</span>
+                  <i style={{ height: `${Math.max((Number(item.count || 0) / derived.maxRegistration) * 100, 6)}%` }} />
+                  {(index === 0 || index === latestRegistrations.length - 1 || index % 5 === 0) ? <small>{`${item._id}`.slice(5)}</small> : <small />}
                 </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-zinc-200 px-4 py-5 text-sm text-zinc-500">
-                Henuz yeterli kayit gecmisi yok.
+              ))}
+            </div>
+          ) : <EmptyState>Henüz kayıt trendi oluşturacak veri yok.</EmptyState>}
+        </Panel>
+
+        <Panel title="Kullanıcı sağlığı" subtitle="Aktiflik ve izin kapsamı">
+          <div className="overview-health-list">
+            {[
+              ['30 günlük aktiflik', derived.monthlyRate, `${formatNumber(derived.monthlyActive)} kullanıcı`],
+              ['7 günlük aktivasyon', derived.activationRate, `${formatNumber(derived.weeklyActive)} kullanıcı`],
+              ['Konum izni kapsamı', derived.locationConsentRate, `${formatNumber(moderationSummary.usersWithLocationConsent)} kullanıcı`],
+            ].map(([label, value, helper]) => (
+              <div key={label} className="overview-health-item">
+                <div><strong>{label}</strong><span>{helper}</span></div><b>{formatPercent(value)}</b>
+                <div className="overview-health-track"><i style={{ width: `${Math.min(value, 100)}%` }} /></div>
               </div>
-            )}
+            ))}
           </div>
-        </section>
+          <Link to={`/${lang}/admin/users`} className="overview-panel-link">Kullanıcı operasyonlarını aç →</Link>
+        </Panel>
+      </div>
 
-        <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-zinc-950">Icerik Etkilesimi</h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <MetricCard label="Begeni" value={contentEngagement.likes} helper="Toplam gonderi begenisi." />
-            <MetricCard label="Yorum" value={contentEngagement.comments} helper="Toplam gonderi yorumu." />
-            <MetricCard label="Paylasim" value={contentEngagement.shares} helper="Toplam gonderi paylasimi." />
-            <MetricCard label="Kaydetme" value={contentEngagement.saves} helper="Toplam gonderi kaydetme sayisi." />
+      <div className="overview-secondary-grid">
+        <Panel title="Etkileşim dağılımı" subtitle="Platform genelindeki içerik aksiyonları">
+          <div className="overview-engagement-list">
+            {[
+              ['Beğeni', contentEngagement.likes, '#2563eb'],
+              ['Yorum', contentEngagement.comments, '#7c3aed'],
+              ['Paylaşım', contentEngagement.shares, '#0ea5e9'],
+              ['Kaydetme', contentEngagement.saves, '#14b8a6'],
+            ].map(([label, value, color]) => {
+              const percent = derived.totalInteractions ? (Number(value || 0) / derived.totalInteractions) * 100 : 0
+              return <div key={label}><span><i style={{ background: color }} />{label}</span><strong>{formatNumber(value)}</strong><small>{formatPercent(percent)}</small></div>
+            })}
           </div>
-        </section>
-      </section>
+        </Panel>
 
-      <section className="grid gap-5 lg:grid-cols-3">
-        <BreakdownList title="Rol Dagilimi" items={roleBreakdown} />
-        <BreakdownList title="Ulke Dagilimi" items={countryBreakdown.slice(0, 10)} />
-        <BreakdownList title="Sehir Dagilimi" items={cityBreakdown.slice(0, 10)} />
-      </section>
+        <Panel title="Rol dağılımı" subtitle={`${formatNumber(derived.totalUsers)} kayıtlı hesap`}>
+          <div className="overview-role-layout">
+            <div className="overview-donut" style={{ background: roleGradient }}><span><strong>{formatNumber(derived.totalUsers)}</strong><small>hesap</small></span></div>
+            <div className="overview-role-legend">
+              {roleBreakdown.map((item, index) => <div key={item._id || index}><i style={{ background: roleColors[index % roleColors.length] }} /><span>{item._id || 'Belirsiz'}</span><strong>{formatNumber(item.count)}</strong></div>)}
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="Moderasyon yükü" subtitle="Güncel müdahale görünümü">
+          <div className="overview-moderation-list">
+            {[
+              ['Gizlenen gönderi', moderationSummary.hiddenPosts, 'warning'],
+              ['Kaldırılan gönderi', moderationSummary.removedPosts, 'danger'],
+              ['Gizlenen yorum', moderationSummary.hiddenComments, 'warning'],
+              ['Kaldırılan yorum', moderationSummary.removedComments, 'danger'],
+            ].map(([label, value, tone]) => <div key={label}><span><i className={`is-${tone}`} />{label}</span><strong>{formatNumber(value)}</strong></div>)}
+          </div>
+          <Link to={`/${lang}/admin/reports`} className="overview-panel-link">Moderasyon kuyruğunu aç →</Link>
+        </Panel>
+      </div>
+
+      <div className="overview-primary-grid overview-bottom-grid">
+        <Panel title="Gerçek kullanıcı performansı" subtitle={`Son 7 gün · ${formatNumber(performance.totalSamples)} anonim ölçüm`}>
+          <div className="overview-vitals-grid">
+            {['LCP', 'INP', 'CLS', 'FCP', 'TTFB'].map((name) => {
+              const metric = vitalMap.get(name)
+              const value = metric?.p75 === null || metric?.p75 === undefined ? '—' : name === 'CLS' ? Number(metric.p75).toFixed(3) : `${metric.p75} ms`
+              const rating = metric?.rating || 'waiting'
+              const labels = { good: 'İyi', 'needs-improvement': 'İyileştirilmeli', poor: 'Zayıf', waiting: 'Veri bekleniyor' }
+              return <article key={name}><span>{name} p75</span><strong>{value}</strong><small className={`is-${rating}`}>{labels[rating] || labels.waiting}</small></article>
+            })}
+          </div>
+        </Panel>
+
+        <Panel title="Loop kalite sinyalleri" subtitle={`${formatNumber(loopQuality.totalLoops)} yayınlanmış loop`}>
+          <div className="overview-loop-grid">
+            <div><span>Tamamlama</span><strong>{formatPercent(loopQuality.completionRate)}</strong></div>
+            <div><span>Ortalama izleme</span><strong>{formatPercent(Number(loopQuality.avgWatchRatio || 0) * 100)}</strong></div>
+            <div><span>Sinyal kapsamı</span><strong>{formatPercent(loopQuality.signalCoverage)}</strong></div>
+            <div><span>Güven skoru</span><strong>{formatPercent(loopQuality.rankingConfidenceScore)}</strong></div>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Öne çıkan ülkeler" subtitle="Kullanıcı profil konumlarına göre ilk 10 ülke">
+        {countryBreakdown.length ? (
+          <div className="overview-country-grid">
+            {countryBreakdown.slice(0, 10).map((item, index) => <div key={`${item._id}-${index}`}><span>{index + 1}</span><strong>{item._id || 'Belirsiz'}</strong><b>{formatNumber(item.count)}</b></div>)}
+          </div>
+        ) : <EmptyState>Ülke dağılımı için henüz yeterli profil verisi yok.</EmptyState>}
+      </Panel>
     </div>
   )
 }

@@ -4,14 +4,14 @@ function BulkActionBar({ count, label, onClear, actions = [] }) {
   }
 
   return (
-    <div className="sticky top-[84px] z-20 rounded-[24px] border border-zinc-900 bg-zinc-950 px-4 py-4 text-white shadow-lg">
+    <div className="sticky top-[84px] z-30 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-white shadow-[0_18px_40px_rgba(15,23,42,0.22)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">
-            {count} {label} secildi
+            {count} {label} seçildi
           </p>
           <p className="mt-1 text-xs text-zinc-300">
-            Secili kayitlara toplu moderasyon uygulayabilir veya secimi temizleyebilirsin.
+            Seçili kayıtlara toplu işlem uygulayabilir veya seçimi temizleyebilirsiniz.
           </p>
         </div>
 
@@ -22,7 +22,7 @@ function BulkActionBar({ count, label, onClear, actions = [] }) {
               type="button"
               onClick={action.onClick}
               disabled={action.disabled}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${
+              className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 action.tone === 'danger'
                   ? 'bg-rose-500 text-white'
                   : action.tone === 'success'
@@ -36,7 +36,7 @@ function BulkActionBar({ count, label, onClear, actions = [] }) {
           <button
             type="button"
             onClick={onClear}
-            className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg border border-white/20 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
           >
             Temizle
           </button>
