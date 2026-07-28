@@ -83,6 +83,22 @@ const userSchema = new mongoose.Schema(
       default: 'active',
       index: true,
     },
+    verification: {
+      status: {
+        type: String,
+        enum: ['none', 'pending', 'in_review', 'needs_info', 'approved', 'rejected', 'revoked'],
+        default: 'none',
+        index: true,
+      },
+      category: {
+        type: String,
+        enum: ['individual', 'creator', 'business', 'organization', 'public_figure'],
+        default: 'individual',
+      },
+      verifiedAt: { type: Date, default: null },
+      verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      updatedAt: { type: Date, default: null },
+    },
     moderation: {
       reason: { type: String, trim: true, default: '' },
       actionedAt: { type: Date, default: null },

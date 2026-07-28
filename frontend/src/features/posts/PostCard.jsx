@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import ActionToast from '../../components/feedback/ActionToast.jsx'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
 import HashtagText from '../../components/common/HashtagText.jsx'
+import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import {
   createComment,
   deleteComment,
@@ -1897,8 +1898,9 @@ function PostCard({
                       to={`/${lang}/u/${author.username || ''}`}
                       className="min-w-0"
                     >
-                      <span className="block truncate font-semibold text-base">
-                        {author.name || getFullName(author)}
+                      <span className="flex min-w-0 items-center gap-1.5 font-semibold text-base">
+                        <span className="truncate">{author.name || getFullName(author)}</span>
+                        <VerifiedBadge user={author} />
                       </span>
                     </Link>
                   </div>
@@ -2164,7 +2166,10 @@ function PostCard({
                                   textClassName="text-[11px] font-semibold"
                                 />
                               </div>
-                              <span className="truncate text-white/90">{author.name || getFullName(author)}</span>
+                              <span className="flex min-w-0 items-center gap-1 text-white/90">
+                                <span className="truncate">{author.name || getFullName(author)}</span>
+                                <VerifiedBadge user={author} size="xs" />
+                              </span>
                             </Link>
                             {canFollowAuthor ? (
                               <button

@@ -237,7 +237,7 @@ async function getStoryById(storyId) {
 
   const story = await Post.findById(storyId).populate(
     'author',
-    'firstName lastName username avatarUrl',
+    'firstName lastName username avatarUrl verification',
   )
 
   if (!story || story.contentType !== 'story') {
@@ -336,7 +336,7 @@ const createStory = asyncHandler(async (req, res) => {
 
     const populatedStory = await Post.findById(story._id).populate(
       'author',
-      'firstName lastName username avatarUrl',
+      'firstName lastName username avatarUrl verification',
     )
 
     try {
@@ -370,7 +370,7 @@ const listStoryRails = asyncHandler(async (req, res) => {
   const stories = await Post.find(filter)
     .sort({ createdAt: -1 })
     .limit(limit * 10)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
 
   const groupedMap = new Map()
 
@@ -434,7 +434,7 @@ const listStoryRails = asyncHandler(async (req, res) => {
 
 const getStoriesByUsername = asyncHandler(async (req, res) => {
   const username = req.validated?.params?.username?.toLowerCase()
-  const targetUser = await User.findOne({ username }).select('_id firstName lastName username avatarUrl friendIds')
+  const targetUser = await User.findOne({ username }).select('_id firstName lastName username avatarUrl friendIds verification')
 
   if (!targetUser) {
     throw new AppError('User not found.', 404)
@@ -446,7 +446,7 @@ const getStoriesByUsername = asyncHandler(async (req, res) => {
 
   const stories = await Post.find(filter)
     .sort({ createdAt: 1 })
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
 
   const viewedStorySet = await buildViewedStorySet(stories.map((story) => story._id.toString()), req)
 
@@ -549,7 +549,7 @@ const getStoryViewers = asyncHandler(async (req, res) => {
 
   const orderedViewerIds = [...latestViewerMap.keys()]
   const users = await User.find({ _id: { $in: orderedViewerIds } })
-    .select('firstName lastName username avatarUrl')
+    .select('firstName lastName username avatarUrl verification')
     .lean()
 
   const usersMap = new Map(users.map((user) => [user._id.toString(), normalizeUserMedia(user)]))

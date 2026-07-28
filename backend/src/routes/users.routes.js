@@ -14,6 +14,10 @@ const {
   toggleFollowByUsername,
   changeMyPassword,
   deleteMyAccount,
+  getMyVerificationRequest,
+  createMyVerificationRequest,
+  updateMyVerificationRequest,
+  withdrawMyVerificationRequest,
 } = require('../controllers/usersController')
 const {
   getProfileSchema,
@@ -26,6 +30,8 @@ const {
   updateProfileSchema,
   changePasswordSchema,
   deleteAccountSchema,
+  createVerificationRequestSchema,
+  updateVerificationRequestSchema,
 } = require('../validators/userValidators')
 
 const usersRouter = express.Router()
@@ -55,6 +61,20 @@ usersRouter.post(
   updateDiscoveryLocation,
 )
 usersRouter.get('/me/profile', authenticate, getMyProfile)
+usersRouter.get('/me/verification-request', authenticate, getMyVerificationRequest)
+usersRouter.post(
+  '/me/verification-requests',
+  authenticate,
+  validateRequest(createVerificationRequestSchema),
+  createMyVerificationRequest,
+)
+usersRouter.patch(
+  '/me/verification-request',
+  authenticate,
+  validateRequest(updateVerificationRequestSchema),
+  updateMyVerificationRequest,
+)
+usersRouter.delete('/me/verification-request', authenticate, withdrawMyVerificationRequest)
 usersRouter.get(
   '/me/:connectionType',
   authenticate,

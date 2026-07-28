@@ -10,6 +10,7 @@ import {
   toggleFollowByUsername,
 } from '../services/usersService.js'
 import { formatLocation, getAvatarLabel, getFullName } from '../utils/social.js'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 
 function SearchIcon() {
@@ -71,7 +72,7 @@ function ConnectionCard({ item, lang, isAuthenticated, onToggleFollow, pendingUs
         <div className="min-w-0 flex-1">
           <Link to={`/${lang}/u/${profileUser.username}`} className="block transition hover:opacity-80">
             <h2 className="truncate text-base font-semibold text-zinc-950 dark:text-white">
-              {getFullName(profileUser)}
+              <span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{getFullName(profileUser)}</span><VerifiedBadge user={profileUser} /></span>
             </h2>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
               @{profileUser.username}

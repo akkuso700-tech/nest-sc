@@ -31,6 +31,28 @@ export function getAdminUsers(params = {}) {
   return apiRequest(`/admin/users${buildQuery(params)}`)
 }
 
+export function getAdminVerificationRequests(params = {}) {
+  return apiRequest(`/admin/verification-requests${buildQuery(params)}`)
+}
+
+export function getAdminVerificationRequest(requestId) {
+  return apiRequest(`/admin/verification-requests/${requestId}`)
+}
+
+export function updateAdminVerificationRequestStatus(requestId, payload) {
+  return apiRequest(`/admin/verification-requests/${requestId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function revokeAdminUserVerification(userId, reason) {
+  return apiRequest(`/admin/users/${userId}/verification/revoke`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reason }),
+  })
+}
+
 export function getAdminUsersSummary(params = {}) {
   return apiRequest(`/admin/users/summary${buildQuery(params)}`)
 }

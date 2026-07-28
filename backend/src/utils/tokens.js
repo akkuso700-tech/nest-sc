@@ -78,6 +78,13 @@ function serializeUser(user) {
     location: user.location,
     role: user.role,
     accountStatus: user.accountStatus,
+    verification: {
+      isVerified: user.verification?.status === 'approved',
+      category:
+        user.verification?.status === 'approved'
+          ? user.verification?.category || 'individual'
+          : null,
+    },
     moderation: user.moderation,
     bio: user.bio,
     avatarUrl: normalizeMediaUrl(user.avatarUrl, {

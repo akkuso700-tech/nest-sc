@@ -9,6 +9,7 @@ const { Report } = require('../models/Report')
 const { AuditLog } = require('../models/AuditLog')
 const { LocationConsentLog } = require('../models/LocationConsentLog')
 const { EmailVerificationToken } = require('../models/EmailVerificationToken')
+const { VerificationRequest } = require('../models/VerificationRequest')
 const {
   getSignupNotificationEmails,
   updateSignupNotificationEmails,
@@ -867,6 +868,189 @@ const getUserDetail = asyncHandler(async (req, res) => {
   })
 })
 
+const listVerificationRequests = asyncHandler(async (req, res) => {
+  const { q, status, category, page, limit } = req.validated.query
+  const filter = {}
+
+  if (status !== 'all') filter.status = status
+  if (category !== 'all') filter.category = category
+
+  if (q) {
+    const searchRegex = new RegExp(escapeRegex(q), 'i')
+    const matchingUsers = await User.find({
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { username: searchRegex },
+        { email: searchRegex },
+      ],
+    }).select('_id')
+    filter.user = { $in: matchingUsers.map((user) => user._id) }
+  }
+
+  const [totalItems, requests] = await Promise.all([
+    VerificationRequest.countDocuments(filter),
+    VerificationRequest.find(filter)
+      .populate('user', 'firstName lastName username email avatarUrl accountStatus verification')
+      .populate('reviewedBy', 'firstName lastName username')
+      .sort({ submittedAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+  ])
+
+  res.json({
+    requests,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const getVerificationRequest = asyncHandler(async (req, res) => {
+  const { requestId } = req.validated.params
+  if (!mongoose.isValidObjectId(requestId)) {
+    throw new AppError('Gecersiz basvuru kimligi.', 400)
+  }
+
+  const request = await VerificationRequest.findById(requestId)
+    .populate('user', '-passwordHash')
+    .populate('reviewedBy', 'firstName lastName username')
+
+  if (!request) throw new AppError('Dogrulama basvurusu bulunamadi.', 404)
+  res.json({ request })
+})
+
+const updateVerificationRequestStatus = asyncHandler(async (req, res) => {
+  const { requestId } = req.validated.params
+  const { status, note } = req.validated.body
+  if (!mongoose.isValidObjectId(requestId)) {
+    throw new AppError('Gecersiz basvuru kimligi.', 400)
+  }
+
+  const request = await VerificationRequest.findById(requestId).populate(
+    'user',
+    'firstName lastName username verification accountStatus',
+  )
+  if (!request) throw new AppError('Dogrulama basvurusu bulunamadi.', 404)
+  if (request.user._id.toString() === req.user._id.toString()) {
+    throw new AppError('Kendi dogrulama basvurunu inceleyemezsin.', 403)
+  }
+  if (!request.isActive || ['approved', 'rejected', 'revoked'].includes(request.status)) {
+    throw new AppError('Bu basvuru artik karara acik degil.', 409)
+  }
+
+  const allowedTransitions = {
+    pending: ['in_review', 'needs_info', 'approved', 'rejected'],
+    in_review: ['needs_info', 'approved', 'rejected'],
+    needs_info: ['in_review', 'approved', 'rejected'],
+  }
+  if (!allowedTransitions[request.status]?.includes(status)) {
+    throw new AppError('Gecersiz basvuru durum gecisi.', 409)
+  }
+  if (status === 'approved' && request.user.accountStatus !== 'active') {
+    throw new AppError('Askidaki bir hesap dogrulanamaz.', 409)
+  }
+
+  const now = new Date()
+  request.status = status
+  request.reviewedBy = req.user._id
+  request.reviewedAt = now
+  request.reviewNote = note || ''
+  request.requestedInformation = status === 'needs_info' ? note : ''
+  request.rejectionReason = status === 'rejected' ? note : ''
+  request.isActive = !['approved', 'rejected'].includes(status)
+  request.resubmissionAllowedAt =
+    status === 'rejected' ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : null
+  await request.save()
+
+  const profileStatus = status
+  await User.findByIdAndUpdate(request.user._id, {
+    'verification.status': profileStatus,
+    'verification.category': request.category,
+    'verification.verifiedAt': status === 'approved' ? now : null,
+    'verification.verifiedBy': status === 'approved' ? req.user._id : null,
+    'verification.updatedAt': now,
+  })
+
+  const notificationCopy = {
+    in_review: ['Basvurunuz inceleniyor', 'Mavi tik basvurunuz incelemeye alindi.'],
+    needs_info: ['Ek bilgi gerekiyor', note],
+    approved: ['Mavi tik basvurunuz onaylandi', 'Profiliniz artik onayli profil olarak gorunecek.'],
+    rejected: ['Mavi tik basvurunuz sonuclandi', note],
+  }[status]
+  await Notification.create({
+    user: request.user._id,
+    actor: req.user._id,
+    type: 'admin',
+    entityKind: 'profile',
+    entityId: request.user._id,
+    title: notificationCopy[0],
+    body: notificationCopy[1],
+  })
+
+  await createAuditLog({
+    actorId: req.user._id,
+    action: `profile.verification.${status}`,
+    targetKind: 'user',
+    targetId: request.user._id,
+    summary: `@${request.user.username} dogrulama basvurusu ${status} durumuna getirildi.`,
+    metadata: { requestId: request._id, status, note: note || '' },
+  })
+
+  res.json({ message: 'Dogrulama basvurusu guncellendi.', request })
+})
+
+const revokeUserVerification = asyncHandler(async (req, res) => {
+  const { userId } = req.validated.params
+  const { reason } = req.validated.body
+  if (!mongoose.isValidObjectId(userId)) throw new AppError('Gecersiz kullanici kimligi.', 400)
+
+  const user = await User.findById(userId)
+  if (!user) throw new AppError('Kullanici bulunamadi.', 404)
+  if (user.verification?.status !== 'approved') {
+    throw new AppError('Kullanicinin aktif bir mavi tiki yok.', 409)
+  }
+
+  const now = new Date()
+  user.verification.status = 'revoked'
+  user.verification.verifiedAt = null
+  user.verification.verifiedBy = null
+  user.verification.updatedAt = now
+  await user.save()
+
+  await VerificationRequest.findOneAndUpdate(
+    { user: user._id, status: 'approved' },
+    {
+      status: 'revoked',
+      reviewNote: reason,
+      reviewedAt: now,
+      reviewedBy: req.user._id,
+      isActive: false,
+    },
+    { sort: { createdAt: -1 } },
+  )
+
+  await Promise.all([
+    Notification.create({
+      user: user._id,
+      actor: req.user._id,
+      type: 'admin',
+      entityKind: 'profile',
+      entityId: user._id,
+      title: 'Profil dogrulamasi kaldirildi',
+      body: reason,
+    }),
+    createAuditLog({
+      actorId: req.user._id,
+      action: 'profile.verification.revoked',
+      targetKind: 'user',
+      targetId: user._id,
+      summary: `@${user.username} kullanicisinin profil dogrulamasi kaldirildi.`,
+      metadata: { reason },
+    }),
+  ])
+
+  res.json({ message: 'Profil dogrulamasi kaldirildi.', user })
+})
+
 const listContent = asyncHandler(async (req, res) => {
   const { q, privacy, contentType, mediaKind, visibility, sortBy, sortDirection, page, limit } =
     req.validated.query
@@ -1401,4 +1585,8 @@ module.exports = {
   updateSignupNotificationSettings,
   getSignupContractsSettingsController,
   updateSignupContractsSettingsController,
+  listVerificationRequests,
+  getVerificationRequest,
+  updateVerificationRequestStatus,
+  revokeUserVerification,
 }

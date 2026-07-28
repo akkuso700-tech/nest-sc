@@ -5,6 +5,7 @@ import SocialLayout from '../layouts/SocialLayout.jsx'
 import Seo from '../components/seo/Seo.jsx'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import UserAvatar from '../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import PostCard from '../features/posts/PostCard.jsx'
 import StoryRail from '../features/stories/StoryRail.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
@@ -306,7 +307,7 @@ function SuggestionList({
               <div className="min-w-0 flex-1">
                 <Link to={`/${lang}/u/${suggestedUser.user.username}`} className="block min-w-0">
                   <p className="truncate text-sm font-semibold text-text">
-                    {getFullName(suggestedUser.user)}
+                    <span className="flex items-center gap-1">{getFullName(suggestedUser.user)} <VerifiedBadge user={suggestedUser.user} size="xs" /></span>
                   </p>
                   <p className="truncate text-xs text-muted">@{suggestedUser.user.username}</p>
                 </Link>
@@ -389,7 +390,7 @@ function SuggestionCarousel({
               />
               <div className="mt-3 text-center">
                 <p className="truncate text-sm font-semibold text-text">
-                  {getFullName(suggestedUser.user)}
+                  <span className="flex items-center gap-1">{getFullName(suggestedUser.user)} <VerifiedBadge user={suggestedUser.user} size="xs" /></span>
                 </p>
                 <p className="mt-1 truncate text-xs text-muted">@{suggestedUser.user.username}</p>
                 <p className="mt-1 text-[11px] text-soft">

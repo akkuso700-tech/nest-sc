@@ -167,6 +167,89 @@ const inputClassName =
 const NAME_MAX_LENGTH = 15
 const BIO_MAX_LENGTH = 120
 
+const validationFieldLabels = {
+  firstName: 'Ad',
+  lastName: 'Soyad',
+  email: 'E-posta',
+  username: 'Kullanıcı adı',
+  bio: 'Biyografi',
+  'location.city': 'Şehir',
+  'location.country': 'Ülke',
+}
+
+function getProfileSaveError(error, fallbackMessage) {
+  const issue = Array.isArray(error?.details) ? error.details[0] : null
+
+  if (!issue) return error?.message || fallbackMessage
+
+  const fieldPath = (issue.path || []).filter((part) => part !== 'body').join('.')
+  const fieldLabel = validationFieldLabels[fieldPath] || fieldPath || 'Profil bilgisi'
+  return `${fieldLabel}: ${issue.message}`
+}
+
+function buildProfileUpdatePayload(form, locationInputValue, initialSnapshot) {
+  const initialForm = initialSnapshot?.form || {}
+  const nextValues = {
+    firstName: form.firstName.trim(),
+    lastName: form.lastName.trim(),
+    email: form.email.trim().toLowerCase(),
+    username: form.username.trim().toLowerCase(),
+    bio: form.bio.trim(),
+    isPrivate: Boolean(form.isPrivate),
+  }
+  const payload = {}
+
+  Object.entries(nextValues).forEach(([field, value]) => {
+    const initialValue =
+      field === 'email' || field === 'username'
+        ? String(initialForm[field] || '').trim().toLowerCase()
+        : field === 'isPrivate'
+          ? Boolean(initialForm[field])
+          : String(initialForm[field] || '').trim()
+
+    if (value !== initialValue) payload[field] = value
+  })
+
+  const nextLocation = parseLocationInput(locationInputValue, form.location)
+  const initialLocation = initialForm.location || { city: '', country: '' }
+  if (
+    nextLocation.city !== (initialLocation.city || '') ||
+    nextLocation.country !== (initialLocation.country || '')
+  ) {
+    payload.location = nextLocation
+  }
+
+  return payload
+}
+
+function validateProfileUpdatePayload(payload) {
+  if ('firstName' in payload && (payload.firstName.length < 2 || payload.firstName.length > NAME_MAX_LENGTH)) {
+    return `Ad 2-${NAME_MAX_LENGTH} karakter arasında olmalıdır.`
+  }
+  if ('lastName' in payload && (payload.lastName.length < 2 || payload.lastName.length > NAME_MAX_LENGTH)) {
+    return `Soyad 2-${NAME_MAX_LENGTH} karakter arasında olmalıdır.`
+  }
+  if ('email' in payload && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+    return 'Geçerli bir e-posta adresi girin.'
+  }
+  if (
+    'username' in payload &&
+    !/^[a-zA-Z0-9_]{3,30}$/.test(payload.username)
+  ) {
+    return 'Kullanıcı adı 3-30 karakter olmalı; yalnızca harf, rakam ve alt çizgi içermelidir.'
+  }
+  if ('bio' in payload && payload.bio.length > BIO_MAX_LENGTH) {
+    return `Biyografi en fazla ${BIO_MAX_LENGTH} karakter olabilir.`
+  }
+  if (
+    payload.location &&
+    (payload.location.city.length > 80 || payload.location.country.length > 80)
+  ) {
+    return 'Şehir ve ülke alanları en fazla 80 karakter olabilir.'
+  }
+  return ''
+}
+
 function PasswordInput({
   label,
   value,
@@ -436,6 +519,24 @@ function EditProfilePage() {
   }
 
   async function handleSaveProfile() {
+    const initialSnapshot = initialSnapshotRef.current
+      ? JSON.parse(initialSnapshotRef.current)
+      : null
+    const updatePayload = buildProfileUpdatePayload(
+      formState,
+      locationInput,
+      initialSnapshot,
+    )
+
+    if (!Object.keys(updatePayload).length) return
+
+    const localValidationError = validateProfileUpdatePayload(updatePayload)
+    if (localValidationError) {
+      setSaveState({ isSubmitting: false, error: localValidationError, success: '' })
+      setToast({ message: localValidationError, tone: 'error' })
+      return
+    }
+
     setSaveState({
       isSubmitting: true,
       error: '',
@@ -443,13 +544,7 @@ function EditProfilePage() {
     })
 
     try {
-      const derivedLocation = parseLocationInput(locationInput, formState.location)
-      const payload = await updateMyProfile({
-        ...formState,
-        email: formState.email.trim().toLowerCase(),
-        username: formState.username.trim().toLowerCase(),
-        location: derivedLocation,
-      })
+      const payload = await updateMyProfile(updatePayload)
 
       setFormState(buildInitialForm(payload))
       setLocationInput(formatEditableLocation(payload.user.location))
@@ -470,14 +565,15 @@ function EditProfilePage() {
         tone: 'success',
       })
     } catch (error) {
+      const errorMessage = getProfileSaveError(error, t('profile.edit.saveFailed'))
       setSaveState({
         isSubmitting: false,
-        error: error.message || t('profile.edit.saveFailed'),
+        error: errorMessage,
         success: '',
       })
       setShowSavedState(false)
       setToast({
-        message: error.message || t('profile.edit.saveFailed'),
+        message: errorMessage,
         tone: 'error',
       })
     }
@@ -782,10 +878,10 @@ function EditProfilePage() {
                 ) : null}
 
                 <div className="mt-2 flex justify-end">
-                  <p
+                  <button
                     type="button"
                     onClick={handleSaveProfile}
-                    disabled={saveState.isSubmitting || usernameState.available === false || usernameState.isChecking}
+                    disabled={!hasProfileChanges || saveState.isSubmitting || usernameState.available === false || usernameState.isChecking}
                     className="rounded-lg bg-primary px-4 py-2 text-base font-regular text-white transition hover:bg-primary-hover cursor-pointer disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
                   >
                     {saveState.isSubmitting
@@ -793,7 +889,7 @@ function EditProfilePage() {
                       : showSavedState
                         ? t('profile.edit.saved')
                         : t('profile.edit.saveProfile')}
-                  </p>
+                  </button>
                 </div>
               </SectionCard>
 

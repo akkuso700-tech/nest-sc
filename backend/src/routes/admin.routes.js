@@ -24,6 +24,10 @@ const {
   updateSignupNotificationSettings,
   getSignupContractsSettingsController,
   updateSignupContractsSettingsController,
+  listVerificationRequests,
+  getVerificationRequest,
+  updateVerificationRequestStatus,
+  revokeUserVerification,
 } = require('../controllers/adminController')
 const {
   updateUserRoleSchema,
@@ -46,6 +50,10 @@ const {
   updateAdminSignupNotificationSettingsSchema,
   adminSignupContractsSettingsSchema,
   updateAdminSignupContractsSettingsSchema,
+  adminListVerificationRequestsSchema,
+  adminVerificationRequestIdSchema,
+  updateVerificationRequestStatusSchema,
+  revokeUserVerificationSchema,
 } = require('../validators/adminValidators')
 
 const adminRouter = express.Router()
@@ -54,6 +62,21 @@ adminRouter.use(authenticate, authorizeRoles('admin'))
 adminRouter.get('/overview', getOverview)
 adminRouter.get('/audit-logs', validateRequest(adminListAuditLogsSchema), listAuditLogs)
 adminRouter.get('/users', validateRequest(adminListUsersSchema), listUsers)
+adminRouter.get(
+  '/verification-requests',
+  validateRequest(adminListVerificationRequestsSchema),
+  listVerificationRequests,
+)
+adminRouter.get(
+  '/verification-requests/:requestId',
+  validateRequest(adminVerificationRequestIdSchema),
+  getVerificationRequest,
+)
+adminRouter.patch(
+  '/verification-requests/:requestId/status',
+  validateRequest(updateVerificationRequestStatusSchema),
+  updateVerificationRequestStatus,
+)
 adminRouter.get('/users/summary', validateRequest(adminUsersSummarySchema), getUsersSummary)
 adminRouter.get('/content/summary', validateRequest(adminContentSummarySchema), getContentSummary)
 adminRouter.get('/users/:userId', validateRequest(adminUserIdSchema), getUserDetail)
@@ -66,6 +89,11 @@ adminRouter.patch(
   '/users/:userId/status',
   validateRequest(updateUserStatusSchema),
   updateUserStatus,
+)
+adminRouter.patch(
+  '/users/:userId/verification/revoke',
+  validateRequest(revokeUserVerificationSchema),
+  revokeUserVerification,
 )
 adminRouter.post(
   '/users/bulk-status',

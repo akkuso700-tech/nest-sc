@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import { formatRelativeTime, getFullName } from '../../utils/social.js'
 
 const ReplyComposer = lazy(() => import('./ReplyComposer.jsx'))
@@ -151,7 +152,7 @@ function PostDetailCommentItem({
           <div className="relative min-w-0 flex-1 rounded-lg bg-secondary p-2 pr-10">
             <div className="flex items-center gap-2 text-sm">
               <Link to={`/${lang}/u/${author.username || ''}`} className="truncate font-semibold text-zinc-950 transition hover:opacity-80 dark:text-white">
-                {getFullName(author)}
+                <span className="flex items-center gap-1">{getFullName(author)} <VerifiedBadge user={author} size="xs" /></span>
               </Link>
               <span className="truncate text-xs text-zinc-400 dark:text-zinc-500">@{author.username}</span>
               <span className="text-xs text-zinc-400 dark:text-zinc-500">{formatRelativeTime(comment.createdAt)}</span>

@@ -159,7 +159,7 @@ async function buildCrawlerPostPreview({ Post, postId, baseUrl = '' }) {
   }
 
   const post = await Post.findById(postId)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .select('text media privacy archivedAt moderation publication author')
     .lean()
 
