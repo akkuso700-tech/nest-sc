@@ -233,7 +233,7 @@ async function buildPeopleResults({
   }
 
   const candidates = await User.find(filter)
-    .select('firstName lastName username email avatarUrl friendIds location activity discovery lastLoginAt createdAt')
+    .select('firstName lastName username email avatarUrl friendIds location activity discovery lastLoginAt createdAt verification')
     .sort({ lastLoginAt: -1, createdAt: -1 })
     .limit(nearbyOnly ? 80 : 30)
 
@@ -416,7 +416,7 @@ async function buildPostResults({ query, viewer, sort = 'popular', limit = 10 })
   }
 
   const posts = await Post.find(filter)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .sort(sort === 'latest' ? { createdAt: -1 } : { createdAt: -1 })
     .limit(sort === 'latest' ? limit : Math.max(limit * 3, 30))
   const filteredPosts = posts.filter((post) => Boolean(post.author))

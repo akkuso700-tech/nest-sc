@@ -6,8 +6,10 @@ import {
   getAdminUserDetail,
   updateAdminUserRole,
   updateAdminUserStatus,
+  revokeAdminUserVerification,
 } from '../services/adminService.js'
 import { formatLocation, formatRelativeTime, getFullName } from '../utils/social.js'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 
 function EntityList({ title, items, renderItem, emptyLabel }) {
   return (
@@ -38,6 +40,8 @@ function AdminUserDetailPage() {
   const [toast, setToast] = useState({ message: '', tone: 'success' })
   const [statusDialog, setStatusDialog] = useState(null)
   const [isSavingStatus, setIsSavingStatus] = useState(false)
+  const [verificationDialogOpen, setVerificationDialogOpen] = useState(false)
+  const [isSavingVerification, setIsSavingVerification] = useState(false)
 
   useEffect(() => {
     if (!toast.message) {
@@ -172,6 +176,27 @@ function AdminUserDetailPage() {
     }
   }
 
+  async function confirmVerificationRevoke(reason) {
+    if (reason.trim().length < 3) {
+      setToast({ message: 'Mavi tiki kaldırmak için bir gerekçe yazın.', tone: 'error' })
+      return
+    }
+    setIsSavingVerification(true)
+    try {
+      const payload = await revokeAdminUserVerification(userId, reason)
+      setState((current) => ({
+        ...current,
+        data: { ...current.data, user: payload.user },
+      }))
+      setToast({ message: payload.message, tone: 'success' })
+      setVerificationDialogOpen(false)
+    } catch (error) {
+      setToast({ message: error.message || 'Mavi tik kaldırılamadı.', tone: 'error' })
+    } finally {
+      setIsSavingVerification(false)
+    }
+  }
+
   if (state.isLoading) {
     return (
       <div className="rounded-[28px] border border-zinc-200 bg-white px-5 py-6 text-sm text-zinc-500 shadow-sm">
@@ -210,7 +235,7 @@ function AdminUserDetailPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">
                   Kullanici Detayi
                 </p>
-                <h2 className="mt-2 text-2xl font-bold text-zinc-950">{getFullName(user)}</h2>
+                <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold text-zinc-950">{getFullName(user)} <VerifiedBadge user={{ verification: { isVerified: user.verification?.status === 'approved' } }} size="md" /></h2>
                 <p className="mt-1 text-sm text-zinc-500">@{user.username}</p>
               </div>
 
@@ -285,6 +310,15 @@ function AdminUserDetailPage() {
               <div className="rounded-[24px] bg-zinc-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Iletisim</p>
                 <p className="mt-2 text-sm text-zinc-700">{user.email}</p>
+              </div>
+              <div className="rounded-[24px] bg-zinc-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Profil Doğrulama</p>
+                <p className="mt-2 text-sm font-semibold text-zinc-700">{user.verification?.status || 'none'}</p>
+                {user.verification?.status === 'approved' ? (
+                  <button type="button" onClick={() => setVerificationDialogOpen(true)} className="mt-3 rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white">Mavi tiki kaldır</button>
+                ) : (
+                  <Link to={`/${lang}/admin/verification-requests?q=${encodeURIComponent(user.username)}`} className="mt-3 inline-block text-xs font-semibold text-sky-600 hover:underline">Başvuruları görüntüle</Link>
+                )}
               </div>
               <div className="rounded-[24px] bg-zinc-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Konum</p>
@@ -477,6 +511,18 @@ function AdminUserDetailPage() {
           }
         }}
         onConfirm={confirmStatusUpdate}
+      />
+      <ConfirmActionDialog
+        open={verificationDialogOpen}
+        title="Mavi tiki kaldır"
+        description="Profil doğrulaması hemen kaldırılır ve kullanıcıya bildirim gönderilir."
+        confirmLabel="Mavi tiki kaldır"
+        confirmTone="danger"
+        reasonLabel="Zorunlu gerekçe"
+        reasonPlaceholder="Kaldırma nedenini yazın"
+        isProcessing={isSavingVerification}
+        onCancel={() => { if (!isSavingVerification) setVerificationDialogOpen(false) }}
+        onConfirm={confirmVerificationRevoke}
       />
 
       <ActionToast

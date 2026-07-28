@@ -1,4 +1,5 @@
 import UserAvatar from '../../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import { useTranslation } from 'react-i18next'
 
 function StoryRail({
@@ -59,8 +60,9 @@ function StoryRail({
                 textClassName="text-xs font-semibold"
               />
             </div>
-            <span className="max-w-[78px] truncate text-xs font-semibold text-muted">
-              {truncateUsername(rail.author?.username || fallbackUsername)}
+            <span className="flex max-w-[78px] items-center gap-1 text-xs font-semibold text-muted">
+              <span className="truncate">{truncateUsername(rail.author?.username || fallbackUsername)}</span>
+              <VerifiedBadge user={rail.author} size="xs" />
             </span>
           </button>
         ))}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import Seo from '../components/seo/Seo.jsx'
 import UserAvatar from '../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import { getSearchResults } from '../services/searchService.js'
 import { toggleFollowByUsername } from '../services/usersService.js'
@@ -36,7 +37,7 @@ function PeopleCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-zinc-950 dark:text-white">{getFullName(item.user)}</p>
+            <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-zinc-950 dark:text-white"><span className="truncate">{getFullName(item.user)}</span><VerifiedBadge user={item.user} /></p>
             <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">@{item.user.username}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -125,7 +126,7 @@ function PostGridCard({ post, lang, navigationState }) {
       <div className="flex items-center gap-2 px-2 py-2">
         <UserAvatar user={author} className="size-8" textClassName="text-xs font-semibold" />
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-text">{getFullName(author)}</p>
+          <p className="flex min-w-0 items-center gap-1 text-xs font-semibold text-text"><span className="truncate">{getFullName(author)}</span><VerifiedBadge user={author} size="xs" /></p>
           <p className="truncate text-[11px] text-muted">@{author?.username || ''}</p>
         </div>
       </div>

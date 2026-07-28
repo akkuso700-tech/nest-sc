@@ -384,7 +384,7 @@ async function getAccessiblePost(postId, user) {
 
   const post = await Post.findById(postId).populate(
     'author',
-    'firstName lastName username avatarUrl',
+    'firstName lastName username avatarUrl verification',
   )
     .populate('group', 'name slug privacy members.user members.role members.status')
 
@@ -407,7 +407,7 @@ async function buildPostDetail(post, user) {
   }
 
   const comments = await Comment.find(commentsFilter)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .sort({ createdAt: 1 })
 
   return {
@@ -637,7 +637,7 @@ async function getCommentWithAccess(commentId, user) {
 
   const comment = await Comment.findById(commentId).populate(
     'author',
-    'firstName lastName username avatarUrl',
+    'firstName lastName username avatarUrl verification',
   )
 
   if (!comment) {
@@ -681,7 +681,7 @@ async function emitNotification(io, notification) {
 
   const populatedNotification = await Notification.findById(notification._id).populate(
     'actor',
-    'firstName lastName username avatarUrl',
+    'firstName lastName username avatarUrl verification',
   )
 
   if (populatedNotification) {
@@ -1416,7 +1416,7 @@ async function buildForYouRankedPosts({ user, limit, offset }) {
   const sampleSize = Math.max(60, offset + limit + 30)
   const candidatePosts = await Post.find(candidateFilter)
     .select(FEED_POST_PROJECTION)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .sort({ createdAt: -1 })
     .limit(sampleSize)
     .lean()
@@ -1480,7 +1480,7 @@ async function fetchPostsInOrder(postIds = [], user) {
 
   const rows = await Post.find({ _id: { $in: postIds } })
     .select(FEED_POST_PROJECTION)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .populate('group', 'name slug privacy members.user members.role members.status')
 
   const byId = new Map(rows.map((row) => [row._id.toString(), row]))
@@ -1514,7 +1514,7 @@ const createPost = asyncHandler(async (req, res) => {
 
       const populatedPost = await Post.findById(post._id).populate(
         'author',
-        'firstName lastName username avatarUrl',
+        'firstName lastName username avatarUrl verification',
       )
       perf.mark('post_populate_done')
 
@@ -1778,7 +1778,7 @@ const getFeed = asyncHandler(async (req, res) => {
       const candidateLimit = Math.max(LOOP_RANKING_CANDIDATE_MIN, FEED_SESSION_MAX_ITEMS + 40)
       const loopCandidates = await Post.find(filter)
         .select(FEED_POST_PROJECTION)
-        .populate('author', 'firstName lastName username avatarUrl')
+        .populate('author', 'firstName lastName username avatarUrl verification')
         .sort({ createdAt: -1 })
         .limit(candidateLimit)
         .lean()
@@ -1861,7 +1861,7 @@ const getFeed = asyncHandler(async (req, res) => {
     } else {
       const basePosts = await Post.find(filter)
         .select(FEED_POST_PROJECTION)
-        .populate('author', 'firstName lastName username avatarUrl')
+        .populate('author', 'firstName lastName username avatarUrl verification')
         .sort(sort)
         .limit(FEED_SESSION_MAX_ITEMS)
         .lean()
@@ -1919,7 +1919,7 @@ const getFeed = asyncHandler(async (req, res) => {
 
   let query = Post.find(filter)
     .select(FEED_POST_PROJECTION)
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .sort(sort)
 
   if (canUseCreatedAtCursor) {
@@ -2228,7 +2228,7 @@ const createComment = asyncHandler(async (req, res) => {
 
     const populatedComment = await Comment.findById(comment._id).populate(
       'author',
-      'firstName lastName username avatarUrl',
+      'firstName lastName username avatarUrl verification',
     )
 
     try {
@@ -2609,7 +2609,7 @@ const updatePost = asyncHandler(async (req, res) => {
 
   const populatedPost = await Post.findById(post._id).populate(
     'author',
-    'firstName lastName username avatarUrl',
+    'firstName lastName username avatarUrl verification',
   )
 
   res.json({
@@ -2639,7 +2639,7 @@ const togglePostArchive = asyncHandler(async (req, res) => {
 
   const populatedPost = await Post.findById(post._id).populate(
     'author',
-    'firstName lastName username avatarUrl',
+    'firstName lastName username avatarUrl verification',
   )
 
   res.json({

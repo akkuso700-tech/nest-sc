@@ -294,7 +294,7 @@ async function getSuggestedUsersForViewer({
 
   const candidates = await User.find(candidateFilter)
     .select(
-      'firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds blockedUserIds activity discovery',
+      'firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds blockedUserIds activity discovery verification',
     )
     .sort({ lastLoginAt: -1, createdAt: -1 })
     .limit(mode === 'nearby' ? 80 : 60)

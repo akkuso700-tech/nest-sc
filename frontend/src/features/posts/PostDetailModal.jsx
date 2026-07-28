@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useTranslation } from 'react-i18next'
 import Seo from '../../components/seo/Seo.jsx'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import HashtagText from '../../components/common/HashtagText.jsx'
 import ActionToast from '../../components/feedback/ActionToast.jsx'
 import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js'
@@ -1211,7 +1212,7 @@ function PostDetailModal() {
                   
                   <div className="min-w-0  flex-1">
                     <p className="truncate text-sm font-semibold text-white">
-                      {getFullName(author)}
+                      <span className="flex items-center gap-1">{getFullName(author)} <VerifiedBadge user={author} /></span>
                     </p>
                     <p className="truncate text-xs text-white/65">
                       @{author.username} • {post?.createdAt ? formatRelativeTime(post.createdAt) : '--'}
@@ -1364,7 +1365,7 @@ function PostDetailModal() {
                   </Link>
                   <div className="min-w-0  flex-1">
                     <Link to={`/${lang}/u/${author.username || ''}`} className="block transition hover:opacity-80">
-                      <p className="truncate text-sm font-semibold text-white xl:text-zinc-950 dark:xl:text-white">{getFullName(author)}</p>
+                      <p className="flex min-w-0 items-center gap-1 text-sm font-semibold text-white xl:text-zinc-950 dark:xl:text-white"><span className="truncate">{getFullName(author)}</span><VerifiedBadge user={author} size="xs" /></p>
                       <p className="mt-0.5 truncate text-xs text-white/60 xl:text-zinc-500 dark:xl:text-zinc-400">@{author.username} • {post?.createdAt ? formatRelativeTime(post.createdAt) : '--'}</p>
                     </Link>
 

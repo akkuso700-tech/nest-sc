@@ -4,6 +4,28 @@ export function getMyProfile() {
   return apiRequest('/users/me/profile')
 }
 
+export function getMyVerificationRequest() {
+  return apiRequest('/users/me/verification-request')
+}
+
+export function createMyVerificationRequest(payload) {
+  return apiRequest('/users/me/verification-requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateMyVerificationRequest(payload) {
+  return apiRequest('/users/me/verification-request', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function withdrawMyVerificationRequest() {
+  return apiRequest('/users/me/verification-request', { method: 'DELETE' })
+}
+
 export function checkUsernameAvailability(username) {
   const searchParams = new URLSearchParams({ username })
   return apiRequest(`/users/username-availability?${searchParams.toString()}`)

@@ -44,6 +44,55 @@ const adminUserIdSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const adminListVerificationRequestsSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({
+    q: z.string().trim().max(120).optional().default(''),
+    status: z
+      .enum(['all', 'pending', 'in_review', 'needs_info', 'approved', 'rejected', 'revoked'])
+      .optional()
+      .default('all'),
+    category: z
+      .enum(['all', 'individual', 'creator', 'business', 'organization', 'public_figure'])
+      .optional()
+      .default('all'),
+    page: z.coerce.number().int().positive().optional().default(1),
+    limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  }),
+})
+
+const adminVerificationRequestIdSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({ requestId: z.string().trim().min(1) }),
+  query: z.object({}).default({}),
+})
+
+const updateVerificationRequestStatusSchema = z.object({
+  body: z
+    .object({
+      status: z.enum(['in_review', 'needs_info', 'approved', 'rejected']),
+      note: z.string().trim().max(1000).optional().default(''),
+    })
+    .superRefine((value, ctx) => {
+      if (['needs_info', 'rejected'].includes(value.status) && !value.note) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['note'],
+          message: 'A note is required for this decision.',
+        })
+      }
+    }),
+  params: z.object({ requestId: z.string().trim().min(1) }),
+  query: z.object({}).default({}),
+})
+
+const revokeUserVerificationSchema = z.object({
+  body: z.object({ reason: z.string().trim().min(3).max(1000) }),
+  params: z.object({ userId: z.string().trim().min(1) }),
+  query: z.object({}).default({}),
+})
+
 const adminUsersSummarySchema = z.object({
   body: z.object({}).default({}),
   params: z.object({}).default({}),
@@ -236,6 +285,10 @@ module.exports = {
   adminUsersSummarySchema,
   adminContentSummarySchema,
   adminUserIdSchema,
+  adminListVerificationRequestsSchema,
+  adminVerificationRequestIdSchema,
+  updateVerificationRequestStatusSchema,
+  revokeUserVerificationSchema,
   adminListContentSchema,
   updatePostModerationSchema,
   bulkUserStatusSchema,

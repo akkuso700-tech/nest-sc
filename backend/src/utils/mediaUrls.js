@@ -110,6 +110,13 @@ function normalizeUserMedia(user = null) {
       ...plainUser,
       avatarUrl: normalizeMediaUrl(plainUser.avatarUrl),
       coverUrl: normalizeMediaUrl(plainUser.coverUrl),
+      verification: {
+        isVerified: plainUser.verification?.status === 'approved',
+        category:
+          plainUser.verification?.status === 'approved'
+            ? plainUser.verification?.category || 'individual'
+            : null,
+      },
     }
   }
 
@@ -117,6 +124,13 @@ function normalizeUserMedia(user = null) {
     ...user,
     avatarUrl: normalizeMediaUrl(user.avatarUrl),
     coverUrl: normalizeMediaUrl(user.coverUrl),
+    verification: {
+      isVerified: user.verification?.status === 'approved' || user.verification?.isVerified === true,
+      category:
+        user.verification?.status === 'approved' || user.verification?.isVerified === true
+          ? user.verification?.category || 'individual'
+          : null,
+    },
   }
 }
 

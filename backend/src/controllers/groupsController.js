@@ -236,7 +236,7 @@ async function getGroupByIdOrThrow(groupId, options = {}) {
   }
   let query = Group.findById(groupId)
   if (populateMembers) {
-    query = query.populate('members.user', 'firstName lastName username avatarUrl')
+    query = query.populate('members.user', 'firstName lastName username avatarUrl verification')
   }
   const group = await query
   if (!group) {
@@ -264,7 +264,7 @@ const createGroup = asyncHandler(async (req, res) => {
     ],
     stats: { memberCount: 1 },
   })
-  const populated = await Group.findById(group._id).populate('members.user', 'firstName lastName username avatarUrl')
+  const populated = await Group.findById(group._id).populate('members.user', 'firstName lastName username avatarUrl verification')
   res.status(201).json({
     message: 'Group created successfully.',
     group: serializeGroup(populated, req.user._id),
@@ -334,7 +334,7 @@ const listSidebarGroups = asyncHandler(async (req, res) => {
 
 const getGroupBySlug = asyncHandler(async (req, res) => {
   const groupDocument = await Group.findOne({ slug: req.validated.params.slug })
-    .populate('members.user', 'firstName lastName username avatarUrl')
+    .populate('members.user', 'firstName lastName username avatarUrl verification')
   if (!groupDocument) {
     throw new AppError('Group not found.', 404)
   }
@@ -369,7 +369,7 @@ const updateGroup = asyncHandler(async (req, res) => {
   }
 
   await group.save()
-  const refreshed = await Group.findById(group._id).populate('members.user', 'firstName lastName username avatarUrl')
+  const refreshed = await Group.findById(group._id).populate('members.user', 'firstName lastName username avatarUrl verification')
   res.json({
     message: 'Group updated successfully.',
     group: serializeGroup(refreshed, req.user._id),
@@ -495,7 +495,7 @@ const listGroupsFeed = asyncHandler(async (req, res) => {
     'groupModeration.status': 'approved',
   })
     .select('author group title slug text media contentType privacy publication moderation stats likedByUserIds savedByUserIds sharedByUserIds createdAt updatedAt')
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .populate('group', 'name slug privacy coverImageUrl')
     .sort({ createdAt: -1 })
     .skip(offset)
@@ -571,7 +571,7 @@ const listGroupPosts = asyncHandler(async (req, res) => {
     'groupModeration.status': 'approved',
   })
     .select('author group title slug text media contentType privacy publication moderation stats likedByUserIds savedByUserIds sharedByUserIds createdAt updatedAt')
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .populate('group', 'name slug privacy coverImageUrl')
     .sort({ createdAt: -1 })
     .skip(req.validated.query.offset)
@@ -618,7 +618,7 @@ const createGroupPost = asyncHandler(async (req, res) => {
     shouldCleanupUploadedFiles = false
 
     const populatedPost = await Post.findById(post._id)
-      .populate('author', 'firstName lastName username avatarUrl')
+      .populate('author', 'firstName lastName username avatarUrl verification')
       .populate('group', 'name slug privacy coverImageUrl')
 
     res.status(201).json({
@@ -647,7 +647,7 @@ const listPendingPosts = asyncHandler(async (req, res) => {
     'moderation.visibility': 'visible',
   })
     .select('author group title slug text media contentType privacy publication moderation stats likedByUserIds savedByUserIds sharedByUserIds createdAt updatedAt')
-    .populate('author', 'firstName lastName username avatarUrl')
+    .populate('author', 'firstName lastName username avatarUrl verification')
     .populate('group', 'name slug privacy coverImageUrl')
     .sort({ createdAt: -1 })
     .limit(100)

@@ -32,6 +32,7 @@ function formatChange(value) {
 const navigation = [
   { path: '', label: 'Genel Bakış', short: 'GB' },
   { path: '/users', label: 'Kullanıcılar', short: 'KU' },
+  { path: '/verification-requests', label: 'Mavi Tik', short: 'MT' },
   { path: '/content', label: 'İçerikler', short: 'İÇ' },
   { path: '/comments', label: 'Yorumlar', short: 'YO' },
   { path: '/reports', label: 'Raporlar', short: 'RA' },
@@ -64,6 +65,13 @@ function getPageMeta(pathname, lang) {
       title: 'Kullanıcılar',
       eyebrow: 'Kullanıcı Operasyonları',
       description: 'Üyeleri filtreleyin, durumlarını yönetin ve büyüme sinyallerini takip edin.',
+    }
+  }
+  if (pathname.includes(`${base}/verification-requests`)) {
+    return {
+      title: 'Mavi Tik Başvuruları',
+      eyebrow: 'Profil Doğrulama',
+      description: 'Ücretsiz profil doğrulama başvurularını inceleyin ve sonuçlandırın.',
     }
   }
   if (pathname.includes(`${base}/content`)) {

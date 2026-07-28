@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import { useAuth } from '../../store/AuthContext.jsx'
 import { resolveMediaUrl } from '../../utils/media.js'
 import { formatRelativeTime } from '../../utils/social.js'
@@ -750,7 +751,7 @@ function StoryViewerModal({
               <Link to={`/${lang}/u/${rail.author?.username}`} className="flex min-w-0 items-center gap-2">
                 <UserAvatar user={rail.author} className="size-9 text-xs font-semibold" textClassName="text-xs font-semibold" />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{`${rail.author?.firstName || ''} ${rail.author?.lastName || ''}`.trim()}</p>
+                  <p className="flex min-w-0 items-center gap-1 text-sm font-semibold text-white"><span className="truncate">{`${rail.author?.firstName || ''} ${rail.author?.lastName || ''}`.trim()}</span><VerifiedBadge user={rail.author} size="xs" /></p>
                   <p className="truncate text-xs text-white/70">@{rail.author?.username} · {publishedAtLabel}</p>
                 </div>
               </Link>

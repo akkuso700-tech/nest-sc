@@ -128,7 +128,7 @@ async function createMessageAndNotify({
   })
   const populatedNotification = await Notification.findById(notification._id).populate(
     'actor',
-    'firstName lastName username avatarUrl lastLoginAt',
+    'firstName lastName username avatarUrl lastLoginAt verification',
   )
   const serializedNotification = populatedNotification
     ? {

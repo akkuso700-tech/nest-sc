@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HashtagText from '../../components/common/HashtagText.jsx'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import { formatRelativeTime, getFullName } from '../../utils/social.js'
 import {
   BookmarkIcon,
@@ -147,7 +148,7 @@ function QuickCommentItem({
               className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl transition hover:opacity-80"
             >
               <span className="truncate text-sm font-semibold text-text">
-                {getFullName(comment.author)}
+                <span className="flex items-center gap-1">{getFullName(comment.author)} <VerifiedBadge user={comment.author} size="xs" /></span>
               </span>
               <span className="text-xs text-soft">
                 @{comment.author?.username} - {formatRelativeTime(comment.createdAt)}

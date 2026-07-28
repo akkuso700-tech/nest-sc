@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import ReportDialog from '../components/feedback/ReportDialog.jsx'
 import UserAvatar from '../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import Seo from '../components/seo/Seo.jsx'
 import MediaGallery from '../features/posts/MediaGallery.jsx'
 import SocialLayout from '../layouts/SocialLayout.jsx'
@@ -1501,7 +1502,7 @@ function MessagesPage() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-3">
-                                <p className="truncate text-sm font-semibold">{getFullName(peer)}</p>
+                                <p className="flex min-w-0 items-center gap-1 text-sm font-semibold"><span className="truncate">{getFullName(peer)}</span><VerifiedBadge user={peer} size="xs" /></p>
                                 <span
                                   className={`shrink-0 text-[11px] ${
                                     isActive
@@ -1612,7 +1613,7 @@ function MessagesPage() {
                             />
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-text">
-                                {getFullName(activePeer)}
+                                <span className="flex items-center gap-1">{getFullName(activePeer)} <VerifiedBadge user={activePeer} size="xs" /></span>
                               </p>
                               <p className="truncate text-[11px] text-muted">
                                 {activePresenceLabel}
@@ -1684,7 +1685,7 @@ function MessagesPage() {
                             />
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-text">
-                                {getFullName(activePeer)}
+                                <span className="flex items-center gap-1">{getFullName(activePeer)} <VerifiedBadge user={activePeer} size="xs" /></span>
                               </p>
                               <p className="truncate text-xs text-muted">
                                 @{activePeer.username}
@@ -1731,7 +1732,7 @@ function MessagesPage() {
                                   />
                                   <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-text">
-                                      {getFullName(activePeer)}
+                                      <span className="flex items-center gap-1">{getFullName(activePeer)} <VerifiedBadge user={activePeer} size="xs" /></span>
                                     </p>
                                     <p className="truncate text-xs text-muted">
                                       @{activePeer.username}

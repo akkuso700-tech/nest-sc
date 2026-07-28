@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { LanguageLayout, RootLanguageRedirect } from './routes/LanguageRouting.jsx'
 import AdminRoute from './routes/AdminRoute.jsx'
 import { isDemoEnvironment } from './lib/appEnvironment.js'
@@ -31,10 +31,18 @@ const AdminContractsSettingsPage = lazy(() => import('./pages/AdminContractsSett
 const AdminNotificationsSettingsPage = lazy(
   () => import('./pages/AdminNotificationsSettingsPage.jsx'),
 )
+const AdminVerificationRequestsPage = lazy(
+  () => import('./pages/AdminVerificationRequestsPage.jsx'),
+)
 const SimpleInfoPage = lazy(() => import('./pages/SimpleInfoPage.jsx'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
 const PostDetailModal = lazy(() => import('./features/posts/PostDetailModal.jsx'))
 const AdminLayout = lazy(() => import('./layouts/AdminLayout.jsx'))
+
+function LegacyVerificationRedirect() {
+  const { lang = 'tr' } = useParams()
+  return <Navigate to={`/${lang}/profile`} replace />
+}
 
 function RouteFallback({ overlay = false }) {
   if (overlay) {
@@ -77,7 +85,7 @@ function App() {
     location.pathname.length > 1 && location.pathname.endsWith('/')
       ? location.pathname.slice(0, -1)
       : location.pathname
-  const isPrivateOrUtilityRoute = /^\/(tr|en|de|es)\/(admin(?:\/.*)?|messages(?:\/.*)?|notifications(?:\/.*)?|reports(?:\/.*)?|groups(?:\/.*)?|login|signup|reset-password|profile\/edit(?:\/.*)?)$/i.test(
+  const isPrivateOrUtilityRoute = /^\/(tr|en|de|es)\/(admin(?:\/.*)?|messages(?:\/.*)?|notifications(?:\/.*)?|reports(?:\/.*)?|groups(?:\/.*)?|login|signup|reset-password|profile\/(?:edit|verification)(?:\/.*)?)$/i.test(
     normalizedPathname,
   )
   const shouldNoindex = isDemoEnvironment || isPrivateOrUtilityRoute
@@ -115,6 +123,7 @@ function App() {
               <Route path="content" element={<AdminContentPage />} />
               <Route path="comments" element={<AdminCommentsPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
+              <Route path="verification-requests" element={<AdminVerificationRequestsPage />} />
               <Route path="audit-logs" element={<AdminAuditLogsPage />} />
               <Route
                 path="settings/notifications"
@@ -130,6 +139,7 @@ function App() {
             <Route path="groups/joined/:groupSlug" element={<JoinedGroupPage />} />
             <Route path="reports" element={<MyReportsPage />} />
             <Route path="profile/edit" element={<EditProfilePage />} />
+            <Route path="profile/verification" element={<LegacyVerificationRedirect />} />
             <Route path="profile/followers" element={<ConnectionsPage connectionType="followers" />} />
             <Route path="profile/following" element={<ConnectionsPage connectionType="following" />} />
             <Route path="profile" element={<ProfilePage />} />

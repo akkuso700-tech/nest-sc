@@ -165,6 +165,44 @@ const deleteAccountSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const verificationCategorySchema = z.enum([
+  'individual',
+  'creator',
+  'business',
+  'organization',
+  'public_figure',
+])
+
+const evidenceLinkSchema = z
+  .string()
+  .trim()
+  .url()
+  .max(500)
+  .refine((value) => value.startsWith('https://'), 'Evidence links must use HTTPS.')
+
+const createVerificationRequestSchema = z.object({
+  body: z.object({
+    category: verificationCategorySchema,
+    statement: z.string().trim().min(40).max(1000),
+    evidenceLinks: z.array(evidenceLinkSchema).max(5).optional().default([]),
+    termsAccepted: z.literal(true),
+  }),
+  params: z.object({}).default({}),
+  query: z.object({}).default({}),
+})
+
+const updateVerificationRequestSchema = z.object({
+  body: z
+    .object({
+      category: verificationCategorySchema.optional(),
+      statement: z.string().trim().min(40).max(1000).optional(),
+      evidenceLinks: z.array(evidenceLinkSchema).max(5).optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, 'At least one field is required.'),
+  params: z.object({}).default({}),
+  query: z.object({}).default({}),
+})
+
 module.exports = {
   getProfileSchema,
   checkUsernameAvailabilitySchema,
@@ -176,4 +214,6 @@ module.exports = {
   updateProfileSchema,
   changePasswordSchema,
   deleteAccountSchema,
+  createVerificationRequestSchema,
+  updateVerificationRequestSchema,
 }

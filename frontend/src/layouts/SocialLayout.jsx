@@ -16,6 +16,7 @@ import { formatRelativeTime, getFullName } from '../utils/social.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { normalizeSearchText } from '../utils/searchText.js'
 import UserAvatar from '../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import { appEnvironmentLabel, isDemoEnvironment } from '../lib/appEnvironment.js'
 import {
   AboutIcon,
@@ -588,7 +589,7 @@ function SearchSuggestionList({
                 >
                   <UserAvatar user={item.user} className="size-10" textClassName="text-sm font-semibold" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-medium text-text">{highlightMatch(getFullName(item.user), query)}</p>
+                    <p className="flex min-w-0 items-center gap-1 text-[15px] font-medium text-text"><span className="truncate">{highlightMatch(getFullName(item.user), query)}</span><VerifiedBadge user={item.user} size="xs" /></p>
                     <p className="mt-0.5 truncate text-xs text-muted">@{highlightMatch(item.user.username, query)}</p>
                   </div>
                   <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-muted transition group-hover:bg-secondary-hover">

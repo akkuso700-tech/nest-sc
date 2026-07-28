@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import Seo from '../components/seo/Seo.jsx'
 import UserAvatar from '../components/common/UserAvatar.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import {
   getNotifications,
@@ -377,7 +378,7 @@ function NotificationsPage() {
                         <p className="mt-1 text-sm text-muted">{notification.body}</p>
                         <p className={`mt-2 text-xs ${isUnread ? 'text-muted' : 'text-soft'}`}>
                           {actor.username
-                            ? `@${actor.username} - ${getFullName(actor)}`
+                            ? <span className="flex items-center gap-1">@{actor.username} - {getFullName(actor)} <VerifiedBadge user={actor} size="xs" /></span>
                             : t('notificationsPage.systemActor')}
                         </p>
                       </div>

@@ -77,7 +77,7 @@ const listNotifications = asyncHandler(async (req, res) => {
 
   const notifications = await Notification.find(filter)
     .select('user actor type entityKind entityId title body readAt createdAt updatedAt')
-    .populate('actor', 'firstName lastName username avatarUrl lastLoginAt')
+    .populate('actor', 'firstName lastName username avatarUrl lastLoginAt verification')
     .sort({ createdAt: -1 })
     .limit(req.validated.query.limit)
     .lean()
@@ -97,7 +97,7 @@ const markNotificationRead = asyncHandler(async (req, res) => {
     },
     { readAt: new Date() },
     { returnDocument: 'after' },
-  ).populate('actor', 'firstName lastName username avatarUrl lastLoginAt')
+  ).populate('actor', 'firstName lastName username avatarUrl lastLoginAt verification')
 
   if (!notification) {
     throw new AppError('Notification not found.', 404)

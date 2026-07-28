@@ -6,6 +6,8 @@ import Seo from '../components/seo/Seo.jsx'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import ProfileImageCropModal from '../components/media/ProfileImageCropModal.jsx'
 import ProfileImageLightbox from '../components/media/ProfileImageLightbox.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
+import VerificationModal from '../components/profile/VerificationModal.jsx'
 import PostCard from '../features/posts/PostCard.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import {
@@ -221,6 +223,7 @@ function ProfilePage() {
     open: false,
     target: 'avatar',
   })
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false)
   const [toast, setToast] = useState({
     message: '',
     tone: 'success',
@@ -783,8 +786,9 @@ function ProfilePage() {
                       </div>
 
                       <div className="min-w-0 flex-1 pt-2">
-                        <h1 className="truncate text-base font-bold tracking-tight text-text">
-                          {getFullName(profileUser)}
+                        <h1 className="flex min-w-0 items-center gap-1.5 text-base font-bold tracking-tight text-text">
+                          <span className="truncate">{getFullName(profileUser)}</span>
+                          <VerifiedBadge user={profileUser} />
                         </h1>
                         <div className=" flex items-center justify-between gap-3">
                           <p className="min-w-0 truncate text-sm text-muted">
@@ -793,14 +797,24 @@ function ProfilePage() {
 
                           <div className="shrink-0">
                             {isOwnProfile ? (
-                              <Link
-                                to={`/${lang}/profile/edit`}
-                                className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-inverse"
-                                aria-label={t('profile.editProfile')}
-                                title={t('profile.editProfile')}
-                              >
-                                <EditIcon />
-                              </Link>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setVerificationModalOpen(true)}
+                                  className="inline-flex h-9 items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-600"
+                                >
+                                  <VerifiedBadge user={{ verification: { isVerified: true } }} size="xs" />
+                                  Mavi Tik
+                                </button>
+                                <Link
+                                  to={`/${lang}/profile/edit`}
+                                  className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-inverse"
+                                  aria-label={t('profile.editProfile')}
+                                  title={t('profile.editProfile')}
+                                >
+                                  <EditIcon />
+                                </Link>
+                              </div>
                             ) : (
                               <div className="flex items-center gap-2">
                                 <Link
@@ -990,8 +1004,9 @@ function ProfilePage() {
                       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
                         <div className="min-w-0 space-y-3">
                           <div>
-                            <h1 className="truncate font-bold tracking-tight text-base md:text-md">
-                              {getFullName(profileUser)}
+                            <h1 className="flex min-w-0 items-center gap-1.5 font-bold tracking-tight text-base md:text-md">
+                              <span className="truncate">{getFullName(profileUser)}</span>
+                              <VerifiedBadge user={profileUser} />
                             </h1>
                             <p className=" text-sm text-muted">
                               @{profileUser.username}
@@ -1022,12 +1037,22 @@ function ProfilePage() {
 
                         <div className="flex flex-wrap items-center gap-3 md:justify-end">
                           {isOwnProfile ? (
-                            <Link
-                              to={`/${lang}/profile/edit`}
-                              className="rounded-lg cursor-pointer mt-2 px-3 py-1.5  bg-primary text-inverse text-sm font-regular"
-                            >
-                              {t('profile.editProfile')}
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setVerificationModalOpen(true)}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-semibold text-sky-600"
+                              >
+                                <VerifiedBadge user={{ verification: { isVerified: true } }} size="xs" />
+                                Mavi Tik
+                              </button>
+                              <Link
+                                to={`/${lang}/profile/edit`}
+                                className="rounded-lg cursor-pointer mt-2 px-3 py-1.5 bg-primary text-inverse text-sm font-regular"
+                              >
+                                {t('profile.editProfile')}
+                              </Link>
+                            </div>
                           ) : (
                             <>
                               <p
@@ -1159,6 +1184,12 @@ function ProfilePage() {
           })
         }
         onConfirm={(result) => handleProfileImageUpload(cropState.target, result)}
+      />
+
+      <VerificationModal
+        open={verificationModalOpen}
+        user={profileUser}
+        onClose={() => setVerificationModalOpen(false)}
       />
 
       <ProfileImageLightbox

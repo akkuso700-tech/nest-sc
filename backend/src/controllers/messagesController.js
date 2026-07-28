@@ -77,7 +77,7 @@ const listConversations = asyncHandler(async (req, res) => {
     hiddenByUserIds: { $ne: req.user._id },
   })
     .select('participantIds lastMessageId lastMessagePreview lastMessageAt updatedAt')
-    .populate('participantIds', 'firstName lastName username avatarUrl lastLoginAt')
+    .populate('participantIds', 'firstName lastName username avatarUrl lastLoginAt verification')
     .populate('lastMessageId', 'media')
     .sort({ lastMessageAt: -1, updatedAt: -1 })
     .limit(req.validated.query.limit)

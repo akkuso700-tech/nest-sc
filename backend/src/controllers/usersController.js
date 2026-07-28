@@ -3,6 +3,7 @@ const { User } = require('../models/User')
 const { Post } = require('../models/Post')
 const { RefreshToken } = require('../models/RefreshToken')
 const { Notification } = require('../models/Notification')
+const { VerificationRequest } = require('../models/VerificationRequest')
 const { AppError } = require('../utils/AppError')
 const { asyncHandler } = require('../utils/asyncHandler')
 const { serializePostForViewer } = require('../utils/socialSerializers')
@@ -137,7 +138,7 @@ async function buildProfilePayload(profileUser, viewer) {
       'media.0': { $exists: true },
     }),
     Post.find(postFilter)
-      .populate('author', 'firstName lastName username avatarUrl')
+      .populate('author', 'firstName lastName username avatarUrl verification')
       .sort({ createdAt: -1 })
       .limit(20),
     likedPostIds.length
@@ -150,7 +151,7 @@ async function buildProfilePayload(profileUser, viewer) {
           }),
           _id: { $in: likedPostIds },
         })
-          .populate('author', 'firstName lastName username avatarUrl')
+          .populate('author', 'firstName lastName username avatarUrl verification')
           .sort({ createdAt: -1 })
           .limit(20)
       : [],
@@ -164,7 +165,7 @@ async function buildProfilePayload(profileUser, viewer) {
           }),
           _id: { $in: savedPostIds },
         })
-          .populate('author', 'firstName lastName username avatarUrl')
+          .populate('author', 'firstName lastName username avatarUrl verification')
           .sort({ createdAt: -1 })
           .limit(20)
       : [],
@@ -178,7 +179,7 @@ async function buildProfilePayload(profileUser, viewer) {
           }),
           _id: { $in: commentedPostIds },
         })
-          .populate('author', 'firstName lastName username avatarUrl')
+          .populate('author', 'firstName lastName username avatarUrl verification')
           .sort({ createdAt: -1 })
           .limit(20)
       : [],
@@ -213,10 +214,10 @@ async function buildConnectionPayload(profileUser, viewer, type) {
     type === 'followers'
       ? await User.find({ friendIds: profileUser._id })
           .sort({ createdAt: -1 })
-          .select('firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds')
+          .select('firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds verification')
       : await User.find({ _id: { $in: profileUser.friendIds || [] } })
           .sort({ createdAt: -1 })
-          .select('firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds')
+          .select('firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds verification')
 
   return {
     user: serializeUser(profileUser),
@@ -253,7 +254,7 @@ async function getGuestDiscoverySuggestions({ mode = 'for-you', limit = 6 }) {
     isPrivate: false,
   })
     .select(
-      'firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds',
+      'firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds verification',
     )
     .sort({ lastLoginAt: -1, createdAt: -1 })
     .limit(80)
@@ -368,6 +369,156 @@ const getMyProfile = asyncHandler(async (req, res) => {
   res.json(payload)
 })
 
+const getMyVerificationRequest = asyncHandler(async (req, res) => {
+  const request = await VerificationRequest.findOne({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .select('-reviewedBy')
+
+  const profile = await User.findById(req.user._id).select('verification')
+  const cooldownActive =
+    request?.resubmissionAllowedAt && request.resubmissionAllowedAt.getTime() > Date.now()
+
+  res.json({
+    request,
+    canApply:
+      !request?.isActive &&
+      profile?.verification?.status !== 'approved' &&
+      !cooldownActive,
+  })
+})
+
+const createMyVerificationRequest = asyncHandler(async (req, res) => {
+  const profile = await User.findById(req.user._id)
+
+  if (!profile) {
+    throw new AppError('User not found.', 404)
+  }
+
+  if (profile.accountStatus !== 'active') {
+    throw new AppError('Only active accounts can apply for profile verification.', 403)
+  }
+
+  if (profile.verification?.status === 'approved') {
+    throw new AppError('This profile is already verified.', 409)
+  }
+
+  if (!profile.emailVerifiedAt) {
+    throw new AppError('Verify your email address before applying.', 400)
+  }
+
+  if (!profile.avatarUrl || !profile.firstName || !profile.lastName) {
+    throw new AppError('Complete your name and profile photo before applying.', 400)
+  }
+
+  const activeRequest = await VerificationRequest.findOne({
+    user: profile._id,
+    isActive: true,
+  })
+
+  if (activeRequest) {
+    throw new AppError('You already have an active verification request.', 409)
+  }
+
+  const latestRequest = await VerificationRequest.findOne({ user: profile._id })
+    .sort({ createdAt: -1 })
+    .select('resubmissionAllowedAt')
+
+  if (
+    latestRequest?.resubmissionAllowedAt &&
+    latestRequest.resubmissionAllowedAt.getTime() > Date.now()
+  ) {
+    throw new AppError(
+      `You can apply again after ${latestRequest.resubmissionAllowedAt.toISOString()}.`,
+      429,
+    )
+  }
+
+  const request = await VerificationRequest.create({
+    user: profile._id,
+    category: req.validated.body.category,
+    statement: req.validated.body.statement,
+    evidenceLinks: [...new Set(req.validated.body.evidenceLinks || [])],
+    termsAcceptedAt: new Date(),
+  })
+
+  profile.verification = {
+    status: 'pending',
+    category: request.category,
+    verifiedAt: null,
+    verifiedBy: null,
+    updatedAt: new Date(),
+  }
+  await profile.save()
+
+  res.status(201).json({
+    message: 'Verification request submitted successfully.',
+    request,
+  })
+})
+
+const updateMyVerificationRequest = asyncHandler(async (req, res) => {
+  const request = await VerificationRequest.findOne({
+    user: req.user._id,
+    isActive: true,
+    status: 'needs_info',
+  })
+
+  if (!request) {
+    throw new AppError('No verification request is waiting for additional information.', 404)
+  }
+
+  for (const field of ['category', 'statement', 'evidenceLinks']) {
+    if (Object.prototype.hasOwnProperty.call(req.validated.body, field)) {
+      request[field] =
+        field === 'evidenceLinks'
+          ? [...new Set(req.validated.body[field] || [])]
+          : req.validated.body[field]
+    }
+  }
+
+  request.status = 'pending'
+  request.requestedInformation = ''
+  request.submittedAt = new Date()
+  await request.save()
+
+  await User.findByIdAndUpdate(req.user._id, {
+    'verification.status': 'pending',
+    'verification.category': request.category,
+    'verification.updatedAt': new Date(),
+  })
+
+  res.json({
+    message: 'Additional information submitted successfully.',
+    request,
+  })
+})
+
+const withdrawMyVerificationRequest = asyncHandler(async (req, res) => {
+  const request = await VerificationRequest.findOne({
+    user: req.user._id,
+    isActive: true,
+    status: 'pending',
+  })
+
+  if (!request) {
+    throw new AppError('Only a pending verification request can be withdrawn.', 400)
+  }
+
+  request.status = 'withdrawn'
+  request.isActive = false
+  request.reviewedAt = new Date()
+  await request.save()
+
+  await User.findByIdAndUpdate(req.user._id, {
+    'verification.status': 'none',
+    'verification.verifiedAt': null,
+    'verification.verifiedBy': null,
+    'verification.updatedAt': new Date(),
+  })
+
+  res.json({ message: 'Verification request withdrawn successfully.' })
+})
+
 const getProfileByUsername = asyncHandler(async (req, res) => {
   const profile = await User.findOne({
     username: req.validated.params.username.toLowerCase(),
@@ -433,7 +584,7 @@ const searchUsers = asyncHandler(async (req, res) => {
   }
 
   const users = await User.find(filter)
-    .select('firstName lastName username avatarUrl lastLoginAt createdAt')
+    .select('firstName lastName username avatarUrl lastLoginAt createdAt verification')
     .sort({ lastLoginAt: -1, createdAt: -1 })
     .limit(limit)
 
@@ -622,6 +773,11 @@ const updateMyProfile = asyncHandler(async (req, res) => {
 
   const emailChanged = hasField('email') && incomingEmail !== currentEmail
   const usernameChanged = hasField('username') && incomingUsername !== currentUsername
+  const verifiedIdentityChanged =
+    profile.verification?.status === 'approved' &&
+    (usernameChanged ||
+      (hasField('firstName') && body.firstName !== profile.firstName) ||
+      (hasField('lastName') && body.lastName !== profile.lastName))
 
   if (emailChanged || usernameChanged) {
     const conflictingUser = await User.findOne({
@@ -683,7 +839,29 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     profile.isPrivate = body.isPrivate
   }
 
+  if (verifiedIdentityChanged) {
+    profile.verification = {
+      status: 'revoked',
+      category: profile.verification?.category || 'individual',
+      verifiedAt: null,
+      verifiedBy: null,
+      updatedAt: new Date(),
+    }
+  }
+
   await profile.save({ validateModifiedOnly: true })
+  if (verifiedIdentityChanged) {
+    await VerificationRequest.findOneAndUpdate(
+      { user: profile._id, status: 'approved' },
+      {
+        status: 'revoked',
+        reviewNote: 'Profil adı veya kullanıcı adı değiştirildiği için doğrulama kaldırıldı.',
+        reviewedAt: new Date(),
+        isActive: false,
+      },
+      { sort: { createdAt: -1 } },
+    )
+  }
   mark('profile_save_done')
 
   const payload = await buildProfilePayload(profile, profile)
@@ -763,7 +941,7 @@ const toggleFollowByUsername = asyncHandler(async (req, res) => {
     if (io) {
       const populatedNotification = await Notification.findById(
         followNotification._id,
-      ).populate('actor', 'firstName lastName username avatarUrl lastLoginAt')
+      ).populate('actor', 'firstName lastName username avatarUrl lastLoginAt verification')
 
       if (populatedNotification) {
         const serializedNotification = {
@@ -849,6 +1027,7 @@ const deleteMyAccount = asyncHandler(async (req, res) => {
     Notification.deleteMany({
       $or: [{ user: profile._id }, { actor: profile._id }],
     }),
+    VerificationRequest.deleteMany({ user: profile._id }),
     Post.deleteMany({ author: profile._id }),
     User.updateMany(
       { friendIds: profile._id },
@@ -877,4 +1056,8 @@ module.exports = {
   toggleFollowByUsername,
   changeMyPassword,
   deleteMyAccount,
+  getMyVerificationRequest,
+  createMyVerificationRequest,
+  updateMyVerificationRequest,
+  withdrawMyVerificationRequest,
 }
