@@ -49,7 +49,6 @@ function getGoogleCookieOptions() {
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
-    domain: env.cookieDomain,
     maxAge: 10 * 60 * 1000,
   }
 }

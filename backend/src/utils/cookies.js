@@ -9,7 +9,6 @@ function buildBaseCookieOptions() {
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
-    domain: env.cookieDomain,
   }
 }
 

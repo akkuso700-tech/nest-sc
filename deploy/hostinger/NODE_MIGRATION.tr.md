@@ -64,7 +64,7 @@ Canli icin minimum kritik alanlar:
 - `EMAIL_PROVIDER=resend`
 - `RESEND_API_KEY=<re_...>`
 - `JWT_ACCESS_SECRET/JWT_REFRESH_SECRET/JWT_PASSWORD_RESET_SECRET`
-- `COOKIE_DOMAIN=.nest-sc.com`
+- `COOKIE_DOMAIN` tanimlamayin. Oturum cerezleri API alan adina ozel kalmalidir.
 
 Not:
 

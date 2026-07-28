@@ -90,6 +90,9 @@ Demo ortaminda ust barda otomatik `Demo Ortami` etiketi gorunur.
 - Canli ve demo icin ayri MongoDB veritabani kullan.
 - Canli ve demo icin ayri upload token kullan.
 - Canli ve demo icin ayri upload subdomain kullan.
+- `COOKIE_DOMAIN` tanimlama. API, oturum cerezlerini host-only olarak yazar;
+  boylece `api.nest-sc.com` ile `api-demo.nest-sc.com` oturumlari birbirine
+  karismaz ve tarayici gecersiz demo cerezini reddetmez.
 
 ## Hizli dogrulama listesi
 

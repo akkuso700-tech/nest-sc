@@ -131,7 +131,6 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   JWT_PASSWORD_RESET_EXPIRES_IN: z.string().default('30m'),
-  COOKIE_DOMAIN: z.string().optional(),
   RATE_LIMIT_WINDOW: z.string().default('15m'),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(200),
   LOOP_TRANSCODE_ENABLED: z.string().optional(),
@@ -237,7 +236,6 @@ const env = {
   googleClientId: rawEnv.GOOGLE_CLIENT_ID || undefined,
   googleClientSecret: rawEnv.GOOGLE_CLIENT_SECRET || undefined,
   googleRedirectUri: rawEnv.GOOGLE_REDIRECT_URI || undefined,
-  cookieDomain: rawEnv.COOKIE_DOMAIN || undefined,
   rateLimit: {
     windowMs: parseDuration(rawEnv.RATE_LIMIT_WINDOW, 'RATE_LIMIT_WINDOW'),
     max: rawEnv.RATE_LIMIT_MAX,
