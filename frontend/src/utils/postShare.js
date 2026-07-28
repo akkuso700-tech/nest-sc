@@ -16,8 +16,39 @@ function truncateText(value, maxLength = 140) {
   return `${safeValue.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`
 }
 
+function toWellFormedText(value) {
+  const text = `${value || ''}`
+
+  if (typeof text.toWellFormed === 'function') {
+    return text.toWellFormed()
+  }
+
+  let result = ''
+
+  for (let index = 0; index < text.length; index += 1) {
+    const codeUnit = text.charCodeAt(index)
+
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const nextCodeUnit = text.charCodeAt(index + 1)
+
+      if (nextCodeUnit >= 0xdc00 && nextCodeUnit <= 0xdfff) {
+        result += text[index] + text[index + 1]
+        index += 1
+      } else {
+        result += '\ufffd'
+      }
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      result += '\ufffd'
+    } else {
+      result += text[index]
+    }
+  }
+
+  return result
+}
+
 function encode(value) {
-  return encodeURIComponent(`${value || ''}`)
+  return encodeURIComponent(toWellFormedText(value))
 }
 
 export function buildPostShareUrl({ postId, slug = '', lang = 'tr', origin }) {
@@ -29,7 +60,7 @@ export function buildPostShareUrl({ postId, slug = '', lang = 'tr', origin }) {
   const safeOrigin = getCurrentOrigin(origin)
 
   const safeSlug = `${slug || ''}`.trim()
-  const path = safeSlug ? `/${safeLang}/posts/${postId}/${encodeURIComponent(safeSlug)}` : `/${safeLang}/posts/${postId}`
+  const path = safeSlug ? `/${safeLang}/posts/${postId}/${encode(safeSlug)}` : `/${safeLang}/posts/${postId}`
   return new URL(path, safeOrigin).toString()
 }
 
