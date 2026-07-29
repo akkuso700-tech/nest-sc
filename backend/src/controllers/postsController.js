@@ -4,6 +4,9 @@ const { z } = require('zod')
 const { Post } = require('../models/Post')
 const { PostView } = require('../models/PostView')
 const { LoopPlaybackEvent } = require('../models/LoopPlaybackEvent')
+const { RecommendationEvent } = require('../models/RecommendationEvent')
+const { FeedSession } = require('../models/FeedSession')
+const { TelemetryReceipt } = require('../models/TelemetryReceipt')
 const { Comment } = require('../models/Comment')
 const { Notification } = require('../models/Notification')
 const { User } = require('../models/User')
@@ -14,6 +17,7 @@ const {
   buildTopicSlug,
   formatTopicLabel,
   extractTopicsFromText,
+  extractRecommendationTopicKeys,
 } = require('../utils/topicExtraction')
 const {
   buildMediaItems,
@@ -33,13 +37,26 @@ const FEED_SESSION_TTL_MS = 20 * 60 * 1000
 const FEED_SESSION_MAX_ITEMS = 320
 const INTEREST_TOPIC_LIMIT = 40
 const INTEREST_PROFILE_POST_LIMIT = 220
+const INTEREST_PROFILE_TTL_MS = 6 * 60 * 60 * 1000
+const RECOMMENDATION_EVENT_TTL_DAYS = 180
+const RECOMMENDATION_EVENT_LIMIT = 600
+const RECENTLY_SEEN_HOURS = 48
+const RECENTLY_SEEN_LIMIT = 1000
+const TELEMETRY_RECEIPT_TTL_MS = 24 * 60 * 60 * 1000
+const LOOP_TELEMETRY_SAMPLE_RATES = Object.freeze({
+  waiting: 0.25,
+  stalled: 0.5,
+  error: 1,
+  'recover-failed': 1,
+  'time-gap': 0.2,
+  'dropped-frames': 0.2,
+})
 const FEED_POST_PROJECTION =
   'author group title slug text media contentType privacy publication moderation groupModeration archivedAt stats likedByUserIds savedByUserIds sharedByUserIds createdAt updatedAt'
 const trendingTopicsCache = {
   items: [],
   expiresAt: 0,
 }
-const feedSessions = new Map()
 
 function nowMs() {
   return Date.now()
@@ -82,14 +99,6 @@ function getFeedCursorSecret() {
   return process.env.FEED_CURSOR_SECRET || process.env.JWT_ACCESS_SECRET || 'dev-feed-cursor-secret-change-me'
 }
 
-function cleanupExpiredFeedSessions(nowMs = Date.now()) {
-  for (const [sessionId, session] of feedSessions.entries()) {
-    if (!session || session.expiresAtMs <= nowMs) {
-      feedSessions.delete(sessionId)
-    }
-  }
-}
-
 function signFeedCursorPayload(payloadJson) {
   return crypto.createHmac('sha256', getFeedCursorSecret()).update(payloadJson).digest('base64url')
 }
@@ -118,8 +127,12 @@ function decodeFeedCursor(cursorToken) {
     return null
   }
 
-  const expectedSignature = signFeedCursorPayload(payloadJson)
-  if (expectedSignature !== signature) {
+  const expectedSignature = Buffer.from(signFeedCursorPayload(payloadJson))
+  const receivedSignature = Buffer.from(signature)
+  if (
+    expectedSignature.length !== receivedSignature.length ||
+    !crypto.timingSafeEqual(expectedSignature, receivedSignature)
+  ) {
     return null
   }
 
@@ -130,33 +143,41 @@ function decodeFeedCursor(cursorToken) {
   }
 }
 
-function normalizeFeedSessionScope({ reqUserId, view, topic }) {
+function normalizeFeedSessionScope({ reqUserId, view, topic, loopMode = null, experimentVariant = 'control' }) {
   return {
     reqUserId: reqUserId || null,
     view,
     topic: topic || null,
+    loopMode: view === 'loop' ? loopMode || 'explore' : null,
+    experimentVariant,
   }
 }
 
-function createFeedSession({ orderedPostIds, scope, limit }) {
-  cleanupExpiredFeedSessions()
-  const nowMs = Date.now()
+async function createFeedSession({ orderedPostIds, scope, limit }) {
+  const createdAtMs = Date.now()
   const sessionId = crypto.randomBytes(12).toString('hex')
   const uniqueOrderedIds = [...new Set((orderedPostIds || []).map((value) => value?.toString()).filter(Boolean))]
-  const session = {
-    id: sessionId,
+  const expiresAt = new Date(createdAtMs + FEED_SESSION_TTL_MS)
+
+  await FeedSession.create({
+    sessionId,
     orderedPostIds: uniqueOrderedIds.slice(0, FEED_SESSION_MAX_ITEMS),
-    servedPostIds: new Set(),
     scope,
     limit,
-    createdAtMs: nowMs,
-    expiresAtMs: nowMs + FEED_SESSION_TTL_MS,
+    expiresAt,
+  })
+
+  return {
+    id: sessionId,
+    orderedPostIds: uniqueOrderedIds.slice(0, FEED_SESSION_MAX_ITEMS),
+    scope,
+    limit,
+    createdAtMs,
+    expiresAtMs: expiresAt.getTime(),
   }
-  feedSessions.set(sessionId, session)
-  return session
 }
 
-function resolveFeedSessionFromCursor({ cursorToken, scope }) {
+async function resolveFeedSessionFromCursor({ cursorToken, scope }) {
   const payload = decodeFeedCursor(cursorToken)
   if (!payload) {
     return null
@@ -168,25 +189,46 @@ function resolveFeedSessionFromCursor({ cursorToken, scope }) {
     !payload.scope ||
     payload.scope.view !== scope.view ||
     (payload.scope.topic || null) !== (scope.topic || null) ||
+    (payload.scope.loopMode || null) !== (scope.loopMode || null) ||
+    (payload.scope.experimentVariant || 'control') !== (scope.experimentVariant || 'control') ||
     (payload.scope.reqUserId || null) !== (scope.reqUserId || null)
   ) {
     return null
   }
 
-  const session = feedSessions.get(payload.sessionId)
-  if (!session) {
+  if (typeof payload.exp === 'number' && payload.exp <= Date.now()) {
     return null
   }
 
-  const nowMs = Date.now()
-  if (session.expiresAtMs <= nowMs) {
-    feedSessions.delete(payload.sessionId)
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + FEED_SESSION_TTL_MS)
+  const sessionDocument = await FeedSession.findOneAndUpdate(
+    {
+      sessionId: payload.sessionId,
+      expiresAt: { $gt: now },
+      'scope.reqUserId': scope.reqUserId,
+      'scope.view': scope.view,
+      'scope.topic': scope.topic,
+      'scope.loopMode': scope.loopMode,
+      'scope.experimentVariant': scope.experimentVariant,
+    },
+    { $set: { expiresAt } },
+    { returnDocument: 'after' },
+  ).lean()
+
+  if (!sessionDocument) {
     return null
   }
 
-  session.expiresAtMs = nowMs + FEED_SESSION_TTL_MS
   return {
-    session,
+    session: {
+      id: sessionDocument.sessionId,
+      orderedPostIds: (sessionDocument.orderedPostIds || []).map((postId) => postId.toString()),
+      scope: sessionDocument.scope,
+      limit: sessionDocument.limit,
+      createdAtMs: new Date(sessionDocument.createdAt).getTime(),
+      expiresAtMs: expiresAt.getTime(),
+    },
     position: Math.max(0, payload.position),
   }
 }
@@ -197,11 +239,10 @@ function buildSessionPagination({ session, position, limit, scope }) {
 
   for (let index = position; index < endExclusive; index += 1) {
     const postId = session.orderedPostIds[index]
-    if (!postId || session.servedPostIds.has(postId)) {
+    if (!postId) {
       continue
     }
     pageIds.push(postId)
-    session.servedPostIds.add(postId)
   }
 
   const nextPosition = endExclusive
@@ -227,6 +268,16 @@ function buildSessionPagination({ session, position, limit, scope }) {
 
 function canAccessPost(post, user) {
   const authorId = post.author?._id?.toString?.() || post.author?.toString?.()
+  const viewerId = user?._id?.toString?.() || ''
+  const viewerBlockedAuthor = Boolean(
+    viewerId &&
+      authorId &&
+      (user.blockedUserIds || []).some((blockedId) => blockedId?.toString?.() === authorId),
+  )
+
+  if (viewerBlockedAuthor && user?.role !== 'admin') {
+    return false
+  }
   const scheduledFor = post.publication?.scheduledFor ? new Date(post.publication.scheduledFor) : null
   const isScheduledForFuture =
     post.publication?.status === 'scheduled' &&
@@ -296,9 +347,16 @@ function canAccessPost(post, user) {
     return false
   }
 
+  if (post.privacy === 'followers') {
+    const followsAuthor = (user.friendIds || []).some(
+      (followedId) => followedId?.toString?.() === authorId,
+    )
+
+    return followsAuthor || authorId === viewerId || user.role === 'admin'
+  }
+
   return (
-    post.author._id?.toString?.() === user._id.toString() ||
-    post.author.toString?.() === user._id.toString() ||
+    authorId === viewerId ||
     user.role === 'admin'
   )
 }
@@ -351,6 +409,80 @@ function buildPostViewViewerKey(req) {
   return `guest:${fingerprint}`
 }
 
+function isLikelyAutomatedClient(req) {
+  const userAgent = `${req.headers?.['user-agent'] || ''}`
+  return /bot|crawler|spider|slurp|headlesschrome|lighthouse|pagespeed|preview|facebookexternalhit/i.test(
+    userAgent,
+  )
+}
+
+function buildPostViewUpdatePipeline({
+  postId,
+  viewerKey,
+  dayBucket,
+  expiresAt,
+  now,
+  watchRatio,
+  replayCount,
+  swipeVelocity,
+  visibleMs,
+  quickSkip,
+  longView,
+  recommendation,
+}) {
+  const currentWatchRatio = { $ifNull: ['$maxWatchRatio', 0] }
+  const currentReplayCount = { $ifNull: ['$replayCount', 0] }
+  const currentVisibleMs = { $ifNull: ['$maxVisibleMs', 0] }
+
+  return [
+    {
+      $set: {
+        post: postId,
+        viewerKey,
+        dayBucket,
+        expiresAt,
+        createdAt: { $ifNull: ['$createdAt', now] },
+        updatedAt: now,
+        maxWatchRatio:
+          typeof watchRatio === 'number'
+            ? { $max: [currentWatchRatio, watchRatio] }
+            : currentWatchRatio,
+        replayCount:
+          typeof replayCount === 'number'
+            ? { $max: [currentReplayCount, replayCount] }
+            : currentReplayCount,
+        maxVisibleMs:
+          typeof visibleMs === 'number'
+            ? { $max: [currentVisibleMs, visibleMs] }
+            : currentVisibleMs,
+        swipeVelocity:
+          typeof swipeVelocity === 'number'
+            ? { $ifNull: ['$swipeVelocity', swipeVelocity] }
+            : { $ifNull: ['$swipeVelocity', null] },
+        quickSkipRecorded: quickSkip ? true : { $ifNull: ['$quickSkipRecorded', false] },
+        longViewRecorded: longView ? true : { $ifNull: ['$longViewRecorded', false] },
+        feedSessionId: recommendation?.sessionId || { $ifNull: ['$feedSessionId', ''] },
+        feedRank: recommendation?.rank || { $ifNull: ['$feedRank', null] },
+        algorithm: recommendation?.algorithm || { $ifNull: ['$algorithm', ''] },
+        feedView: recommendation?.view || { $ifNull: ['$feedView', ''] },
+        loopMode: recommendation?.loopMode || { $ifNull: ['$loopMode', ''] },
+        experimentId:
+          recommendation?.experiment?.id || { $ifNull: ['$experimentId', ''] },
+        experimentVariant:
+          recommendation?.experiment?.variant || { $ifNull: ['$experimentVariant', ''] },
+      },
+    },
+  ]
+}
+
+async function updatePostViewSignal({ filter, pipeline, upsert = true }) {
+  return PostView.findOneAndUpdate(filter, pipeline, {
+    upsert,
+    returnDocument: 'before',
+    updatePipeline: true,
+  }).lean()
+}
+
 function buildCommentTree(comments, user) {
   const commentMap = new Map()
   const roots = []
@@ -390,6 +522,17 @@ async function getAccessiblePost(postId, user) {
 
   if (!post) {
     throw new AppError('Post not found.', 404)
+  }
+
+  const authorId = post.author?._id || post.author
+  if (user?._id && user.role !== 'admin' && authorId) {
+    const authorBlocksViewer = await User.exists({
+      _id: authorId,
+      blockedUserIds: user._id,
+    })
+    if (authorBlocksViewer) {
+      throw new AppError('Post not found.', 404)
+    }
   }
 
   if (!canAccessPost(post, user)) {
@@ -556,6 +699,7 @@ function sanitizeLoopTelemetryPayload(payload = {}) {
     : {}
 
   return {
+    eventId: `${safePayload.eventId || ''}`.slice(0, 64),
     eventType: safePayload.eventType,
     mediaUrl: `${safePayload.mediaUrl || ''}`.slice(0, 2048),
     currentTimeSec:
@@ -749,9 +893,43 @@ async function updateUserActivity(userId, field, itemId, active) {
   await User.updateOne(
     { _id: userId },
     active
-      ? { $addToSet: { [`activity.${field}`]: itemId } }
-      : { $pull: { [`activity.${field}`]: itemId } },
+      ? {
+          $addToSet: { [`activity.${field}`]: itemId },
+          $set: { 'discovery.interestProfile.updatedAt': null },
+        }
+      : {
+          $pull: { [`activity.${field}`]: itemId },
+          $set: { 'discovery.interestProfile.updatedAt': null },
+        },
   )
+}
+
+function getTelemetryReceiptExpiresAt(now = new Date()) {
+  return new Date(now.getTime() + TELEMETRY_RECEIPT_TTL_MS)
+}
+
+function getLoopTelemetrySampleRate(eventType) {
+  return LOOP_TELEMETRY_SAMPLE_RATES[eventType] ?? 0
+}
+
+function shouldPersistLoopTelemetry({ payload, postId, viewerKey }) {
+  const sampleRate = getLoopTelemetrySampleRate(payload.eventType)
+  if (sampleRate >= 1) {
+    return { sampled: true, sampleRate }
+  }
+
+  const sampleSeed = [
+    payload.eventId,
+    postId,
+    viewerKey,
+    payload.eventType,
+    payload.currentTimeSec,
+  ].join('|')
+
+  return {
+    sampled: hashToUnitInterval(sampleSeed) < sampleRate,
+    sampleRate,
+  }
 }
 
 async function toggleDocumentInteraction({
@@ -878,7 +1056,7 @@ function boundedSortedTopicEntries(topicScoresMap) {
 }
 
 function topicsFromPost(post) {
-  return extractTopicsFromText(post?.text || '').map((topic) => topic.key)
+  return extractRecommendationTopicKeys(`${post?.title || ''} ${post?.text || ''}`.trim())
 }
 
 function sumTopicScore(topicScoresMap, topicKeys = []) {
@@ -900,12 +1078,17 @@ function computeHashtagMatchScore({ postTopicKeys = [], topicScoresMap, hiddenTo
 
 function computePostQualityScore(post) {
   const stats = post.stats || {}
-  const views = Math.max(Number(stats.views || 0), 1)
+  const views = Math.max(Number(stats.views || 0), 0)
+  const weightedEngagement =
+    (Number(stats.likes || 0) * 3) +
+    (Number(stats.comments || 0) * 4) +
+    (Number(stats.saves || 0) * 5) +
+    (Number(stats.shares || 0) * 4)
+  const priorStrength = 16
+  const priorWeightedEngagementPerView = 0.3
   const engagementPerView =
-    ((Number(stats.likes || 0) * 3) +
-      (Number(stats.comments || 0) * 4) +
-      (Number(stats.saves || 0) * 5) +
-      (Number(stats.shares || 0) * 4)) / views
+    (weightedEngagement + priorWeightedEngagementPerView * priorStrength) /
+    (views + priorStrength)
   return clamp(engagementPerView / 8, 0, 1)
 }
 
@@ -920,6 +1103,7 @@ function buildPersonalizedCandidateScore({
   signals,
   topicScoresMap,
   hiddenTopicSet,
+  experimentVariant = 'control',
 }) {
   const postTopicKeys = topicsFromPost(post)
   const hashtagMatch = computeHashtagMatchScore({ postTopicKeys, topicScoresMap, hiddenTopicSet })
@@ -927,14 +1111,19 @@ function buildPersonalizedCandidateScore({
   const freshness = computeFreshnessScore(post)
   const quality = computePostQualityScore(post)
   const loopScore = post.contentType === 'loop' ? buildLoopRankingScore(post) : 0
+  const recentlySeenPenalty = signals.recentlySeenPostIds?.has(post._id.toString()) ? 0.6 : 0
 
-  // Hybrid: hashtag affinity + behavioral affinity + freshness/quality + light loop quality bonus.
+  const weights =
+    experimentVariant === 'challenger'
+      ? { topic: 0.3, behavior: 0.3, freshness: 0.15, quality: 0.15, loop: 0.1 }
+      : { topic: 0.35, behavior: 0.35, freshness: 0.15, quality: 0.1, loop: 0.05 }
   const score =
-    hashtagMatch * 0.35 +
-    recScore * 0.35 +
-    freshness * 0.15 +
-    quality * 0.1 +
-    loopScore * 0.05
+    hashtagMatch * weights.topic +
+    recScore * weights.behavior +
+    freshness * weights.freshness +
+    quality * weights.quality +
+    loopScore * weights.loop -
+    recentlySeenPenalty
 
   return {
     score,
@@ -964,22 +1153,157 @@ function applyDiversityPenalty(baseScore, candidateMeta, history = []) {
   return baseScore - penalty
 }
 
+function hasFreshInterestProfile(user, topicScoresMap) {
+  const updatedAtMs = new Date(user?.discovery?.interestProfile?.updatedAt || 0).getTime()
+  return (
+    topicScoresMap instanceof Map &&
+    Number.isFinite(updatedAtMs) &&
+    updatedAtMs > 0 &&
+    Date.now() - updatedAtMs < INTEREST_PROFILE_TTL_MS
+  )
+}
+
+function rankPersonalizedCandidates({ entries = [], seedContext = '' }) {
+  const remaining = entries.map((entry) => ({ ...entry }))
+  const selected = []
+  const history = []
+
+  while (remaining.length) {
+    let bestIndex = 0
+    let bestScore = Number.NEGATIVE_INFINITY
+    const recentAuthorIds = history.slice(-9).map((entry) => entry.authorId).filter(Boolean)
+    const eligibleIndexes = remaining
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => {
+        if (!entry.meta.authorId) {
+          return true
+        }
+        return recentAuthorIds.filter((authorId) => authorId === entry.meta.authorId).length < 2
+      })
+      .map(({ index }) => index)
+    const candidateIndexes = eligibleIndexes.length
+      ? new Set(eligibleIndexes)
+      : new Set(remaining.map((_, index) => index))
+
+    remaining.forEach((entry, index) => {
+      if (!candidateIndexes.has(index)) {
+        return
+      }
+      const postId = entry.post?._id?.toString?.() || entry.post?.id || ''
+      const explorationJitter = (hashToUnitInterval(`${seedContext}|${postId}`) - 0.5) * 0.025
+      const score = applyDiversityPenalty(entry.baseScore, entry.meta, history) + explorationJitter
+
+      if (score > bestScore) {
+        bestScore = score
+        bestIndex = index
+      }
+    })
+
+    const [winner] = remaining.splice(bestIndex, 1)
+    selected.push(winner.post)
+    history.push(winner.meta)
+  }
+
+  return selected
+}
+
+async function getExcludedFeedAuthorIds(user) {
+  if (!user?._id || user.role === 'admin') {
+    return []
+  }
+
+  const blockedByViewer = uniqueStringIds(user.blockedUserIds || [])
+  const usersBlockingViewer = await User.find({ blockedUserIds: user._id }).select('_id').lean()
+
+  return uniqueStringIds([
+    ...blockedByViewer,
+    ...usersBlockingViewer.map((entry) => entry._id),
+  ])
+}
+
+function getRecommendationEventExpiresAt(now = new Date()) {
+  const expiresAt = new Date(now)
+  expiresAt.setDate(expiresAt.getDate() + RECOMMENDATION_EVENT_TTL_DAYS)
+  return expiresAt
+}
+
+async function recordRecommendationEvent({
+  userId,
+  postId,
+  eventType,
+  weight,
+  source = 'explicit',
+  recommendation = null,
+}) {
+  if (!userId || !postId || !eventType || !Number.isFinite(weight)) {
+    return
+  }
+
+  try {
+    await RecommendationEvent.create({
+      user: userId,
+      post: postId,
+      eventType,
+      weight: clamp(weight, -20, 20),
+      source,
+      feedSessionId: recommendation?.sessionId || '',
+      feedRank: recommendation?.rank || null,
+      algorithm: recommendation?.algorithm || '',
+      experimentId: recommendation?.experiment?.id || '',
+      experimentVariant: recommendation?.experiment?.variant || '',
+      expiresAt: getRecommendationEventExpiresAt(),
+    })
+  } catch {
+    // Recommendation analytics must not block the user's primary action.
+  }
+}
+
+async function getRecentlySeenPostIds(user, hours = RECENTLY_SEEN_HOURS) {
+  if (!user?._id) {
+    return []
+  }
+
+  const viewerKey = `user:${user._id.toString()}`
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000)
+  const rows = await PostView.find({ viewerKey, updatedAt: { $gte: since } })
+    .sort({ updatedAt: -1 })
+    .limit(RECENTLY_SEEN_LIMIT)
+    .select('post')
+    .lean()
+
+  return uniqueStringIds(rows.map((row) => row.post))
+}
+
 async function buildAndPersistInterestProfile(user) {
   const likedPostIds = uniqueStringIds(user.activity?.likedPostIds || [])
   const commentedPostIds = uniqueStringIds(user.activity?.commentedPostIds || [])
   const savedPostIds = uniqueStringIds(user.activity?.savedPostIds || [])
   const sharedPostIds = uniqueStringIds(user.activity?.sharedPostIds || [])
 
-  const weightedIds = [
-    ...likedPostIds.map((postId) => ({ postId, weight: 3 })),
-    ...commentedPostIds.map((postId) => ({ postId, weight: 2 })),
-    ...savedPostIds.map((postId) => ({ postId, weight: 4 })),
-    ...sharedPostIds.map((postId) => ({ postId, weight: 5 })),
+  const legacyWeightedIds = [
+    ...likedPostIds.map((postId) => ({ postId, weight: 3 * 0.35 })),
+    ...commentedPostIds.map((postId) => ({ postId, weight: 2 * 0.35 })),
+    ...savedPostIds.map((postId) => ({ postId, weight: 4 * 0.35 })),
+    ...sharedPostIds.map((postId) => ({ postId, weight: 5 * 0.35 })),
   ]
+  const recommendationEvents = await RecommendationEvent.find({ user: user._id })
+    .sort({ createdAt: -1 })
+    .limit(RECOMMENDATION_EVENT_LIMIT)
+    .select('post weight createdAt')
+    .lean()
+  const eventWeightedIds = recommendationEvents.map((event) => {
+    const ageDays = Math.max(0, (Date.now() - new Date(event.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+    const timeDecay = Math.pow(0.5, ageDays / 30)
+    return {
+      postId: event.post?.toString?.() || '',
+      weight: Number(event.weight || 0) * timeDecay,
+    }
+  })
+  const weightedIds = [...legacyWeightedIds, ...eventWeightedIds]
 
   const uniqueInteractionPostIds = uniqueStringIds(weightedIds.map((entry) => entry.postId))
   const postsFromActivity = uniqueInteractionPostIds.length
-    ? await Post.find({ _id: { $in: uniqueInteractionPostIds } }).select('text').lean()
+    ? await Post.find({ _id: { $in: uniqueInteractionPostIds } }).select('title text').lean()
     : []
   const byPostId = new Map(postsFromActivity.map((post) => [post._id.toString(), post]))
   const topicScoresMap = new Map()
@@ -994,14 +1318,14 @@ async function buildAndPersistInterestProfile(user) {
 
   const viewerKey = `user:${user._id.toString()}`
   const loopViews = await PostView.find({ viewerKey })
-    .sort({ createdAt: -1 })
+    .sort({ updatedAt: -1 })
     .limit(INTEREST_PROFILE_POST_LIMIT)
-    .select('post maxWatchRatio replayCount')
+    .select('post maxWatchRatio replayCount maxVisibleMs updatedAt')
     .lean()
 
   const loopPostIds = uniqueStringIds(loopViews.map((row) => row.post))
   const loopPosts = loopPostIds.length
-    ? await Post.find({ _id: { $in: loopPostIds } }).select('text').lean()
+    ? await Post.find({ _id: { $in: loopPostIds } }).select('title text').lean()
     : []
   const loopPostById = new Map(loopPosts.map((post) => [post._id.toString(), post]))
 
@@ -1013,11 +1337,21 @@ async function buildAndPersistInterestProfile(user) {
     }
     const watchRatio = clamp(Number(viewRow.maxWatchRatio || 0), 0, 1)
     const replayCount = clamp(Number(viewRow.replayCount || 0), 0, 8)
-    const watchWeight = watchRatio >= 0.75 ? 2 : watchRatio >= 0.5 ? 1 : 0
+    const visibleMs = Math.max(0, Number(viewRow.maxVisibleMs || 0))
+    const ageDays = Math.max(0, (Date.now() - new Date(viewRow.updatedAt).getTime()) / (24 * 60 * 60 * 1000))
+    const timeDecay = Math.pow(0.5, ageDays / 21)
+    const watchWeight =
+      watchRatio >= 0.75 || visibleMs >= 8000
+        ? 2
+        : watchRatio >= 0.5 || visibleMs >= 5000
+          ? 1
+          : watchRatio < 0.15 && visibleMs > 0 && visibleMs <= 1500
+            ? -1.5
+            : 0
     const replayWeight = replayCount > 0 ? Math.min(2, replayCount * 0.5) : 0
-    const totalWeight = watchWeight + replayWeight
+    const totalWeight = (watchWeight + replayWeight) * timeDecay
 
-    if (totalWeight <= 0) {
+    if (totalWeight === 0) {
       return
     }
 
@@ -1054,15 +1388,28 @@ async function buildAndPersistInterestProfile(user) {
 
 function buildLoopRankingScore(post) {
   const stats = post.stats || {}
-  const views = Math.max(1, Number(stats.views || 0))
+  const views = Math.max(0, Number(stats.views || 0))
   const loopSignalsCount = Math.max(0, Number(stats.loopSignalsCount || 0))
-  const completionRate = clamp(Number(stats.loopCompletions || 0) / views, 0, 1)
-  const replayRate = clamp(Number(stats.loopReplays || 0) / views, 0, 3)
-  const avgWatchRatio =
-    loopSignalsCount > 0
-      ? clamp(Number(stats.loopWatchRatioSum || 0) / loopSignalsCount, 0, 1)
-      : 0
-  const avgVisibleMs = clamp(Number(stats.loopVisibleMsSum || 0) / views, 0, 25000)
+  const completionRate = clamp(
+    (Number(stats.loopCompletions || 0) + 2) / (views + 8),
+    0,
+    1,
+  )
+  const replayRate = clamp(
+    (Number(stats.loopReplays || 0) + 1) / (views + 10),
+    0,
+    3,
+  )
+  const avgWatchRatio = clamp(
+    (Number(stats.loopWatchRatioSum || 0) + 0.45 * 8) / (loopSignalsCount + 8),
+    0,
+    1,
+  )
+  const avgVisibleMs = clamp(
+    (Number(stats.loopVisibleMsSum || 0) + 2500 * 8) / (views + 8),
+    0,
+    25000,
+  )
   const visibleQuality = clamp(avgVisibleMs / 8000, 0, 1)
   const avgSwipeVelocity =
     loopSignalsCount > 0
@@ -1073,13 +1420,7 @@ function buildLoopRankingScore(post) {
       ? clamp(1 - avgSwipeVelocity / 2200, 0, 1)
       : 0.45
 
-  const engagementPerView =
-    ((Number(stats.likes || 0) * 3) +
-      (Number(stats.comments || 0) * 4) +
-      (Number(stats.saves || 0) * 5) +
-      (Number(stats.shares || 0) * 4)) /
-    views
-  const engagementScore = clamp(engagementPerView / 8, 0, 1)
+  const engagementScore = computePostQualityScore(post)
 
   const ageInHours = Math.max(
     0,
@@ -1145,42 +1486,30 @@ function buildFeedSeedContext({ userId = 'guest', view = 'latest', topic = null 
   return `${userId}|${view}|${topic || ''}|${dayKey}`
 }
 
-function diversifyBySeededQuality({
-  items = [],
-  scoreGetter,
-  seedContext = '',
-  topWindow = 10,
-  jitterWeight = 0.1,
-}) {
-  if (!items.length) {
-    return []
+function buildFeedExperiment({ req, view, loopMode = null }) {
+  const experimentId = 'feed-quality-2026-07'
+  const subjectId = req.user?._id?.toString() || buildPostViewViewerKey(req)
+  const bucket = hashToUnitInterval(`${experimentId}|${subjectId}|${view}|${loopMode || ''}`)
+
+  return {
+    id: experimentId,
+    variant: bucket < 0.1 ? 'challenger' : 'control',
+  }
+}
+
+function deprioritizeRecentlySeen(items = [], recentlySeenPostIds = new Set()) {
+  if (!recentlySeenPostIds.size) {
+    return items
   }
 
-  const scored = items
-    .map((item) => ({
-      item,
-      baseScore: Number(scoreGetter(item) || 0),
-    }))
-    .sort((left, right) => right.baseScore - left.baseScore)
-
-  const topCount = clamp(topWindow, 1, scored.length)
-  const topItems = scored.slice(0, topCount)
-  const restItems = scored.slice(topCount)
-
-  const diversifiedTop = topItems
-    .map((entry) => {
-      const postId = entry.item?._id?.toString?.() || entry.item?.id || ''
-      const jitter = hashToUnitInterval(`${seedContext}|${postId}`)
-      const mixedScore = entry.baseScore * (1 - jitterWeight) + jitter * jitterWeight
-      return {
-        item: entry.item,
-        mixedScore,
-      }
-    })
-    .sort((left, right) => right.mixedScore - left.mixedScore)
-    .map((entry) => entry.item)
-
-  return [...diversifiedTop, ...restItems.map((entry) => entry.item)]
+  const unseen = []
+  const seen = []
+  items.forEach((item) => {
+    const postId = item?._id?.toString?.() || item?.id || ''
+    const target = recentlySeenPostIds.has(postId) ? seen : unseen
+    target.push(item)
+  })
+  return [...unseen, ...seen]
 }
 
 function buildTrendEntry({ label, posts }) {
@@ -1361,13 +1690,14 @@ async function notifyMentionedUsers({
   )
 }
 
-async function buildForYouRankedPosts({ user, limit, offset }) {
+async function buildForYouRankedPosts({ user, limit, offset, experimentVariant = 'control' }) {
   const followingAuthorIds = uniqueStringIds(user.friendIds || [])
   const viewedProfileIds = uniqueStringIds(user.activity?.viewedProfileIds || [])
   const likedPostIds = uniqueStringIds(user.activity?.likedPostIds || [])
   const commentedPostIds = uniqueStringIds(user.activity?.commentedPostIds || [])
   const savedPostIds = uniqueStringIds(user.activity?.savedPostIds || [])
   const sharedPostIds = uniqueStringIds(user.activity?.sharedPostIds || [])
+  const recentlySeenPostIds = await getRecentlySeenPostIds(user)
   const engagedPostIds = uniqueStringIds([
     ...likedPostIds,
     ...commentedPostIds,
@@ -1394,8 +1724,16 @@ async function buildForYouRankedPosts({ user, limit, offset }) {
 
   const candidateFilter = {
     group: null,
+    archivedAt: null,
     'moderation.visibility': 'visible',
     $or: [{ privacy: 'public' }, { author: user._id }],
+  }
+  appendAndFilter(candidateFilter, {
+    $or: [{ contentType: { $exists: false } }, { contentType: 'post' }, { contentType: 'loop' }],
+  })
+  const excludedAuthorIds = await getExcludedFeedAuthorIds(user)
+  if (excludedAuthorIds.length) {
+    candidateFilter.author = { $nin: excludedAuthorIds }
   }
   const hiddenPostIds = uniqueStringIds(
     (user.discovery?.interestProfile?.hiddenPostIds || []).map((item) => item?.toString?.() || item),
@@ -1429,6 +1767,7 @@ async function buildForYouRankedPosts({ user, limit, offset }) {
     commentedPostIds: new Set(commentedPostIds),
     savedPostIds: new Set(savedPostIds),
     sharedPostIds: new Set(sharedPostIds),
+    recentlySeenPostIds: new Set(recentlySeenPostIds),
   }
 
   const persistedTopicScores = normalizeTopicScoresMap(user.discovery?.interestProfile?.topicScores || {})
@@ -1437,7 +1776,7 @@ async function buildForYouRankedPosts({ user, limit, offset }) {
       (user.discovery?.interestProfile?.hiddenTopicKeys || []).map((item) => normalizeTopicToken(item)),
     ),
   )
-  const hasPersistentProfile = persistedTopicScores.size > 0
+  const hasPersistentProfile = hasFreshInterestProfile(user, persistedTopicScores)
   const interestProfile = hasPersistentProfile
     ? {
       topicScoresMap: persistedTopicScores,
@@ -1445,25 +1784,31 @@ async function buildForYouRankedPosts({ user, limit, offset }) {
     }
     : await buildAndPersistInterestProfile(user)
 
-  const rankedPosts = candidatePosts
-    .map((post) => ({
-      post,
-      score: buildPersonalizedCandidateScore({
+  const personalizedEntries = candidatePosts.map((post) => {
+    const personalized = buildPersonalizedCandidateScore({
         post,
         userId: user._id.toString(),
         signals,
         topicScoresMap: interestProfile.topicScoresMap,
         hiddenTopicSet: interestProfile.hiddenTopicSet,
-      }).score,
-    }))
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score
-      }
-
-      return new Date(right.post.createdAt) - new Date(left.post.createdAt)
+        experimentVariant,
+      })
+    return {
+      post,
+      baseScore: personalized.score,
+      meta: {
+        topics: personalized.topics,
+        authorId: personalized.authorId,
+      },
+    }
+  })
+  const rankedPosts = rankPersonalizedCandidates({
+    entries: personalizedEntries,
+    seedContext: buildFeedSeedContext({
+      userId: user._id.toString(),
+      view: 'for-you',
     })
-    .map((entry) => entry.post)
+  })
 
   return rankedPosts.slice(0, Math.max(limit + offset, FEED_SESSION_MAX_ITEMS))
 }
@@ -1485,6 +1830,40 @@ async function fetchPostsInOrder(postIds = [], user) {
 
   const byId = new Map(rows.map((row) => [row._id.toString(), row]))
   return postIds.map((postId) => byId.get(postId)).filter((post) => Boolean(post && canAccessPost(post, user)))
+}
+
+function resolveFeedAlgorithm({ view, loopMode = null, user = null, experimentVariant = 'control' }) {
+  const suffix = experimentVariant === 'challenger' ? 'challenger' : 'control'
+  if (view === 'for-you') {
+    return `for-you-session-v3-${suffix}`
+  }
+  if (view === 'loop') {
+    return loopMode === 'for-you' && user
+      ? `loop-personalized-diversity-v3-${suffix}`
+      : `loop-${loopMode || 'explore'}-quality-v3-${suffix}`
+  }
+  return `${view}-quality-diversity-v3-${suffix}`
+}
+
+function serializeFeedPosts(posts, user, {
+  sessionId,
+  startRank = 1,
+  view,
+  loopMode = null,
+  algorithm,
+  experiment,
+}) {
+  return posts.map((post, index) => ({
+    ...serializePostForViewer(post, user),
+    _recommendation: {
+      sessionId,
+      rank: startRank + index,
+      view,
+      loopMode: view === 'loop' ? loopMode : null,
+      algorithm,
+      experiment,
+    },
+  }))
 }
 
 const createPost = asyncHandler(async (req, res) => {
@@ -1562,15 +1941,24 @@ const createPost = asyncHandler(async (req, res) => {
 })
 
 const getFeed = asyncHandler(async (req, res) => {
-  const { authorId, limit, cursor, offset, topic, view } = req.validated.query
+  const { authorId, limit, cursor, offset, topic, view, loopMode } = req.validated.query
+  const experiment = buildFeedExperiment({ req, view, loopMode })
   const scope = normalizeFeedSessionScope({
     reqUserId: req.user?._id?.toString(),
     view,
     topic,
+    loopMode,
+    experimentVariant: experiment.variant,
+  })
+  const algorithm = resolveFeedAlgorithm({
+    view,
+    loopMode,
+    user: req.user,
+    experimentVariant: experiment.variant,
   })
 
   if (view === 'for-you' && req.user && !authorId) {
-    const resumeState = cursor ? resolveFeedSessionFromCursor({ cursorToken: cursor, scope }) : null
+    const resumeState = cursor ? await resolveFeedSessionFromCursor({ cursorToken: cursor, scope }) : null
     if (resumeState) {
       const page = buildSessionPagination({
         session: resumeState.session,
@@ -1580,13 +1968,20 @@ const getFeed = asyncHandler(async (req, res) => {
       })
       const orderedPosts = await fetchPostsInOrder(page.pageIds, req.user)
       res.json({
-        posts: orderedPosts.map((post) => serializePostForViewer(post, req.user)),
+        posts: serializeFeedPosts(orderedPosts, req.user, {
+          sessionId: resumeState.session.id,
+          startRank: resumeState.position + 1,
+          view,
+          algorithm,
+          experiment,
+        }),
         pagination: page.pagination,
         meta: {
           view,
           topic: topic || null,
           sessionId: resumeState.session.id,
-          algorithm: 'for-you-session-v1',
+          algorithm,
+          experiment,
         },
       })
       return
@@ -1596,8 +1991,9 @@ const getFeed = asyncHandler(async (req, res) => {
       user: req.user,
       limit: FEED_SESSION_MAX_ITEMS,
       offset: 0,
+      experimentVariant: experiment.variant,
     })
-    const session = createFeedSession({
+    const session = await createFeedSession({
       orderedPostIds: rankedPosts.map((post) => post._id.toString()),
       scope,
       limit,
@@ -1611,13 +2007,20 @@ const getFeed = asyncHandler(async (req, res) => {
     const orderedPosts = await fetchPostsInOrder(page.pageIds, req.user)
 
     res.json({
-      posts: orderedPosts.map((post) => serializePostForViewer(post, req.user)),
+      posts: serializeFeedPosts(orderedPosts, req.user, {
+        sessionId: session.id,
+        startRank: Math.max(0, Number(offset || 0)) + 1,
+        view,
+        algorithm,
+        experiment,
+      }),
       pagination: page.pagination,
       meta: {
         view,
         topic: topic || null,
         sessionId: session.id,
-        algorithm: 'for-you-session-v1',
+        algorithm,
+        experiment,
       },
     })
     return
@@ -1625,6 +2028,10 @@ const getFeed = asyncHandler(async (req, res) => {
 
   const filter = {
     group: null,
+  }
+  const excludedAuthorIds = await getExcludedFeedAuthorIds(req.user)
+  if (excludedAuthorIds.length) {
+    appendAndFilter(filter, { author: { $nin: excludedAuthorIds } })
   }
   let sort = { createdAt: -1 }
   const isLoopView = view === 'loop'
@@ -1697,14 +2104,46 @@ const getFeed = asyncHandler(async (req, res) => {
   if (authorId) {
     if (!req.user) {
       filter.privacy = 'public'
-    } else if (authorId !== req.user._id.toString()) {
-      filter.$or = [{ privacy: 'public' }, { author: req.user._id }]
+    } else if (req.user.role !== 'admin' && authorId !== req.user._id.toString()) {
+      const followsAuthor = (req.user.friendIds || []).some(
+        (followedId) => followedId?.toString?.() === authorId,
+      )
+      filter.privacy = followsAuthor ? { $in: ['public', 'followers'] } : 'public'
     }
   } else if (view === 'loop') {
-    if (!req.user) {
+    if (loopMode === 'following') {
+      if (!req.user || !(req.user.friendIds || []).length) {
+        res.json({
+          posts: [],
+          pagination: {
+            hasMore: false,
+            nextCursor: null,
+            nextOffset: null,
+          },
+          meta: {
+            view,
+            loopMode,
+          },
+        })
+        return
+      }
+
+      filter.$or = [
+        {
+          author: { $in: req.user.friendIds },
+          privacy: { $in: ['public', 'followers'] },
+        },
+      ]
+    } else if (!req.user) {
       filter.privacy = 'public'
     } else {
-      filter.$or = [{ privacy: 'public' }, { author: req.user._id }]
+      filter.$or = [
+        { privacy: 'public' },
+        { author: req.user._id },
+        ...(loopMode === 'for-you' && (req.user.friendIds || []).length
+          ? [{ author: { $in: req.user.friendIds }, privacy: 'followers' }]
+          : []),
+      ]
     }
   } else if (view === 'explore') {
     filter.privacy = 'public'
@@ -1746,7 +2185,7 @@ const getFeed = asyncHandler(async (req, res) => {
   const supportsSessionPagination = !authorId && ['latest', 'explore', 'following', 'loop'].includes(view)
 
   if (supportsSessionPagination) {
-    const resumeState = cursor ? resolveFeedSessionFromCursor({ cursorToken: cursor, scope }) : null
+    const resumeState = cursor ? await resolveFeedSessionFromCursor({ cursorToken: cursor, scope }) : null
     if (resumeState) {
       const page = buildSessionPagination({
         session: resumeState.session,
@@ -1756,13 +2195,22 @@ const getFeed = asyncHandler(async (req, res) => {
       })
       const orderedPosts = await fetchPostsInOrder(page.pageIds, req.user)
       res.json({
-        posts: orderedPosts.map((post) => serializePostForViewer(post, req.user)),
+        posts: serializeFeedPosts(orderedPosts, req.user, {
+          sessionId: resumeState.session.id,
+          startRank: resumeState.position + 1,
+          view,
+          loopMode,
+          algorithm,
+          experiment,
+        }),
         pagination: page.pagination,
         meta: {
           view,
           topic: topic || null,
+          loopMode: view === 'loop' ? loopMode : null,
           sessionId: resumeState.session.id,
-          algorithm: view === 'loop' ? 'loop-watch-replay-swipe-visible-confidence' : null,
+          algorithm,
+          experiment,
         },
       })
       return
@@ -1771,10 +2219,11 @@ const getFeed = asyncHandler(async (req, res) => {
     const feedSeedContext = buildFeedSeedContext({
       userId: req.user?._id?.toString() || 'guest',
       view,
-      topic,
+      topic: view === 'loop' ? loopMode : topic,
     })
     let orderedPostIds = []
     if (view === 'loop') {
+      const recentlySeenPostIdSet = new Set(await getRecentlySeenPostIds(req.user))
       const candidateLimit = Math.max(LOOP_RANKING_CANDIDATE_MIN, FEED_SESSION_MAX_ITEMS + 40)
       const loopCandidates = await Post.find(filter)
         .select(FEED_POST_PROJECTION)
@@ -1783,16 +2232,16 @@ const getFeed = asyncHandler(async (req, res) => {
         .limit(candidateLimit)
         .lean()
 
-      let rankedLoops = loopCandidates
+      let rankedLoops
 
-      if (req.user) {
+      if (req.user && loopMode === 'for-you') {
         const persistedTopicScores = normalizeTopicScoresMap(req.user.discovery?.interestProfile?.topicScores || {})
         const hiddenTopicSet = new Set(
           uniqueStringIds(
             (req.user.discovery?.interestProfile?.hiddenTopicKeys || []).map((item) => normalizeTopicToken(item)),
           ),
         )
-        const hasPersistentProfile = persistedTopicScores.size > 0
+        const hasPersistentProfile = hasFreshInterestProfile(req.user, persistedTopicScores)
         const interestProfile = hasPersistentProfile
           ? {
             topicScoresMap: persistedTopicScores,
@@ -1807,57 +2256,48 @@ const getFeed = asyncHandler(async (req, res) => {
           commentedPostIds: new Set(uniqueStringIds(req.user.activity?.commentedPostIds || [])),
           savedPostIds: new Set(uniqueStringIds(req.user.activity?.savedPostIds || [])),
           sharedPostIds: new Set(uniqueStringIds(req.user.activity?.sharedPostIds || [])),
+          recentlySeenPostIds: recentlySeenPostIdSet,
         }
-        const rankingHistory = []
-        rankedLoops = loopCandidates
-          .map((post) => {
+        const personalizedEntries = loopCandidates.map((post) => {
+            const globalWeight = experiment.variant === 'challenger' ? 0.45 : 0.55
+            const personalizedWeight = 1 - globalWeight
             const baseScore =
-              buildLoopRankingScore(post) * 0.55 +
+              buildLoopRankingScore(post) * globalWeight +
               buildPersonalizedCandidateScore({
                 post,
                 userId: req.user._id.toString(),
                 signals: neutralSignals,
                 topicScoresMap: interestProfile.topicScoresMap,
                 hiddenTopicSet: interestProfile.hiddenTopicSet,
-              }).score * 0.45
+                experimentVariant: experiment.variant,
+              }).score * personalizedWeight
             const meta = {
               topics: topicsFromPost(post),
               authorId: post.author?._id?.toString?.() || post.author?.toString?.() || '',
             }
-            const score = applyDiversityPenalty(baseScore, meta, rankingHistory)
-            rankingHistory.push(meta)
-            return { post, score }
+            return { post, baseScore, meta }
           })
-          .sort((left, right) => {
-            if (right.score !== left.score) {
-              return right.score - left.score
-            }
-            return new Date(right.post.createdAt) - new Date(left.post.createdAt)
-          })
-          .map((entry) => entry.post)
+
+        rankedLoops = rankPersonalizedCandidates({
+          entries: personalizedEntries,
+          seedContext: feedSeedContext,
+        })
       } else {
-        rankedLoops = loopCandidates
-          .map((post) => ({
+        rankedLoops = rankPersonalizedCandidates({
+          entries: loopCandidates.map((post) => ({
             post,
-            score: buildLoopRankingScore(post),
-          }))
-          .sort((left, right) => {
-            if (right.score !== left.score) {
-              return right.score - left.score
-            }
-            return new Date(right.post.createdAt) - new Date(left.post.createdAt)
-          })
-          .map((entry) => entry.post)
+            baseScore: buildLoopRankingScore(post),
+            meta: {
+              topics: topicsFromPost(post),
+              authorId: post.author?._id?.toString?.() || post.author?.toString?.() || '',
+            },
+          })),
+          seedContext: feedSeedContext,
+        })
+        rankedLoops = deprioritizeRecentlySeen(rankedLoops, recentlySeenPostIdSet)
       }
 
-      const diversifiedLoops = diversifyBySeededQuality({
-        items: rankedLoops,
-        scoreGetter: buildLoopRankingScore,
-        seedContext: feedSeedContext,
-        topWindow: 10,
-        jitterWeight: 0.1,
-      })
-      orderedPostIds = diversifiedLoops.map((post) => post._id.toString())
+      orderedPostIds = rankedLoops.map((post) => post._id.toString())
     } else {
       const basePosts = await Post.find(filter)
         .select(FEED_POST_PROJECTION)
@@ -1866,32 +2306,39 @@ const getFeed = asyncHandler(async (req, res) => {
         .limit(FEED_SESSION_MAX_ITEMS)
         .lean()
 
-      const diversifiedPosts = diversifyBySeededQuality({
-        items: basePosts,
-        scoreGetter: (post) => {
-          const stats = post.stats || {}
-          const views = Number(stats.views || 0)
-          const likes = Number(stats.likes || 0)
-          const comments = Number(stats.comments || 0)
-          const saves = Number(stats.saves || 0)
-          const shares = Number(stats.shares || 0)
+      const globalEntries = basePosts.map((post) => {
           const ageInHours = Math.max(
             0,
             (Date.now() - new Date(post.createdAt).getTime()) / (1000 * 60 * 60),
           )
           const freshness = clamp(1 - ageInHours / 96, 0, 1)
-          const engagement = (likes * 3 + comments * 4 + saves * 5 + shares * 4) / Math.max(views, 1)
-          return engagement + freshness * 2
-        },
-        seedContext: feedSeedContext,
-        topWindow: 12,
-        jitterWeight: 0.12,
+          return {
+            post,
+            baseScore: computePostQualityScore(post) * 0.6 + freshness * 0.4,
+            meta: {
+              topics: topicsFromPost(post),
+              authorId: post.author?._id?.toString?.() || post.author?.toString?.() || '',
+            },
+          }
       })
+      let diversifiedPosts =
+        view === 'latest'
+          ? basePosts
+          : rankPersonalizedCandidates({
+              entries: globalEntries,
+              seedContext: feedSeedContext,
+            })
+      if (['explore', 'following'].includes(view)) {
+        diversifiedPosts = deprioritizeRecentlySeen(
+          diversifiedPosts,
+          new Set(await getRecentlySeenPostIds(req.user)),
+        )
+      }
 
       orderedPostIds = diversifiedPosts.map((post) => post._id.toString())
     }
 
-    const session = createFeedSession({
+    const session = await createFeedSession({
       orderedPostIds,
       scope,
       limit,
@@ -1905,13 +2352,22 @@ const getFeed = asyncHandler(async (req, res) => {
     const orderedPosts = await fetchPostsInOrder(page.pageIds, req.user)
 
     res.json({
-      posts: orderedPosts.map((post) => serializePostForViewer(post, req.user)),
+      posts: serializeFeedPosts(orderedPosts, req.user, {
+        sessionId: session.id,
+        startRank: Math.max(0, Number(offset || 0)) + 1,
+        view,
+        loopMode,
+        algorithm,
+        experiment,
+      }),
       pagination: page.pagination,
       meta: {
         view,
         topic: topic || null,
+        loopMode: view === 'loop' ? loopMode : null,
         sessionId: session.id,
-        algorithm: view === 'loop' ? 'loop-watch-replay-swipe-visible-confidence' : null,
+        algorithm,
+        experiment,
       },
     })
     return
@@ -1962,6 +2418,20 @@ const getPostById = asyncHandler(async (req, res) => {
 
 const registerPostView = asyncHandler(async (req, res) => {
   const post = await getAccessiblePost(req.validated.params.postId, req.user || null)
+
+  if (isLikelyAutomatedClient(req)) {
+    return res.json({
+      postId: post._id,
+      counted: false,
+      ignored: 'automated-client',
+      stats: {
+        views: Number(post.stats?.views || 0),
+        loopCompletions: Number(post.stats?.loopCompletions || 0),
+        loopReplays: Number(post.stats?.loopReplays || 0),
+      },
+    })
+  }
+
   const loopMetrics = req.validated.body || {}
   const normalizedWatchRatio =
     typeof loopMetrics.watchRatio === 'number' && Number.isFinite(loopMetrics.watchRatio)
@@ -1981,52 +2451,60 @@ const registerPostView = asyncHandler(async (req, res) => {
     Number.isInteger(loopMetrics.visibleMs) && loopMetrics.visibleMs >= 0
       ? loopMetrics.visibleMs
       : null
+  const recommendation = loopMetrics.recommendation || null
+  const quickSkip = Boolean(
+    typeof normalizedVisibleMs === 'number' &&
+      normalizedVisibleMs >= 250 &&
+      normalizedVisibleMs <= 1500 &&
+      Number(normalizedWatchRatio || 0) < 0.15 &&
+      Number(normalizedReplayCount || 0) === 0,
+  )
+  const longView = Boolean(
+    Number(normalizedWatchRatio || 0) >= 0.65 ||
+      Number(normalizedVisibleMs || 0) >= 8000 ||
+      Number(normalizedReplayCount || 0) > 0,
+  )
   const dayBucket = getPostViewDayBucket()
   const viewerKey = buildPostViewViewerKey(req)
   let counted = false
   let previousViewSignal = null
+  const viewFilter = {
+    post: post._id,
+    viewerKey,
+    dayBucket,
+  }
+  const now = new Date()
+  const updatePipeline = buildPostViewUpdatePipeline({
+    postId: post._id,
+    viewerKey,
+    dayBucket,
+    expiresAt: getPostViewExpiresAt(now),
+    now,
+    watchRatio: normalizedWatchRatio,
+    replayCount: normalizedReplayCount,
+    swipeVelocity: normalizedSwipeVelocity,
+    visibleMs: normalizedVisibleMs,
+    quickSkip,
+    longView,
+    recommendation,
+  })
 
   try {
-    const result = await PostView.findOneAndUpdate(
-      {
-        post: post._id,
-        viewerKey,
-        dayBucket,
-      },
-      {
-        $setOnInsert: {
-          post: post._id,
-          viewerKey,
-          dayBucket,
-          expiresAt: getPostViewExpiresAt(),
-        },
-        ...(typeof normalizedWatchRatio === 'number'
-          ? { maxWatchRatio: normalizedWatchRatio }
-          : {}),
-        ...(typeof normalizedReplayCount === 'number'
-          ? { replayCount: normalizedReplayCount }
-          : {}),
-        ...(typeof normalizedVisibleMs === 'number'
-          ? { maxVisibleMs: normalizedVisibleMs }
-          : {}),
-        ...(typeof normalizedSwipeVelocity === 'number'
-          ? { swipeVelocity: normalizedSwipeVelocity }
-          : {}),
-      },
-      {
-        upsert: true,
-        returnDocument: 'before',
-        rawResult: true,
-        setDefaultsOnInsert: true,
-      },
-    )
-
-    counted = !result?.lastErrorObject?.updatedExisting
-    previousViewSignal = result?.value || null
+    previousViewSignal = await updatePostViewSignal({
+      filter: viewFilter,
+      pipeline: updatePipeline,
+    })
+    counted = !previousViewSignal
   } catch (error) {
     if (error?.code !== 11000) {
       throw error
     }
+
+    previousViewSignal = await updatePostViewSignal({
+      filter: viewFilter,
+      pipeline: updatePipeline,
+      upsert: false,
+    })
   }
 
   const statsIncrements = {}
@@ -2061,15 +2539,12 @@ const registerPostView = asyncHandler(async (req, res) => {
     const shouldRegisterSwipeSignal =
       previousSwipeVelocity === null && typeof normalizedSwipeVelocity === 'number'
 
-    const viewSignalUpdate = {}
     if (nextWatchRatio > previousWatchRatio) {
-      viewSignalUpdate.maxWatchRatio = nextWatchRatio
       statsIncrements['stats.loopWatchRatioSum'] = Number(
         ((statsIncrements['stats.loopWatchRatioSum'] || 0) + (nextWatchRatio - previousWatchRatio)).toFixed(6),
       )
     }
     if (nextReplayCount > previousReplayCount) {
-      viewSignalUpdate.replayCount = nextReplayCount
       statsIncrements['stats.loopReplays'] =
         (statsIncrements['stats.loopReplays'] || 0) + (nextReplayCount - previousReplayCount)
     }
@@ -2081,7 +2556,6 @@ const registerPostView = asyncHandler(async (req, res) => {
         (statsIncrements['stats.loopCompletions'] || 0) + 1
     }
     if (shouldRegisterSwipeSignal) {
-      viewSignalUpdate.swipeVelocity = normalizedSwipeVelocity
       statsIncrements['stats.loopSwipeVelocitySum'] =
         (statsIncrements['stats.loopSwipeVelocitySum'] || 0) + normalizedSwipeVelocity
     }
@@ -2093,27 +2567,41 @@ const registerPostView = asyncHandler(async (req, res) => {
       const previousMaxVisible = Number(previousViewSignal?.maxVisibleMs || 0)
       const nextMaxVisible = Math.max(previousMaxVisible, normalizedVisibleMs)
       if (nextMaxVisible > previousMaxVisible) {
-        viewSignalUpdate.maxVisibleMs = nextMaxVisible
         statsIncrements['stats.loopVisibleMsSum'] =
           (statsIncrements['stats.loopVisibleMsSum'] || 0) + (nextMaxVisible - previousMaxVisible)
       }
-    }
-
-    if (Object.keys(viewSignalUpdate).length) {
-      await PostView.updateOne(
-        { post: post._id, viewerKey, dayBucket },
-        {
-          $set: {
-            ...viewSignalUpdate,
-            expiresAt: getPostViewExpiresAt(),
-          },
-        },
-      )
     }
   }
 
   if (Object.keys(statsIncrements).length) {
     await Post.updateOne({ _id: post._id }, { $inc: statsIncrements })
+  }
+
+  if (req.user?._id && isLoopPost && hasLoopSignals) {
+    if (quickSkip && !previousViewSignal?.quickSkipRecorded) {
+      await recordRecommendationEvent({
+        userId: req.user._id,
+        postId: post._id,
+        eventType: 'quick-skip',
+        weight: -2.5,
+        source: 'playback',
+        recommendation,
+      })
+    }
+    if (longView && !previousViewSignal?.longViewRecorded) {
+      await recordRecommendationEvent({
+        userId: req.user._id,
+        postId: post._id,
+        eventType: 'long-view',
+        weight: 2.5,
+        source: 'playback',
+        recommendation,
+      })
+    }
+    await User.updateOne(
+      { _id: req.user._id },
+      { $set: { 'discovery.interestProfile.updatedAt': null } },
+    )
   }
 
   const latestPost = await Post.findById(post._id).select('stats.views stats.loopCompletions stats.loopReplays')
@@ -2137,23 +2625,51 @@ const recordLoopTelemetry = asyncHandler(async (req, res) => {
     throw new AppError('Loop telemetry is only accepted for loop posts.', 400)
   }
 
+  if (isLikelyAutomatedClient(req)) {
+    return res.json({ ok: true, ignored: 'automated-client' })
+  }
+
   const payload = sanitizeLoopTelemetryPayload(req.validated.body || {})
   const viewerKey = buildPostViewViewerKey(req)
 
-  await LoopPlaybackEvent.create({
-    post: post._id,
-    user: req.user?._id || null,
+  if (payload.eventId) {
+    try {
+      await TelemetryReceipt.create({
+        eventId: payload.eventId,
+        expiresAt: getTelemetryReceiptExpiresAt(),
+      })
+    } catch (error) {
+      if (error?.code === 11000) {
+        return res.json({ ok: true, deduplicated: true })
+      }
+      throw error
+    }
+  }
+
+  const { sampled, sampleRate } = shouldPersistLoopTelemetry({
+    payload,
+    postId: post._id.toString(),
     viewerKey,
-    eventType: payload.eventType,
-    mediaUrl: payload.mediaUrl,
-    currentTimeSec: payload.currentTimeSec,
-    timeGapMs: payload.timeGapMs,
-    droppedFrames: payload.droppedFrames,
-    totalFrames: payload.totalFrames,
-    network: payload.network,
-    device: payload.device,
-    expiresAt: getLoopTelemetryExpiresAt(),
   })
+
+  if (sampled) {
+    await LoopPlaybackEvent.create({
+      eventId: payload.eventId,
+      post: post._id,
+      user: req.user?._id || null,
+      viewerKey,
+      eventType: payload.eventType,
+      mediaUrl: payload.mediaUrl,
+      currentTimeSec: payload.currentTimeSec,
+      timeGapMs: payload.timeGapMs,
+      droppedFrames: payload.droppedFrames,
+      totalFrames: payload.totalFrames,
+      network: payload.network,
+      device: payload.device,
+      sampleRate,
+      expiresAt: getLoopTelemetryExpiresAt(),
+    })
+  }
 
   const statsIncrements = {}
   if (payload.eventType === 'waiting') {
@@ -2179,6 +2695,8 @@ const recordLoopTelemetry = asyncHandler(async (req, res) => {
 
   res.json({
     ok: true,
+    sampled,
+    sampleRate,
   })
 })
 
@@ -2225,6 +2743,12 @@ const createComment = asyncHandler(async (req, res) => {
       post._id,
       true,
     )
+    await recordRecommendationEvent({
+      userId: req.user._id,
+      postId: post._id,
+      eventType: 'comment',
+      weight: 2,
+    })
 
     const populatedComment = await Comment.findById(comment._id).populate(
       'author',
@@ -2280,6 +2804,13 @@ const togglePostLike = asyncHandler(async (req, res) => {
     post._id,
     result.active,
   )
+  await recordRecommendationEvent({
+    userId: req.user._id,
+    postId: post._id,
+    eventType: result.active ? 'like' : 'unlike',
+    weight: result.active ? 3 : -3,
+    recommendation: req.validated.body?.recommendation || null,
+  })
 
   if (result.active) {
     await createNotification({
@@ -2320,6 +2851,13 @@ const togglePostSave = asyncHandler(async (req, res) => {
     post._id,
     result.active,
   )
+  await recordRecommendationEvent({
+    userId: req.user._id,
+    postId: post._id,
+    eventType: result.active ? 'save' : 'unsave',
+    weight: result.active ? 4 : -4,
+    recommendation: req.validated.body?.recommendation || null,
+  })
 
   emitTrendsUpdate(io)
 
@@ -2347,6 +2885,13 @@ const togglePostShare = asyncHandler(async (req, res) => {
     post._id,
     result.active,
   )
+  await recordRecommendationEvent({
+    userId: req.user._id,
+    postId: post._id,
+    eventType: result.active ? 'share' : 'unshare',
+    weight: result.active ? 5 : -5,
+    recommendation: req.validated.body?.recommendation || null,
+  })
 
   if (result.active) {
     await createNotification({
@@ -2371,7 +2916,7 @@ const togglePostShare = asyncHandler(async (req, res) => {
 
 const markPostNotInterested = asyncHandler(async (req, res) => {
   const post = await getAccessiblePost(req.validated.params.postId, req.user)
-  const topicKeys = topicsFromPost(post)
+  const topicKeys = extractTopicsFromText(post.text || '').map((topic) => topic.key)
   const hiddenTopicKeys = uniqueStringIds([
     ...(req.user.discovery?.interestProfile?.hiddenTopicKeys || []),
     ...topicKeys,
@@ -2391,6 +2936,13 @@ const markPostNotInterested = asyncHandler(async (req, res) => {
     },
   )
 
+  await recordRecommendationEvent({
+    userId: req.user._id,
+    postId: post._id,
+    eventType: 'not-interested',
+    weight: -8,
+    recommendation: req.validated.body?.recommendation || null,
+  })
   await buildAndPersistInterestProfile({
     ...req.user.toObject(),
     discovery: {
@@ -2401,7 +2953,6 @@ const markPostNotInterested = asyncHandler(async (req, res) => {
       },
     },
   })
-
   res.json({
     message: 'Preference updated. Similar content will appear less often.',
     hiddenTopicKeys,
@@ -2694,4 +3245,18 @@ module.exports = {
   updatePost,
   togglePostArchive,
   deletePost,
+  _test: {
+    buildFeedExperiment,
+    buildLoopRankingScore,
+    buildPostViewUpdatePipeline,
+    canAccessPost,
+    computePostQualityScore,
+    deprioritizeRecentlySeen,
+    hasFreshInterestProfile,
+    normalizeFeedSessionScope,
+    rankPersonalizedCandidates,
+    serializeFeedPosts,
+    shouldPersistLoopTelemetry,
+    topicsFromPost,
+  },
 }

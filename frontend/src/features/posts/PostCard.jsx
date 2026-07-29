@@ -57,6 +57,31 @@ const ReplyComposer = lazy(() => import('./ReplyComposer.jsx'))
 const MediaGallery = lazy(() => import('./MediaGallery.jsx'))
 const PostEditModal = lazy(() => import('./PostEditModal.jsx'))
 
+function getSafeRecommendationContext(recommendation) {
+  if (
+    !recommendation?.sessionId ||
+    !Number.isInteger(recommendation.rank) ||
+    !recommendation.algorithm ||
+    !recommendation.view ||
+    !recommendation.experiment?.id ||
+    !recommendation.experiment?.variant
+  ) {
+    return null
+  }
+
+  return {
+    sessionId: recommendation.sessionId,
+    rank: recommendation.rank,
+    algorithm: recommendation.algorithm,
+    view: recommendation.view,
+    loopMode: recommendation.loopMode || null,
+    experiment: {
+      id: recommendation.experiment.id,
+      variant: recommendation.experiment.variant,
+    },
+  }
+}
+
 function InlineActionButton({
   icon,
   count,
@@ -240,7 +265,7 @@ const MOBILE_CONTENT_COLLAPSE_LIMIT = 92
 const MORE_LABEL_RESERVED_CHARS = 16
 const VIEW_TRACK_THRESHOLD = 0.6
 const VIEW_TRACK_DELAY_MS = 1000
-const LOOP_VIEW_METRIC_MIN_VISIBLE_MS = 800
+const LOOP_VIEW_METRIC_MIN_VISIBLE_MS = 250
 const LOOP_RECOVERY_MAX_ATTEMPTS = 3
 const LOOP_RECOVERY_RETRY_DELAY_MS = 350
 const LOOP_TELEMETRY_MIN_INTERVAL_MS = 4000
@@ -670,6 +695,10 @@ function PostCard({
 
     try {
       await recordLoopPlaybackTelemetry(postId, {
+        eventId:
+          typeof globalThis.crypto?.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         eventType,
         mediaUrl: loopVideoSourceUrl || loopVideoItem?.url || '',
         currentTimeSec:
@@ -1136,7 +1165,7 @@ function PostCard({
     }
 
     async function sendViewEvent(options = {}) {
-      const { force = false, metrics = null } = options
+      const { force = false, metrics = null, keepalive = false } = options
       if (!postId || ((!isLoopVariant || !force) && hasTrackedViewRef.current) || pendingPostViews.has(postId)) {
         return
       }
@@ -1167,6 +1196,7 @@ function PostCard({
         isLoopVariant &&
         safeMetrics &&
         Object.values(safeMetrics).some((value) => typeof value === 'number' && Number.isFinite(value))
+      const safeRecommendation = getSafeRecommendationContext(post?._recommendation)
 
       if (hasSafeMetrics) {
         const lastMetrics = loopLastSentMetricsRef.current
@@ -1188,7 +1218,11 @@ function PostCard({
       pendingPostViews.add(postId)
 
       try {
-        const payload = await registerPostView(postId, hasSafeMetrics ? safeMetrics : null)
+        const requestPayload = {
+          ...(hasSafeMetrics ? safeMetrics : {}),
+          ...(safeRecommendation ? { recommendation: safeRecommendation } : {}),
+        }
+        const payload = await registerPostView(postId, requestPayload, { keepalive })
 
         hasTrackedViewRef.current = true
         trackedPostViews.add(postId)
@@ -1214,6 +1248,36 @@ function PostCard({
         // View tracking should never block core post interactions.
       } finally {
         pendingPostViews.delete(postId)
+      }
+    }
+
+    function flushLoopViewMetrics({ keepalive = false } = {}) {
+      if (!isLoopVariant) {
+        return
+      }
+
+      const snapshot = loopVisibilitySnapshotRef.current
+      if (typeof snapshot.startedAtMs !== 'number') {
+        return
+      }
+
+      const visibleMs = Math.max(0, Math.round(performance.now() - snapshot.startedAtMs))
+      if (visibleMs >= LOOP_VIEW_METRIC_MIN_VISIBLE_MS) {
+        void sendViewEvent({
+          force: true,
+          keepalive,
+          metrics: {
+            watchRatio: captureLoopWatchRatio(),
+            replayCount: loopReplayCountRef.current,
+            visibleMs,
+          },
+        })
+      }
+
+      loopVisibilitySnapshotRef.current = {
+        startedAtMs: null,
+        startedAtTop: null,
+        startedAtEventTime: null,
       }
     }
 
@@ -1300,18 +1364,27 @@ function PostCard({
     function handleVisibilityChange() {
       if (document.visibilityState !== 'visible') {
         clearViewTimer()
+        flushLoopViewMetrics({ keepalive: true })
       }
+    }
+
+    function handlePageHide() {
+      clearViewTimer()
+      flushLoopViewMetrics({ keepalive: true })
     }
 
     observer.observe(articleRef.current)
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('pagehide', handlePageHide)
 
     return () => {
       clearViewTimer()
+      flushLoopViewMetrics({ keepalive: true })
       observer.disconnect()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('pagehide', handlePageHide)
     }
-  }, [isLoopVariant, postId])
+  }, [isLoopVariant, postId, post?._recommendation])
 
   useEffect(() => {
     if (!isLoopVariant) {
@@ -1383,7 +1456,7 @@ function PostCard({
     setPendingAction(actionName)
 
     try {
-      const payload = await action(postId)
+      const payload = await action(postId, getSafeRecommendationContext(post?._recommendation))
       setLocalPost(payload.post)
     } finally {
       setPendingAction('')
@@ -1765,7 +1838,7 @@ function PostCard({
       setPendingAction('not-interested')
       setIsMenuOpen(false)
       setIsLoopOptionsMenuOpen(false)
-      await markPostNotInterested(postId)
+      await markPostNotInterested(postId, getSafeRecommendationContext(post?._recommendation))
       if (typeof onPostHidden === 'function') {
         onPostHidden(postId, {
           message: t('postDetail.notInterestedSuccess', { defaultValue: 'Bu tur icerikleri size daha az gosterecegiz.' }),

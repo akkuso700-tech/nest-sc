@@ -97,7 +97,7 @@ function AdminOverviewPage() {
 
   if (state.error) return <div className="overview-error">{state.error}</div>
 
-  const { metrics, moderationSummary, roleBreakdown = [], countryBreakdown = [], latestRegistrations = [], contentEngagement = {}, loopQuality = {}, performance = {} } = state.data
+  const { metrics, moderationSummary, roleBreakdown = [], countryBreakdown = [], latestRegistrations = [], contentEngagement = {}, loopQuality = {}, recommendationQuality = {}, performance = {} } = state.data
   const vitalMap = new Map((performance.metrics || []).map((metric) => [metric.name, metric]))
   const rolesTotal = Math.max(roleBreakdown.reduce((total, item) => total + Number(item.count || 0), 0), 1)
   const roleColors = ['#2563eb', '#7c3aed', '#0ea5e9', '#14b8a6']
@@ -112,6 +112,33 @@ function AdminOverviewPage() {
 
   return (
     <div className="admin-overview">
+      <Panel
+        title="Oneri kalitesi"
+        subtitle={`Son ${formatNumber(recommendationQuality.windowDays || 7)} gun · ${formatNumber(recommendationQuality.impressions)} gosterim`}
+      >
+        <div className="overview-recommendation-grid">
+          <div><span>Hizli gecis</span><strong>{formatPercent(recommendationQuality.quickSkipRate)}</strong></div>
+          <div><span>Uzun izleme</span><strong>{formatPercent(recommendationQuality.longViewRate)}</strong></div>
+          <div><span>Kaydetme</span><strong>{formatPercent(recommendationQuality.saveRate)}</strong></div>
+          <div><span>Paylasim</span><strong>{formatPercent(recommendationQuality.shareRate)}</strong></div>
+          <div><span>Gizleme</span><strong>{formatPercent(recommendationQuality.hideRate)}</strong></div>
+        </div>
+        {(recommendationQuality.breakdown || []).length ? (
+          <div className="overview-recommendation-table">
+            <div className="is-header"><span>Algoritma / deney</span><span>Gosterim</span><span>Hizli gecis</span><span>Uzun izleme</span><span>Kaydetme</span></div>
+            {recommendationQuality.breakdown.slice(0, 8).map((item, index) => (
+              <div key={`${item.algorithm}-${item.experimentId}-${item.variant}-${index}`}>
+                <span><strong>{item.algorithm}</strong><small>{item.experimentId || 'deney yok'} · {item.variant || 'atanmamis'}</small></span>
+                <span>{formatNumber(item.impressions)}</span>
+                <span>{formatPercent(item.quickSkipRate)}</span>
+                <span>{formatPercent(item.longViewRate)}</span>
+                <span>{formatPercent(item.saveRate)}</span>
+              </div>
+            ))}
+          </div>
+        ) : <EmptyState>Oneri kalitesi icin henuz yeterli olcum yok.</EmptyState>}
+      </Panel>
+
       <section className="overview-kpi-grid">
         <KpiCard label="Toplam kullanıcı" value={formatNumber(derived.totalUsers)} helper={`${formatNumber(derived.newRegistrations)} yeni kayıt · 30 gün`} tone="blue" />
         <KpiCard label="Haftalık aktif" value={formatNumber(derived.weeklyActive)} helper={`${formatPercent(derived.activationRate)} aktivasyon oranı`} progress={derived.activationRate} tone="green" />

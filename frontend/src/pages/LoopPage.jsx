@@ -31,6 +31,24 @@ function getPostId(post) {
   return `${post?.id || post?._id || ''}`.trim()
 }
 
+function resolveLoopMode(tab) {
+  return tab === 'forYou' ? 'for-you' : tab
+}
+
+function mergeUniqueLoopPosts(currentPosts = [], incomingPosts = []) {
+  const seenIds = new Set()
+
+  return [...currentPosts, ...incomingPosts].filter((post) => {
+    const postId = getPostId(post)
+    if (!postId || seenIds.has(postId)) {
+      return false
+    }
+
+    seenIds.add(postId)
+    return isLoopContent(post)
+  })
+}
+
 function SearchIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-5">
@@ -99,6 +117,7 @@ function LoopPage() {
     let cancelled = false
 
     async function loadLoopFeed() {
+      const loopMode = resolveLoopMode(activeTab)
       setState({
         posts: [],
         isLoading: true,
@@ -113,8 +132,11 @@ function LoopPage() {
           getFeed({
             limit: LOOP_LIMIT,
             view: 'loop',
+            loopMode,
           }),
-          focusedPostId ? getPostDetail(focusedPostId).catch(() => null) : Promise.resolve(null),
+          focusedPostId && loopMode === 'explore'
+            ? getPostDetail(focusedPostId).catch(() => null)
+            : Promise.resolve(null),
         ])
 
         const basePosts = feedPayload.posts || []
@@ -123,10 +145,11 @@ function LoopPage() {
           focusedPostId &&
             basePosts.some((post) => getPostId(post) === focusedPostId),
         )
-        const mergedPosts =
+        const mergedPosts = mergeUniqueLoopPosts([],
           focusedPostId && focusedPost && isLoopContent(focusedPost) && !hasFocusedPost
             ? [focusedPost, ...basePosts]
-            : basePosts
+            : basePosts,
+        )
 
         if (focusedPostId && !hasFocusedPost && focusedPost && isLoopContent(focusedPost)) {
           setActiveLoopIndex(0)
@@ -168,10 +191,10 @@ function LoopPage() {
     return () => {
       cancelled = true
     }
-  }, [focusedPostId])
+  }, [activeTab, focusedPostId, isAuthenticated])
 
   useEffect(() => {
-    if (!isMobileViewport || !state.hasMore || !sentinelRef.current) {
+    if (!state.hasMore || !sentinelRef.current) {
       return undefined
     }
 
@@ -191,11 +214,12 @@ function LoopPage() {
             limit: LOOP_LIMIT,
             ...(state.nextCursor ? { cursor: state.nextCursor } : { offset: state.nextOffset }),
             view: 'loop',
+            loopMode: resolveLoopMode(activeTab),
           })
 
           setState((current) => ({
             ...current,
-            posts: [...current.posts, ...(payload.posts || [])],
+            posts: mergeUniqueLoopPosts(current.posts, payload.posts || []),
             hasMore: Boolean(payload?.pagination?.hasMore),
             nextCursor: payload?.pagination?.nextCursor || null,
             nextOffset:
@@ -203,12 +227,17 @@ function LoopPage() {
                 ? payload.pagination.nextOffset
                 : null,
           }))
+        } catch (error) {
+          setState((current) => ({
+            ...current,
+            error: error.message || 'Daha fazla Loop videosu yüklenemedi.',
+          }))
         } finally {
           isLoadingMoreRef.current = false
         }
       },
       {
-        root: null,
+        root: isMobileViewport ? mobileScrollerRef.current : desktopScrollerRef.current,
         rootMargin: '140px 0px',
         threshold: 0.01,
       },
@@ -216,7 +245,7 @@ function LoopPage() {
 
     observer.observe(sentinelRef.current)
     return () => observer.disconnect()
-  }, [isMobileViewport, state.hasMore, state.nextCursor, state.nextOffset])
+  }, [activeTab, isMobileViewport, state.hasMore, state.nextCursor, state.nextOffset])
 
   useEffect(() => {
     let cancelled = false
@@ -269,15 +298,13 @@ function LoopPage() {
     [t],
   )
 
-  const visiblePosts = useMemo(() => {
-    if (activeTab === 'following') {
-      return state.posts.filter((post) =>
-        Boolean(post?.author?.followedByViewer || post?.author?.isFollowedByViewer),
-      )
-    }
+  const visiblePosts = useMemo(() => state.posts, [state.posts])
 
-    return state.posts
-  }, [activeTab, state.posts])
+  useEffect(() => {
+    setActiveLoopIndex(0)
+    const scroller = isMobileViewport ? mobileScrollerRef.current : desktopScrollerRef.current
+    scroller?.scrollTo?.({ top: 0, behavior: 'auto' })
+  }, [activeTab, isMobileViewport])
 
   useEffect(() => {
     if (!focusedPostId || !visiblePosts.length) {
@@ -290,7 +317,6 @@ function LoopPage() {
       return
     }
 
-    setActiveTab('explore')
     setActiveLoopIndex(targetIndex)
 
     const scroller = isMobileViewport ? mobileScrollerRef.current : desktopScrollerRef.current
@@ -688,6 +714,7 @@ function LoopPage() {
                     )}
                   </div>
                 ))}
+                {state.hasMore ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}
               </div>
             </>
           )}

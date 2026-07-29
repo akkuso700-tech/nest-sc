@@ -2,6 +2,13 @@ const mongoose = require('mongoose')
 
 const loopPlaybackEventSchema = new mongoose.Schema(
   {
+    eventId: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 64,
+      index: true,
+    },
     post: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Post',
@@ -126,6 +133,12 @@ const loopPlaybackEventSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
+    },
+    sampleRate: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 1,
     },
   },
   {
