@@ -6,7 +6,8 @@
   "scripts": {
     "hostinger:build": "npm --prefix ../frontend ci --include=dev && npm --prefix ../frontend run build",
     "dev": "node --watch-path=src src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",

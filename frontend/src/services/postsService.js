@@ -27,6 +27,10 @@ export function getFeed(params = {}) {
     searchParams.set('view', params.view)
   }
 
+  if (params.loopMode) {
+    searchParams.set('loopMode', params.loopMode)
+  }
+
   const query = searchParams.toString()
 
   return apiRequest(`/posts/feed${query ? `?${query}` : ''}`)
@@ -62,17 +66,13 @@ export function getPostDetail(postId) {
   return apiRequest(`/posts/${postId}`)
 }
 
-export function registerPostView(postId, metrics = null) {
-  const hasMetrics = Boolean(
-    metrics &&
-      Object.values(metrics).some(
-        (value) => typeof value === 'number' && Number.isFinite(value),
-      ),
-  )
+export function registerPostView(postId, metrics = null, options = {}) {
+  const hasPayload = Boolean(metrics && Object.keys(metrics).length)
 
   return apiRequest(`/posts/${postId}/view`, {
     method: 'POST',
-    ...(hasMetrics ? { body: JSON.stringify(metrics) } : {}),
+    ...(options.keepalive ? { keepalive: true } : {}),
+    ...(hasPayload ? { body: JSON.stringify(metrics) } : {}),
   })
 }
 
@@ -97,27 +97,31 @@ export function createComment(postId, payload) {
   })
 }
 
-export function togglePostLike(postId) {
+export function togglePostLike(postId, recommendation = null) {
   return apiRequest(`/posts/${postId}/like`, {
     method: 'POST',
+    body: JSON.stringify(recommendation ? { recommendation } : {}),
   })
 }
 
-export function togglePostSave(postId) {
+export function togglePostSave(postId, recommendation = null) {
   return apiRequest(`/posts/${postId}/save`, {
     method: 'POST',
+    body: JSON.stringify(recommendation ? { recommendation } : {}),
   })
 }
 
-export function togglePostShare(postId) {
+export function togglePostShare(postId, recommendation = null) {
   return apiRequest(`/posts/${postId}/share`, {
     method: 'POST',
+    body: JSON.stringify(recommendation ? { recommendation } : {}),
   })
 }
 
-export function markPostNotInterested(postId) {
+export function markPostNotInterested(postId, recommendation = null) {
   return apiRequest(`/posts/${postId}/not-interested`, {
     method: 'POST',
+    body: JSON.stringify(recommendation ? { recommendation } : {}),
   })
 }
 

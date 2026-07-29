@@ -231,6 +231,16 @@
 .overview-vitals-grid small.is-poor { color: #e11d48; }
 .overview-loop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .overview-loop-grid > div { padding: 14px; border: 1px solid var(--admin-line); border-radius: 10px; background: #f8fafc; }
+.overview-recommendation-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 9px; margin-bottom: 14px; }
+.overview-recommendation-grid > div { padding: 14px; border: 1px solid var(--admin-line); border-radius: 10px; background: #f8fafc; }
+.overview-recommendation-grid span { display: block; color: #64748b; font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.overview-recommendation-grid strong { display: block; margin-top: 8px; font-size: 15px; }
+.overview-recommendation-table { overflow-x: auto; border: 1px solid var(--admin-line); border-radius: 10px; }
+.overview-recommendation-table > div { display: grid; grid-template-columns: minmax(220px,2fr) repeat(4,minmax(80px,.65fr)); align-items: center; min-width: 650px; padding: 10px 12px; border-bottom: 1px solid var(--admin-line); color: #334155; font-size: 10px; }
+.overview-recommendation-table > div:last-child { border-bottom: 0; }
+.overview-recommendation-table > div.is-header { background: #f8fafc; color: #64748b; font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.overview-recommendation-table strong, .overview-recommendation-table small { display: block; }
+.overview-recommendation-table small { margin-top: 3px; color: #94a3b8; font-size: 8px; }
 .overview-country-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 9px; }
 .overview-country-grid > div { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--admin-line); border-radius: 9px; }
 .overview-country-grid span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 7px; background: #eff6ff; color: #2563eb; font-size: 9px; font-weight: 800; }
@@ -247,6 +257,7 @@
   .overview-secondary-grid { grid-template-columns: 1fr 1fr; }
   .overview-secondary-grid > :last-child { grid-column: 1 / -1; }
   .overview-country-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .overview-recommendation-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 
 @media (max-width: 960px) {
@@ -282,6 +293,7 @@
   .overview-kpi-card { padding: 15px; }
   .overview-bar-chart { height: 180px; gap: 3px; }
   .overview-role-layout { grid-template-columns: 105px 1fr; }
+  .overview-recommendation-grid { grid-template-columns: 1fr 1fr; }
   .overview-donut { width: 105px; height: 105px; }
   .overview-country-grid { grid-template-columns: 1fr 1fr; }
 }

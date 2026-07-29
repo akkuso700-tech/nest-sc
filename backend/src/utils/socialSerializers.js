@@ -37,11 +37,27 @@ function serializePostForViewer(postDocument, user) {
     sharedByUserIds = [],
     ...safePostPayload
   } = post
+  const normalizedAuthor = normalizeUserMedia(post.author)
+  const authorId = normalizedAuthor?._id?.toString?.() || normalizedAuthor?.id?.toString?.() || ''
+  const followedByViewer = Boolean(
+    user &&
+      authorId &&
+      (user.friendIds || []).some((followedId) => followedId?.toString?.() === authorId),
+  )
 
   return {
     ...safePostPayload,
     media: normalizeMediaList(post.media || []),
-    author: normalizeUserMedia(post.author),
+    author: normalizedAuthor
+      ? {
+          ...normalizedAuthor,
+          followedByViewer,
+          viewerState: {
+            ...(normalizedAuthor.viewerState || {}),
+            isFollowing: followedByViewer,
+          },
+        }
+      : normalizedAuthor,
     group: post.group
       ? {
           id: post.group._id || post.group.id || post.group,

@@ -178,6 +178,13 @@ function createApp() {
     keyGenerator: (req) => resolveClientIp(req),
     skip: shouldSkipWriteRateLimit,
   })
+  const telemetryLimiter = rateLimit({
+    windowMs: env.rateLimit.windowMs,
+    max: Math.max(300, env.rateLimit.max * 3),
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => resolveClientIp(req),
+  })
   const authIdentifierLimiter = rateLimit({
     windowMs: env.rateLimit.windowMs,
     max: Math.min(50, env.rateLimit.max),
@@ -243,6 +250,9 @@ function createApp() {
   app.use('/api/v1/auth/refresh', authRefreshLimiter)
   app.use('/api/v1/auth/register/request-code', authPasswordResetLimiter)
   app.use('/api/v1/auth/password-reset/request', authPasswordResetLimiter)
+  app.use('/api/v1/posts/:postId/view', telemetryLimiter)
+  app.use('/api/v1/posts/:postId/loop-telemetry', telemetryLimiter)
+  app.use('/api/v1/stories/:storyId/view', telemetryLimiter)
   app.use('/api/v1', enforceCookieCsrfProtection)
   app.use('/api/v1', apiWriteLimiter, apiRouter)
 

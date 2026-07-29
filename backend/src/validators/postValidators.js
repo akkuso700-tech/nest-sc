@@ -49,6 +49,7 @@ const feedSchema = z.object({
     cursor: z.string().trim().min(8).max(2048).optional(),
     topic: z.string().trim().min(2).max(80).optional(),
     view: z.enum(['latest', 'explore', 'following', 'for-you', 'loop']).optional().default('latest'),
+    loopMode: z.enum(['explore', 'following', 'for-you']).optional().default('explore'),
   }),
 })
 
@@ -60,8 +61,22 @@ const trendsSchema = z.object({
   }),
 })
 
+const recommendationContextSchema = z.object({
+  sessionId: z.string().trim().min(8).max(64),
+  rank: z.coerce.number().int().min(1).max(10000),
+  algorithm: z.string().trim().min(1).max(120),
+  view: z.enum(['latest', 'explore', 'following', 'for-you', 'loop']),
+  loopMode: z.enum(['explore', 'following', 'for-you']).nullable().optional(),
+  experiment: z.object({
+    id: z.string().trim().min(3).max(80),
+    variant: z.enum(['control', 'challenger']),
+  }),
+})
+
 const postIdSchema = z.object({
-  body: z.object({}).default({}),
+  body: z.object({
+    recommendation: recommendationContextSchema.optional(),
+  }).default({}),
   params: z.object({
     postId: objectIdSchema,
   }),
@@ -75,6 +90,7 @@ const registerPostViewSchema = z.object({
       replayCount: z.coerce.number().int().min(0).max(1000).optional(),
       swipeVelocity: z.coerce.number().min(0).max(20000).optional(),
       visibleMs: z.coerce.number().int().min(0).max(10 * 60 * 1000).optional(),
+      recommendation: recommendationContextSchema.optional(),
     })
     .default({}),
   params: z.object({
@@ -85,6 +101,7 @@ const registerPostViewSchema = z.object({
 
 const loopTelemetrySchema = z.object({
   body: z.object({
+    eventId: z.string().trim().min(8).max(64).optional(),
     eventType: z.enum([
       'waiting',
       'stalled',

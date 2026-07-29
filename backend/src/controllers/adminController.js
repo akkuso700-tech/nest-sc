@@ -10,6 +10,8 @@ const { AuditLog } = require('../models/AuditLog')
 const { LocationConsentLog } = require('../models/LocationConsentLog')
 const { EmailVerificationToken } = require('../models/EmailVerificationToken')
 const { VerificationRequest } = require('../models/VerificationRequest')
+const { PostView } = require('../models/PostView')
+const { RecommendationEvent } = require('../models/RecommendationEvent')
 const {
   getSignupNotificationEmails,
   updateSignupNotificationEmails,
@@ -143,6 +145,8 @@ const getOverview = asyncHandler(async (req, res) => {
     loopQualityAggregate,
     hiddenLoopPosts,
     removedLoopPosts,
+    recommendationViewBreakdown,
+    recommendationEventBreakdown,
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ lastLoginAt: { $gte: activeSince } }),
@@ -241,7 +245,102 @@ const getOverview = asyncHandler(async (req, res) => {
       contentType: 'loop',
       'moderation.visibility': 'removed',
     }),
+    PostView.aggregate([
+      { $match: { createdAt: { $gte: lastSevenDays } } },
+      {
+        $group: {
+          _id: {
+            algorithm: '$algorithm',
+            experimentId: '$experimentId',
+            variant: '$experimentVariant',
+          },
+          impressions: { $sum: 1 },
+          quickSkips: { $sum: { $cond: ['$quickSkipRecorded', 1, 0] } },
+          longViews: { $sum: { $cond: ['$longViewRecorded', 1, 0] } },
+        },
+      },
+    ]),
+    RecommendationEvent.aggregate([
+      { $match: { createdAt: { $gte: lastSevenDays } } },
+      {
+        $group: {
+          _id: {
+            algorithm: '$algorithm',
+            experimentId: '$experimentId',
+            variant: '$experimentVariant',
+          },
+          saves: { $sum: { $cond: [{ $eq: ['$eventType', 'save'] }, 1, 0] } },
+          shares: { $sum: { $cond: [{ $eq: ['$eventType', 'share'] }, 1, 0] } },
+          hides: {
+            $sum: { $cond: [{ $eq: ['$eventType', 'not-interested'] }, 1, 0] },
+          },
+        },
+      },
+    ]),
   ])
+
+  const recommendationBreakdownMap = new Map()
+  const getRecommendationBreakdownKey = (entry = {}) =>
+    [entry.algorithm || 'unattributed', entry.experimentId || 'none', entry.variant || 'none'].join('|')
+  const ensureRecommendationBreakdown = (entry = {}) => {
+    const key = getRecommendationBreakdownKey(entry)
+    if (!recommendationBreakdownMap.has(key)) {
+      recommendationBreakdownMap.set(key, {
+        algorithm: entry.algorithm || 'unattributed',
+        experimentId: entry.experimentId || null,
+        variant: entry.variant || null,
+        impressions: 0,
+        quickSkips: 0,
+        longViews: 0,
+        saves: 0,
+        shares: 0,
+        hides: 0,
+      })
+    }
+    return recommendationBreakdownMap.get(key)
+  }
+
+  for (const entry of recommendationViewBreakdown) {
+    const target = ensureRecommendationBreakdown(entry._id)
+    target.impressions += Number(entry.impressions || 0)
+    target.quickSkips += Number(entry.quickSkips || 0)
+    target.longViews += Number(entry.longViews || 0)
+  }
+  for (const entry of recommendationEventBreakdown) {
+    const target = ensureRecommendationBreakdown(entry._id)
+    target.saves += Number(entry.saves || 0)
+    target.shares += Number(entry.shares || 0)
+    target.hides += Number(entry.hides || 0)
+  }
+
+  const recommendationBreakdown = [...recommendationBreakdownMap.values()]
+    .map((entry) => ({
+      ...entry,
+      quickSkipRate:
+        entry.impressions > 0 ? Number(((entry.quickSkips / entry.impressions) * 100).toFixed(2)) : 0,
+      longViewRate:
+        entry.impressions > 0 ? Number(((entry.longViews / entry.impressions) * 100).toFixed(2)) : 0,
+      saveRate:
+        entry.impressions > 0 ? Number(((entry.saves / entry.impressions) * 100).toFixed(2)) : 0,
+      shareRate:
+        entry.impressions > 0 ? Number(((entry.shares / entry.impressions) * 100).toFixed(2)) : 0,
+      hideRate:
+        entry.impressions > 0 ? Number(((entry.hides / entry.impressions) * 100).toFixed(2)) : 0,
+    }))
+    .sort((left, right) => right.impressions - left.impressions)
+  const recommendationTotals = recommendationBreakdown.reduce(
+    (totals, entry) => {
+      for (const field of ['impressions', 'quickSkips', 'longViews', 'saves', 'shares', 'hides']) {
+        totals[field] += Number(entry[field] || 0)
+      }
+      return totals
+    },
+    { impressions: 0, quickSkips: 0, longViews: 0, saves: 0, shares: 0, hides: 0 },
+  )
+  const recommendationRate = (count) =>
+    recommendationTotals.impressions > 0
+      ? Number(((Number(count || 0) / recommendationTotals.impressions) * 100).toFixed(2))
+      : 0
 
   const loopQualityBase = loopQualityAggregate[0] || {
     totalLoops: 0,
@@ -329,6 +428,16 @@ const getOverview = asyncHandler(async (req, res) => {
       rankingConfidenceScore,
       hiddenLoops: hiddenLoopPosts,
       removedLoops: removedLoopPosts,
+    },
+    recommendationQuality: {
+      windowDays: 7,
+      ...recommendationTotals,
+      quickSkipRate: recommendationRate(recommendationTotals.quickSkips),
+      longViewRate: recommendationRate(recommendationTotals.longViews),
+      saveRate: recommendationRate(recommendationTotals.saves),
+      shareRate: recommendationRate(recommendationTotals.shares),
+      hideRate: recommendationRate(recommendationTotals.hides),
+      breakdown: recommendationBreakdown,
     },
   })
 })
