@@ -8,14 +8,18 @@ import ProfileImageCropModal from '../components/media/ProfileImageCropModal.jsx
 import ProfileImageLightbox from '../components/media/ProfileImageLightbox.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import VerificationModal from '../components/profile/VerificationModal.jsx'
+import UserAvatar from '../components/common/UserAvatar.jsx'
+import PostComposer from '../features/posts/PostComposer.jsx'
 import PostCard from '../features/posts/PostCard.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import {
   getMyProfile,
   getProfileByUsername,
+  getDiscoverySuggestions,
   toggleFollowByUsername,
   updateMyProfile,
 } from '../services/usersService.js'
+import { createPost, getTrendingTopics } from '../services/postsService.js'
 import { formatLocation, getAvatarLabel, getFullName } from '../utils/social.js'
 import { resolveMediaUrl } from '../utils/media.js'
 
@@ -67,9 +71,9 @@ function ProfileSkeleton() {
   )
 }
 
-function CameraIcon() {
+function CameraIcon({ className = 'size-4.5' }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4.5">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <path d="M4.5 8.5h15v10h-15z" />
       <path d="m9 8.5 1.2-2h3.6l1.2 2" />
       <circle cx="12" cy="13.5" r="3.2" />
@@ -88,19 +92,141 @@ function EditIcon() {
 
 function MessageIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4">
-      <path d="M5 6.5h14v8H9l-4 3v-11Z" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-[18px]"
+      aria-hidden="true"
+    >
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 9.7 9.7 0 0 1-4-.9L3 21l1.7-4.6A8.4 8.4 0 0 1 3 11.5a8.4 8.4 0 0 1 9-8.5 8.4 8.4 0 0 1 9 8.5Z" />
+      <path d="M8 12h.01M12 12h.01M16 12h.01" />
     </svg>
   )
 }
 
-function FollowIcon({ active = false }) {
+function LocationIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4">
-      <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-      <path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
-      {active ? <path d="m17 8 1.6 1.6L21 7.2" /> : <path d="M19 8.5v5M16.5 11h5" />}
+      <path d="M12 21s6-4.35 6-10a6 6 0 1 0-12 0c0 5.65 6 10 6 10Z" />
+      <circle cx="12" cy="11" r="2.4" />
     </svg>
+  )
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4">
+      <rect x="4" y="5.5" width="16" height="14" rx="2" />
+      <path d="M8 3.5v4M16 3.5v4M4 10h16" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="size-5">
+      <circle cx="5" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="19" cy="12" r="1.5" />
+    </svg>
+  )
+}
+
+function ProfilePanel({ title, action, children, className = '' }) {
+  return (
+    <section className={`rounded-lg border border-border bg-card shadow-sm ${className}`}>
+      <div className="flex items-center justify-between gap-3 px-4 pt-4">
+        <h2 className="text-sm font-bold text-text">{title}</h2>
+        {action}
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  )
+}
+
+function ProfileDiscoveryRail({
+  lang,
+  t,
+  suggestions,
+  trends,
+  error,
+  isAuthenticated,
+  suggestionPending,
+  onFollow,
+}) {
+  return (
+    <div className="space-y-4">
+      <ProfilePanel
+        title={t('home.suggestions')}
+        action={
+          <Link to={`/${lang}/search`} className="text-xs font-semibold text-primary hover:underline">
+            {t('home.suggestionsShowAll')}
+          </Link>
+        }
+      >
+        <div className="space-y-4">
+          {suggestions.slice(0, 3).map((item) => {
+            const suggestedUser = item.user || item
+            return (
+              <div key={suggestedUser.id || suggestedUser.username} className="flex items-center gap-3">
+                <Link to={`/${lang}/u/${suggestedUser.username}`} className="shrink-0">
+                  <UserAvatar user={suggestedUser} className="size-10" textClassName="text-xs font-bold" />
+                </Link>
+                <Link to={`/${lang}/u/${suggestedUser.username}`} className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1 truncate text-sm font-semibold text-text">
+                    <span className="truncate">{getFullName(suggestedUser)}</span>
+                    <VerifiedBadge user={suggestedUser} size="xs" />
+                  </p>
+                  <p className="truncate text-xs text-muted">@{suggestedUser.username}</p>
+                </Link>
+                {isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={() => onFollow(suggestedUser)}
+                    disabled={suggestionPending === suggestedUser.username}
+                    className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-inverse transition hover:bg-primary-hover disabled:opacity-60"
+                  >
+                    {suggestionPending === suggestedUser.username ? '…' : t('profile.follow')}
+                  </button>
+                ) : null}
+              </div>
+            )
+          })}
+          {!suggestions.length ? (
+            <p className="text-sm leading-6 text-muted">{error || t('home.suggestionsEmpty')}</p>
+          ) : null}
+        </div>
+      </ProfilePanel>
+
+      <ProfilePanel title={t('home.trends')}>
+        <ol className="space-y-4">
+          {trends.map((trend, index) => (
+            <li key={trend.slug || trend.label || index} className="flex gap-3">
+              <span className="w-4 shrink-0 text-xs font-semibold text-soft">{index + 1}</span>
+              <Link
+                to={`/${lang}/?topic=${encodeURIComponent(trend.slug || trend.label || '')}`}
+                className="min-w-0 flex-1"
+              >
+                <p className="truncate text-sm font-semibold text-text">{trend.label}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {t('home.trendMeta', {
+                    postCount: trend.postCount || 0,
+                    authorCount: trend.uniqueAuthorCount || 0,
+                  })}
+                </p>
+              </Link>
+            </li>
+          ))}
+          {!trends.length ? (
+            <li className="text-sm leading-6 text-muted">{error || t('home.trendsEmpty')}</li>
+          ) : null}
+        </ol>
+      </ProfilePanel>
+    </div>
   )
 }
 
@@ -110,10 +236,10 @@ function UploadButton({ label, onClick, compact = false }) {
       type="button"
       onClick={onClick}
       className={`inline-flex items-center gap-2 rounded-lg cursor-pointer border border-border bg-[rgb(var(--color-card)/0.38)] px-1 md:px-1 py-2 md:py-2 text-xs font-medium text-muted shadow-lg backdrop-blur transition hover:bg-[rgb(var(--color-secondary)/0.92)] ${
-        compact ? 'min-h-10 min-w-10 justify-center px-0' : ''
+        compact ? 'min-h-8 min-w-8 justify-center !p-0 md:min-h-10 md:min-w-10' : ''
       }`}
     >
-      <CameraIcon />
+      <CameraIcon className={compact ? 'size-3.5 md:size-4.5' : 'size-4.5'} />
       {!compact ? <span>{label}</span> : null}
     </button>
   )
@@ -203,6 +329,9 @@ function ProfilePage() {
     isSubmitting: false,
     error: '',
   })
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [suggestionPending, setSuggestionPending] = useState('')
+  const [discoveryState, setDiscoveryState] = useState({ suggestions: [], trends: [], error: '' })
   const [cropState, setCropState] = useState({
     open: false,
     file: null,
@@ -305,6 +434,40 @@ function ProfilePage() {
     }
   }, [isAuthenticated, status, t, username])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadDiscoveryPanels() {
+      try {
+        const [suggestionsPayload, trendsPayload] = await Promise.all([
+          getDiscoverySuggestions({ mode: 'for-you', limit: 4 }),
+          getTrendingTopics({ limit: 5 }),
+        ])
+
+        if (!cancelled) {
+          setDiscoveryState({
+            suggestions: suggestionsPayload?.items || [],
+            trends: trendsPayload?.topics || [],
+            error: '',
+          })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDiscoveryState((currentState) => ({
+            ...currentState,
+            error: error.message || t('home.trendsLoadFailed'),
+          }))
+        }
+      }
+    }
+
+    loadDiscoveryPanels()
+
+    return () => {
+      cancelled = true
+    }
+  }, [t])
+
   const profilePayload = profileState.profile
   const profileUser = profilePayload?.user
   const stats = profilePayload?.stats || {
@@ -326,6 +489,8 @@ function ProfilePage() {
   const tabs = useMemo(
     () => [
       { key: 'posts', label: t('common.posts') },
+      { key: 'media', label: t('profile.media') },
+      { key: 'likes', label: t('profile.likes') },
       { key: 'loops', label: t('nav.loop') },
       { key: 'replies', label: t('profile.replies') },
       ...(isOwnProfile ? [{ key: 'saved', label: t('profile.saved') }] : []),
@@ -365,6 +530,8 @@ function ProfilePage() {
   const recentPosts = filterOutStoryPosts(profilePayload?.recentPosts || [])
   const profilePosts = recentPosts.filter((post) => isStandardPost(post) && !isLoopPost(post))
   const loopPosts = recentPosts.filter((post) => isLoopPost(post))
+  const mediaPosts = recentPosts.filter((post) => Array.isArray(post?.media) && post.media.length > 0)
+  const likedPosts = filterOutStoryPosts(profilePayload?.likedPosts || [])
   const repliedPosts = filterOutStoryPosts(profilePayload?.repliedPosts || []).filter(
     (post) => isStandardPost(post) || isLoopPost(post),
   )
@@ -611,6 +778,22 @@ function ProfilePage() {
       )
     }
 
+    if (activeTab === 'media') {
+      return mediaPosts.length ? (
+        mediaPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+      ) : (
+        <EmptyTabState message={t('profile.emptyMedia', { defaultValue: 'Bu profilde henüz medya paylaşımı yok.' })} />
+      )
+    }
+
+    if (activeTab === 'likes') {
+      return likedPosts.length ? (
+        likedPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+      ) : (
+        <EmptyTabState message={t('profile.emptyLikes', { defaultValue: 'Beğenilen içerikler burada listelenecek.' })} />
+      )
+    }
+
     if (activeTab === 'replies') {
       return repliedPosts.length ? (
         repliedPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
@@ -625,6 +808,87 @@ function ProfilePage() {
       <EmptyTabState message={t('profile.emptySaved')} />
     )
   }
+
+  async function handleCreateProfilePost(payload) {
+    setIsPublishing(true)
+
+    try {
+      const response = await createPost(payload)
+      if (!response?.meta?.scheduled && response?.post) {
+        setProfileState((currentState) => ({
+          ...currentState,
+          profile: currentState.profile
+            ? {
+                ...currentState.profile,
+                recentPosts: [response.post, ...(currentState.profile.recentPosts || [])],
+                stats: {
+                  ...currentState.profile.stats,
+                  posts: Number(currentState.profile.stats?.posts || 0) + 1,
+                  media:
+                    Number(currentState.profile.stats?.media || 0) +
+                    (response.post?.media?.length ? 1 : 0),
+                },
+              }
+            : currentState.profile,
+        }))
+        setActiveTab(isLoopPost(response.post) ? 'loops' : 'posts')
+      }
+      setToast({
+        message: response?.meta?.scheduled
+          ? t('home.postScheduled', { defaultValue: 'Gönderi planlandı.' })
+          : t('home.postPublished', { defaultValue: 'Gönderi paylaşıldı.' }),
+        tone: 'success',
+      })
+      return response
+    } catch (error) {
+      setToast({
+        message: error.message || t('home.postPublishFailed', { defaultValue: 'Gönderi yayınlanamadı.' }),
+        tone: 'error',
+      })
+      throw error
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  async function handleSuggestionFollow(suggestedUser) {
+    if (!isAuthenticated || !suggestedUser?.username || suggestionPending) {
+      return
+    }
+
+    setSuggestionPending(suggestedUser.username)
+    try {
+      await toggleFollowByUsername(suggestedUser.username)
+      setDiscoveryState((currentState) => ({
+        ...currentState,
+        suggestions: currentState.suggestions.filter(
+          (item) => (item.user || item)?.username !== suggestedUser.username,
+        ),
+      }))
+      setToast({ message: t('profile.followed'), tone: 'success' })
+    } catch (error) {
+      setToast({ message: error.message || t('profile.followFailed'), tone: 'error' })
+    } finally {
+      setSuggestionPending('')
+    }
+  }
+
+  const joinedAtLabel = profileUser?.createdAt
+    ? new Intl.DateTimeFormat(lang || 'tr', { month: 'long', year: 'numeric' }).format(
+        new Date(profileUser.createdAt),
+      )
+    : ''
+  const visibleSuggestions = discoveryState.suggestions.filter(
+    (item) => (item.user || item)?.username !== profileUser?.username,
+  )
+  const highlightItems = mediaPosts.slice(0, 4).map((post, index) => {
+    const media = post?.media?.[0] || {}
+    return {
+      id: post.id || post._id,
+      label: `${t('profile.media')} ${index + 1}`,
+      imageUrl: resolveMediaUrl(media.thumbnailUrl || media.posterUrl || media.url || ''),
+    }
+  })
 
   return (
     <>
@@ -646,7 +910,7 @@ function ProfilePage() {
         showDesktopPageHeader={false}
         initialSidebarOpen={false}
       >
-        <div className="space-y-0 md:space-y-5 ">
+        <div className="space-y-4 md:space-y-5">
           {profileState.error ? (
             <div className="rounded-[32px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-600 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
               {profileState.error}
@@ -671,8 +935,8 @@ function ProfilePage() {
 
           {profileUser ? (
             <>
-              <section className="overflow-hidden rounded-0 md:rounded-lg  mt-0 md:mt-2 md:border md:border-border bg-card shadow-sm">
-                <div className="relative h-36 bg-[linear-gradient(135deg,#e7e5e4_0%,#dbeafe_50%,#fde68a_100%)] md:h-48">
+              <section className="overflow-hidden bg-card shadow-sm md:mt-2 md:rounded-lg md:border md:border-border">
+                <div className="relative h-32 bg-[linear-gradient(135deg,#dbeafe_0%,#bfdbfe_48%,#fde68a_100%)] sm:h-48 md:h-60">
                   {profileUser.coverUrl ? (
                     <button
                       type="button"
@@ -724,7 +988,7 @@ function ProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="relative px-3 pb-1 pt-1 md:px-7">
+                <div className="relative px-4 pb-3 pt-1 md:px-7 md:pb-4">
                   <div className="md:hidden">
                     <div className="flex items-start gap-2">
                       <div className="-mt-7 shrink-0">
@@ -762,7 +1026,7 @@ function ProfilePage() {
                                 className="hidden"
                                 onChange={(event) => handleProfileImageSelection('avatar', event.target.files?.[0])}
                               />
-                              <div className="absolute bottom-1 right-1">
+                              <div className="absolute -bottom-1 -right-1">
                                 <UploadButton
                                   compact
                                   label={
@@ -801,14 +1065,14 @@ function ProfilePage() {
                                 <button
                                   type="button"
                                   onClick={() => setVerificationModalOpen(true)}
-                                  className="inline-flex h-9 items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-600"
+                                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 text-xs font-semibold text-text shadow-sm transition hover:bg-secondary-hover"
                                 >
                                   <VerifiedBadge user={{ verification: { isVerified: true } }} size="xs" />
                                   Mavi Tik
                                 </button>
                                 <Link
                                   to={`/${lang}/profile/edit`}
-                                  className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-inverse"
+                                  className="inline-flex size-9 items-center justify-center rounded-lg bg-primary text-white transition hover:bg-primary-hover"
                                   aria-label={t('profile.editProfile')}
                                   title={t('profile.editProfile')}
                                 >
@@ -819,7 +1083,7 @@ function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <Link
                                   to={`/${lang}/messages?recipientId=${encodeURIComponent(profileUser.id)}&username=${encodeURIComponent(profileUser.username)}&name=${encodeURIComponent(getFullName(profileUser))}&avatarUrl=${encodeURIComponent(resolvedAvatarUrl || '')}`}
-                                  className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card text-text transition hover:bg-secondary"
+                                  className="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-card text-text shadow-sm transition duration-200 hover:border-primary hover:text-primary active:scale-95"
                                   aria-label={t('profile.sendMessage')}
                                   title={t('profile.sendMessage')}
                                 >
@@ -892,7 +1156,11 @@ function ProfilePage() {
                                     }
                                   }}
                                   disabled={!isAuthenticated || followState.isSubmitting}
-                                  className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
+                                  className={`inline-flex h-10 min-w-[88px] cursor-pointer items-center justify-center rounded-lg border px-3 text-xs font-semibold shadow-sm transition duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 ${
+                                    profilePayload?.viewerState?.isFollowing
+                                      ? 'border-primary bg-[rgb(var(--color-primary)/0.12)] text-primary'
+                                      : 'border-primary bg-primary text-white hover:bg-primary-hover'
+                                  }`}
                                   aria-label={
                                     !isAuthenticated
                                         ? t('common.login')
@@ -908,7 +1176,13 @@ function ProfilePage() {
                                           : t('profile.follow')
                                   }
                                 >
-                                  {followState.isSubmitting ? '...' : <FollowIcon active={Boolean(profilePayload?.viewerState?.isFollowing)} />}
+                                  {!isAuthenticated
+                                    ? t('common.login')
+                                    : followState.isSubmitting
+                                      ? '...'
+                                      : profilePayload?.viewerState?.isFollowing
+                                        ? t('profile.unfollow')
+                                        : t('profile.follow')}
                                 </button>
                               </div>
                             )}
@@ -944,7 +1218,7 @@ function ProfilePage() {
                   <div className="hidden items-end gap-4 md:flex md:gap-5">
                     <div className="-mt-16 shrink-0 md:-mt-20">
                       <div className="relative">
-                        <div className="grid size-24 place-items-center overflow-hidden rounded-full border-4 border-card bg-primary text-2xl font-semibold text-inverse shadow-lg md:size-30 md:text-3xl">
+                        <div className="grid size-24 place-items-center overflow-hidden rounded-full border-4 border-card bg-primary text-2xl font-semibold text-inverse shadow-lg ring-1 ring-border md:size-32 md:text-3xl">
                           {profileUser.avatarUrl ? (
                             <button
                               type="button"
@@ -1004,7 +1278,7 @@ function ProfilePage() {
                       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
                         <div className="min-w-0 space-y-3">
                           <div>
-                            <h1 className="flex min-w-0 items-center gap-1.5 font-bold tracking-tight text-base md:text-md">
+                            <h1 className="flex min-w-0 items-center gap-1.5 text-xl font-bold tracking-tight text-text md:text-2xl">
                               <span className="truncate">{getFullName(profileUser)}</span>
                               <VerifiedBadge user={profileUser} />
                             </h1>
@@ -1017,8 +1291,14 @@ function ProfilePage() {
                             {profileUser.bio || t('profile.emptyBio')}
                           </p>
 
-                          <div className="flex flex-wrap items-center gap-4 text-sm text-muted">
-                            <span>{formatLocation(profileUser.location)}</span>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+                            <span className="inline-flex items-center gap-1.5"><LocationIcon />{formatLocation(profileUser.location)}</span>
+                            {joinedAtLabel ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <CalendarIcon />
+                                {t('profile.joinedAt', { defaultValue: '{{date}} tarihinde katıldı', date: joinedAtLabel })}
+                              </span>
+                            ) : null}
                             <Link
                               to={isOwnProfile ? `/${lang}/profile/followers` : `/${lang}/u/${profileUser.username}/followers`}
                               className="transition hover:text-text"
@@ -1041,21 +1321,21 @@ function ProfilePage() {
                               <button
                                 type="button"
                                 onClick={() => setVerificationModalOpen(true)}
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-semibold text-sky-600"
+                                className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm font-semibold text-text shadow-sm transition hover:bg-secondary-hover"
                               >
                                 <VerifiedBadge user={{ verification: { isVerified: true } }} size="xs" />
                                 Mavi Tik
                               </button>
                               <Link
                                 to={`/${lang}/profile/edit`}
-                                className="rounded-lg cursor-pointer mt-2 px-3 py-1.5 bg-primary text-inverse text-sm font-regular"
+                                className="mt-2 cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-sm font-medium !text-white transition hover:bg-primary-hover hover:!text-white"
                               >
                                 {t('profile.editProfile')}
                               </Link>
                             </div>
                           ) : (
                             <>
-                              <p
+                              <button
                                 type="button"
                                 onClick={async () => {
                                   if (!profileUser?.username || followState.isSubmitting) {
@@ -1131,13 +1411,20 @@ function ProfilePage() {
                                     : profilePayload?.viewerState?.isFollowing
                                       ? t('profile.unfollow')
                                       : t('profile.follow')}
-                              </p>
+                              </button>
                               <Link
                                 to={`/${lang}/messages?recipientId=${encodeURIComponent(profileUser.id)}&username=${encodeURIComponent(profileUser.username)}&name=${encodeURIComponent(getFullName(profileUser))}&avatarUrl=${encodeURIComponent(resolvedAvatarUrl || '')}`}
                                 className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text transition hover:bg-secondary"
                               >
                                 {t('profile.sendMessage')}
                               </Link>
+                              <button
+                                type="button"
+                                className="grid size-10 place-items-center rounded-lg border border-border text-muted transition hover:bg-secondary hover:text-text"
+                                aria-label={t('common.more', { defaultValue: 'Daha fazla' })}
+                              >
+                                <MoreIcon />
+                              </button>
                             </>
                           )}
                         </div>
@@ -1146,13 +1433,13 @@ function ProfilePage() {
                   </div>
 
                   <div className="mt-1  pt-1">
-                    <div className="no-scrollbar flex overflow-x-auto pb-1">
+                    <div className="no-scrollbar flex overflow-x-auto border-t border-border-soft pt-2">
                       {tabs.map((tab) => (
                         <p
                           key={tab.key}
                           type="button"
                           onClick={() => setActiveTab(tab.key)}
-                          className={`shrink-0 rounded-sm cursor-pointer px-2 py-2 text-sm font-medium transition ${
+                          className={`shrink-0 cursor-pointer px-4 py-2 text-sm font-semibold transition ${
                             activeTab === tab.key
                               ? 'border-b-3 border-primary text-primary hover:bg-secondary '
                               : ' text-muted hover:bg-secondary hover:text-text'
@@ -1166,7 +1453,89 @@ function ProfilePage() {
                 </div>
               </section>
 
-              <div className="mx-auto flex max-w-[720px] flex-col gap-2">{renderTabContent()}</div>
+              <div className="grid items-start gap-4 xl:grid-cols-[250px_minmax(0,1fr)_310px]">
+                <aside className="hidden space-y-4 xl:block">
+                  <ProfilePanel title={t('profile.aboutTitle', { defaultValue: 'Hakkında' })}>
+                    <p className="text-sm leading-6 text-muted">
+                      {profileUser.bio || t('profile.emptyBio')}
+                    </p>
+                    <div className="mt-4 space-y-3 border-t border-border-soft pt-4 text-sm text-muted">
+                      <p className="flex items-center gap-2">
+                        <LocationIcon />
+                        <span>{formatLocation(profileUser.location)}</span>
+                      </p>
+                      {joinedAtLabel ? (
+                        <p className="flex items-start gap-2">
+                          <span className="mt-0.5"><CalendarIcon /></span>
+                          <span>{t('profile.joinedAt', { defaultValue: '{{date}} tarihinde katıldı', date: joinedAtLabel })}</span>
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border-soft pt-4 text-center">
+                      <div>
+                        <strong className="block text-sm text-text">{stats.posts.toLocaleString()}</strong>
+                        <span className="text-[11px] text-muted">{t('common.posts')}</span>
+                      </div>
+                      <Link to={isOwnProfile ? `/${lang}/profile/following` : `/${lang}/u/${profileUser.username}/following`}>
+                        <strong className="block text-sm text-text">{stats.following.toLocaleString()}</strong>
+                        <span className="text-[11px] text-muted">{t('common.following')}</span>
+                      </Link>
+                      <Link to={isOwnProfile ? `/${lang}/profile/followers` : `/${lang}/u/${profileUser.username}/followers`}>
+                        <strong className="block text-sm text-text">{stats.followers.toLocaleString()}</strong>
+                        <span className="text-[11px] text-muted">{t('common.followers')}</span>
+                      </Link>
+                    </div>
+                  </ProfilePanel>
+
+                  <ProfilePanel title={t('profile.highlights', { defaultValue: 'Öne Çıkanlar' })}>
+                    {highlightItems.length ? (
+                      <div className="grid grid-cols-4 gap-2">
+                        {highlightItems.map((item) => (
+                          <div key={item.id} className="min-w-0 text-center">
+                            <div className="mx-auto grid aspect-square w-full place-items-center overflow-hidden rounded-full border-2 border-border bg-secondary">
+                              {item.imageUrl ? (
+                                <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-xs font-bold text-primary">{item.label?.slice(0, 1)}</span>
+                              )}
+                            </div>
+                            <p className="mt-1 truncate text-[10px] text-muted">{item.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm leading-6 text-muted">
+                        {t('profile.emptyMedia', { defaultValue: 'Henüz öne çıkarılacak medya yok.' })}
+                      </p>
+                    )}
+                  </ProfilePanel>
+                </aside>
+
+                <div className="min-w-0 space-y-3">
+                  {isOwnProfile ? (
+                    <PostComposer
+                      user={user}
+                      onSubmit={handleCreateProfilePost}
+                      isSubmitting={isPublishing}
+                      allowStoryOption={false}
+                    />
+                  ) : null}
+                  <div className="flex flex-col gap-3">{renderTabContent()}</div>
+                </div>
+
+                <aside className="hidden xl:block">
+                  <ProfileDiscoveryRail
+                    lang={lang}
+                    t={t}
+                    suggestions={visibleSuggestions}
+                    trends={discoveryState.trends}
+                    error={discoveryState.error}
+                    isAuthenticated={isAuthenticated}
+                    suggestionPending={suggestionPending}
+                    onFollow={handleSuggestionFollow}
+                  />
+                </aside>
+              </div>
             </>
           ) : null}
         </div>
