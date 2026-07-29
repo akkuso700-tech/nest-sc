@@ -223,10 +223,12 @@ function SuggestionsHeader({
   modes,
   activeMode,
   onModeChange,
+  onShowAll,
   onRequestNearby,
   isRequestingLocation,
   locationEnabled,
   note,
+  showAllLabel,
   nearbyAriaLabel,
   nearbyTitle,
 }) {
@@ -234,20 +236,29 @@ function SuggestionsHeader({
     <div>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-text">{title}</h2>
-        <button
-          type="button"
-          onClick={onRequestNearby}
-          disabled={isRequestingLocation}
-          className={`inline-flex size-8 items-center cursor-pointer justify-center rounded-full border transition ${
-            locationEnabled
-              ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15'
-              : 'border-border bg-secondary text-muted hover:bg-secondary-hover hover:text-text'
-          } disabled:cursor-not-allowed disabled:opacity-70`}
-          aria-label={nearbyAriaLabel}
-          title={nearbyTitle}
-        >
-          <LocationIcon />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onShowAll}
+            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-border bg-secondary px-3 text-xs font-semibold text-text transition hover:bg-secondary-hover"
+          >
+            {showAllLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onRequestNearby}
+            disabled={isRequestingLocation}
+            className={`inline-flex size-8 items-center cursor-pointer justify-center rounded-full border transition ${
+              locationEnabled
+                ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15'
+                : 'border-border bg-secondary text-muted hover:bg-secondary-hover hover:text-text'
+            } disabled:cursor-not-allowed disabled:opacity-70`}
+            aria-label={nearbyAriaLabel}
+            title={nearbyTitle}
+          >
+            <LocationIcon />
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-secondary p-1">
@@ -348,6 +359,7 @@ function SuggestionCarousel({
   modes,
   activeMode,
   onModeChange,
+  onShowAll,
   onRequestNearby,
   isRequestingLocation,
   locationEnabled,
@@ -359,6 +371,7 @@ function SuggestionCarousel({
   waitingLabel,
   loginLabel,
   mutualCountLabel,
+  showAllLabel,
   nearbyAriaLabel,
   nearbyTitle,
 }) {
@@ -369,10 +382,12 @@ function SuggestionCarousel({
         modes={modes}
         activeMode={activeMode}
         onModeChange={onModeChange}
+        onShowAll={onShowAll}
         onRequestNearby={onRequestNearby}
         isRequestingLocation={isRequestingLocation}
         locationEnabled={locationEnabled}
         note={note}
+        showAllLabel={showAllLabel}
         nearbyAriaLabel={nearbyAriaLabel}
         nearbyTitle={nearbyTitle}
       />
@@ -380,7 +395,7 @@ function SuggestionCarousel({
         {items.map((suggestedUser) => (
           <div
             key={suggestedUser.user.id || suggestedUser.user.username}
-            className="w-[57%] min-w-[57%] snap-start rounded-lg border border-border bg-secondary px-4 py-4"
+            className="w-44 flex-none snap-start rounded-lg border border-border bg-secondary px-4 py-4"
           >
             <Link to={`/${lang}/u/${suggestedUser.user.username}`} className="block">
               <UserAvatar
@@ -390,7 +405,7 @@ function SuggestionCarousel({
               />
               <div className="mt-3 text-center">
                 <p className="truncate text-sm font-semibold text-text">
-                  <span className="flex items-center gap-1">{getFullName(suggestedUser.user)} <VerifiedBadge user={suggestedUser.user} size="xs" /></span>
+                  <span className="flex items-center justify-center gap-1">{getFullName(suggestedUser.user)} <VerifiedBadge user={suggestedUser.user} size="xs" /></span>
                 </p>
                 <p className="mt-1 truncate text-xs text-muted">@{suggestedUser.user.username}</p>
                 <p className="mt-1 text-[11px] text-soft">
@@ -420,6 +435,101 @@ function SuggestionCarousel({
         ))}
       </div>
     </section>
+  )
+}
+
+function SuggestionsModal({
+  open,
+  title,
+  closeLabel,
+  items,
+  lang,
+  pendingUsername,
+  onFollow,
+  onClose,
+  isAuthenticated,
+  followLabel,
+  waitingLabel,
+  loginLabel,
+  mutualCountLabel,
+  emptyLabel,
+}) {
+  useEffect(() => {
+    if (!open) {
+      return undefined
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onClose, open])
+
+  if (!open) {
+    return null
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[140] flex items-end justify-center bg-zinc-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-5"
+      role="presentation"
+      onMouseDown={onClose}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="all-suggestions-title"
+        className="flex max-h-[88dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-border bg-card shadow-[0_30px_100px_rgba(0,0,0,0.35)] sm:rounded-[28px]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
+          <h2 id="all-suggestions-title" className="text-lg font-semibold text-text">
+            {title}
+          </h2>
+          <button
+            type="button"
+            autoFocus
+            onClick={onClose}
+            aria-label={closeLabel}
+            title={closeLabel}
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-muted transition hover:bg-secondary-hover hover:text-text"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-5" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </header>
+
+        <div className="subtle-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {items.length ? (
+            <SuggestionList
+              items={items}
+              lang={lang}
+              pendingUsername={pendingUsername}
+              onFollow={onFollow}
+              isAuthenticated={isAuthenticated}
+              followLabel={followLabel}
+              waitingLabel={waitingLabel}
+              loginLabel={loginLabel}
+              mutualCountLabel={mutualCountLabel}
+            />
+          ) : (
+            <p className="py-8 text-center text-sm text-muted">{emptyLabel}</p>
+          )}
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -564,6 +674,7 @@ function HomePage() {
   })
   const [pendingFollowUsername, setPendingFollowUsername] = useState('')
   const [isRequestingNearby, setIsRequestingNearby] = useState(false)
+  const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState(false)
   const [toast, setToast] = useState({ message: '', tone: 'success' })
   const [storyState, setStoryState] = useState({
     rails: [],
@@ -906,7 +1017,7 @@ function HomePage() {
       try {
         const payload = await getDiscoverySuggestions({
           mode: suggestionsState.mode,
-          limit: 8,
+          limit: 12,
         })
 
         if (cancelled) {
@@ -1259,7 +1370,7 @@ function HomePage() {
 
           const payload = await getDiscoverySuggestions({
             mode: 'nearby',
-            limit: 8,
+            limit: 12,
             refresh: true,
           })
 
@@ -1563,10 +1674,12 @@ function HomePage() {
                   modes={suggestionModes}
                   activeMode={suggestionsState.mode}
                   onModeChange={handleSuggestionModeChange}
+                  onShowAll={() => setIsSuggestionsModalOpen(true)}
                   onRequestNearby={handleRequestNearbySuggestions}
                   isRequestingLocation={isRequestingNearby}
                   locationEnabled={suggestionsState.locationEnabled}
                   note={suggestionsState.error || suggestionsState.note}
+                  showAllLabel={t('home.suggestionsShowAll')}
                   nearbyAriaLabel={t('home.suggestionsNearbyAria')}
                   nearbyTitle={t('home.suggestionsNearbyTitle')}
                 />
@@ -1710,6 +1823,7 @@ function HomePage() {
                   modes={suggestionModes}
                   activeMode={suggestionsState.mode}
                   onModeChange={handleSuggestionModeChange}
+                  onShowAll={() => setIsSuggestionsModalOpen(true)}
                   onRequestNearby={handleRequestNearbySuggestions}
                   isRequestingLocation={isRequestingNearby}
                   locationEnabled={suggestionsState.locationEnabled}
@@ -1721,6 +1835,7 @@ function HomePage() {
                   waitingLabel={t('home.suggestionsWaiting')}
                   loginLabel={t('common.login')}
                   mutualCountLabel={(count) => t('home.suggestionsMutualCount', { count })}
+                  showAllLabel={t('home.suggestionsShowAll')}
                   nearbyAriaLabel={t('home.suggestionsNearbyAria')}
                   nearbyTitle={t('home.suggestionsNearbyTitle')}
                 />
@@ -1753,6 +1868,23 @@ function HomePage() {
           ) : null}
         </div>
       </SocialLayout>
+
+      <SuggestionsModal
+        open={isSuggestionsModalOpen}
+        title={t('home.suggestionsAllTitle')}
+        closeLabel={t('home.suggestionsClose')}
+        items={suggestionItems}
+        lang={lang}
+        pendingUsername={pendingFollowUsername}
+        onFollow={handleFollowSuggestion}
+        onClose={() => setIsSuggestionsModalOpen(false)}
+        isAuthenticated={isAuthenticated}
+        followLabel={t('search.people.follow')}
+        waitingLabel={t('home.suggestionsWaiting')}
+        loginLabel={t('common.login')}
+        mutualCountLabel={(count) => t('home.suggestionsMutualCount', { count })}
+        emptyLabel={suggestionsState.error || suggestionsState.note || t('home.suggestionsEmpty')}
+      />
 
       <ActionToast
         toast={toast}
