@@ -28,8 +28,11 @@ function errorHandler(error, req, res, next) {
   }
 
   if (error instanceof multer.MulterError) {
+    const maxUploadMegabytes = Math.round(
+      Number(req.uploadMaxFileSizeBytes || 25 * 1024 * 1024) / (1024 * 1024),
+    )
     const messageByCode = {
-      LIMIT_FILE_SIZE: 'Yuklenen her dosya en fazla 25 MB olabilir.',
+      LIMIT_FILE_SIZE: `Yuklenen dosya en fazla ${maxUploadMegabytes} MB olabilir.`,
       LIMIT_FILE_COUNT: 'Bu islem icin cok fazla dosya yuklendi.',
       LIMIT_UNEXPECTED_FILE: 'Beklenmeyen bir yukleme alani gonderildi.',
     }

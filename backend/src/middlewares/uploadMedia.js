@@ -13,6 +13,8 @@ const { buildLoopVideoVariants } = require('../services/videoProcessingService')
 
 const unlinkFile = promisify(fs.unlink)
 const FILE_SIGNATURE_BYTES = 32
+const DEFAULT_MEDIA_FILE_BYTES = 25 * 1024 * 1024
+const LOOP_VIDEO_FILE_BYTES = 100 * 1024 * 1024
 
 const uploadsRoot = env.uploadsDir || path.resolve(process.cwd(), 'uploads')
 
@@ -49,19 +51,63 @@ function mediaFileFilter(req, file, callback) {
   callback(new AppError('Only image and video uploads are allowed.', 400))
 }
 
-function createUploadMiddleware(targetDirectory, maxFiles) {
+function resolvePostMediaFileSizeLimit(contentType, mimeType) {
+  const isLoopVideo =
+    String(contentType || '').trim().toLowerCase() === 'loop' &&
+    String(mimeType || '').startsWith('video/')
+
+  return isLoopVideo ? LOOP_VIDEO_FILE_BYTES : DEFAULT_MEDIA_FILE_BYTES
+}
+
+function createUploadMiddleware(targetDirectory, maxFiles, options = {}) {
   ensureUploadsDirectory()
+
+  const allowLargeLoopVideo = Boolean(options.allowLargeLoopVideo)
+  const multerFileSizeLimit = allowLargeLoopVideo
+    ? LOOP_VIDEO_FILE_BYTES
+    : DEFAULT_MEDIA_FILE_BYTES
 
   const upload = multer({
     storage: createStorage(targetDirectory),
     fileFilter: mediaFileFilter,
     limits: {
-      fileSize: 25 * 1024 * 1024,
+      fileSize: multerFileSizeLimit,
       files: maxFiles,
     },
   })
 
-  return upload.array('media', maxFiles)
+  const uploadFiles = upload.array('media', maxFiles)
+
+  return function uploadMedia(req, res, next) {
+    req.uploadMaxFileSizeBytes = multerFileSizeLimit
+
+    uploadFiles(req, res, async (error) => {
+      if (error) {
+        next(error)
+        return
+      }
+
+      if (!allowLargeLoopVideo) {
+        next()
+        return
+      }
+
+      const contentType = String(req.body?.contentType || 'post').trim().toLowerCase()
+      const oversizedNonLoopFile = (req.files || []).find((file) => {
+        const allowedBytes = resolvePostMediaFileSizeLimit(contentType, file?.mimetype)
+        return Number(file?.size || 0) > allowedBytes
+      })
+
+      if (!oversizedNonLoopFile) {
+        next()
+        return
+      }
+
+      await removeUploadedFiles(req.files)
+      req.files = []
+      next(new AppError('Loop disindaki medya dosyalari en fazla 25 MB olabilir.', 400))
+    })
+  }
 }
 
 function matchesSignature(buffer, signature, startIndex = 0) {
@@ -163,14 +209,19 @@ function withTimeout(promise, timeoutMs, timeoutMessage) {
   ])
 }
 
-async function uploadMediaPathToRemoteStorage(filePath, { folder, mimeType, originalName }) {
+async function uploadMediaPathToRemoteStorage(filePath, {
+  folder,
+  mimeType,
+  originalName,
+  uploadClass = '',
+}) {
   return uploadLocalFileToRemoteStorage(
     {
       path: filePath,
       mimetype: mimeType,
       originalname: originalName || path.basename(filePath),
     },
-    { folder },
+    { folder, uploadClass },
   )
 }
 
@@ -279,6 +330,7 @@ async function buildMediaItems(files = [], options = {}) {
           folder,
           mimeType: sourceMimeType,
           originalName: file.originalname,
+          uploadClass: shouldBuildLoopVariants ? 'loop-video' : '',
         })
         let uploadedHlsUrl = ''
         let uploadedPosterUrl = ''
@@ -308,6 +360,7 @@ async function buildMediaItems(files = [], options = {}) {
               folder,
               mimeType: 'video/mp2t',
               originalName: `${path.basename(file.originalname || 'loop', path.extname(file.originalname || ''))}-hls.ts`,
+              uploadClass: 'loop-video',
             })
 
             const manifestText = await fs.promises.readFile(hlsManifestPath, 'utf8')
@@ -386,6 +439,9 @@ async function removeUploadedFiles(files = []) {
 
 module.exports = {
   uploadsRoot,
+  DEFAULT_MEDIA_FILE_BYTES,
+  LOOP_VIDEO_FILE_BYTES,
+  resolvePostMediaFileSizeLimit,
   createUploadMiddleware,
   buildMediaItems,
   removeUploadedFiles,

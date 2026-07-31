@@ -8,7 +8,8 @@ $UPLOAD_TOKEN = 'replace-with-a-long-random-upload-token';
 // Optional: keep empty to auto-detect current host (upload.nest-sc.com / upload-demo.nest-sc.com).
 $PUBLIC_BASE_URL = '';
 $UPLOAD_ROOT = __DIR__ . '/media';
-$MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+$DEFAULT_MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+$LOOP_VIDEO_MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 function respond(int $status, array $payload): void
 {
@@ -76,10 +77,6 @@ $tmpName = (string)($file['tmp_name'] ?? '');
 $fileSize = (int)($file['size'] ?? 0);
 $originalName = (string)($file['name'] ?? 'upload.bin');
 
-if ($fileSize <= 0 || $fileSize > $MAX_FILE_SIZE) {
-    respond(400, ['message' => 'File size is invalid.']);
-}
-
 $finfo = finfo_open(FILEINFO_MIME_TYPE);
 $mimeType = $finfo ? (finfo_file($finfo, $tmpName) ?: '') : '';
 if ($finfo) {
@@ -89,6 +86,14 @@ if ($finfo) {
 $isAllowed = str_starts_with($mimeType, 'image/') || str_starts_with($mimeType, 'video/');
 if (!$isAllowed) {
     respond(400, ['message' => 'Only image and video files are allowed.']);
+}
+
+$uploadClass = strtolower(trim((string)($_POST['upload_class'] ?? '')));
+$isLoopVideo = $uploadClass === 'loop-video' && str_starts_with($mimeType, 'video/');
+$maxFileSize = $isLoopVideo ? $LOOP_VIDEO_MAX_FILE_SIZE : $DEFAULT_MAX_FILE_SIZE;
+
+if ($fileSize <= 0 || $fileSize > $maxFileSize) {
+    respond(400, ['message' => 'File size is invalid.']);
 }
 
 $folder = sanitize_segment((string)($_POST['folder'] ?? 'uploads'), 'uploads');

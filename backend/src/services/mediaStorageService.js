@@ -342,6 +342,7 @@ async function uploadBufferToHostinger({
   fileName = 'upload.bin',
   folder = 'uploads',
   contentType = 'application/octet-stream',
+  uploadClass = '',
 }) {
   if (!isHostingerStorageEnabled()) {
     throw new AppError('Hostinger storage bridge is not enabled.', 500)
@@ -363,6 +364,9 @@ async function uploadBufferToHostinger({
       const fileBlob = new Blob([buffer], { type: contentType })
       formData.append('file', fileBlob, buildUniqueFileName(fileName))
       formData.append('folder', safeFolder)
+      if (uploadClass === 'loop-video') {
+        formData.append('upload_class', uploadClass)
+      }
 
       response = await fetch(uploadUrl, {
         method: 'POST',
@@ -428,6 +432,7 @@ async function uploadBufferToRemoteStorage({
   fileName = 'upload.bin',
   folder = 'uploads',
   contentType = 'application/octet-stream',
+  uploadClass = '',
 }) {
   if (isS3StorageEnabled()) {
     return uploadBufferToS3({
@@ -435,6 +440,7 @@ async function uploadBufferToRemoteStorage({
       fileName,
       folder,
       contentType,
+      uploadClass,
     })
   }
 
@@ -444,13 +450,17 @@ async function uploadBufferToRemoteStorage({
       fileName,
       folder,
       contentType,
+      uploadClass,
     })
   }
 
   throw new AppError('Remote storage provider is not enabled.', 500)
 }
 
-async function uploadLocalFileToRemoteStorage(file, { folder = 'uploads' } = {}) {
+async function uploadLocalFileToRemoteStorage(file, {
+  folder = 'uploads',
+  uploadClass = '',
+} = {}) {
   if (!file?.path) {
     throw new AppError('Uploaded file path is missing.', 400)
   }
@@ -463,6 +473,7 @@ async function uploadLocalFileToRemoteStorage(file, { folder = 'uploads' } = {})
     fileName: originalName,
     folder,
     contentType: mimeType,
+    uploadClass,
   })
 
   return {
