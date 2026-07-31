@@ -447,28 +447,37 @@ function createApp() {
     app.get('/:lang/posts/:postId', handleCrawlerPostPreview)
     app.get('/post/:postId', handleCrawlerPostPreview)
 
-    app.get(/^\/(?:tr|en|de|es)(?:\/.*)?$/, (req, res) =>
-      res.sendFile(path.join(frontendDistDir, 'index.html')),
-    )
-
-    app.get(/.*/, (req, res, next) => {
-      const requestPath = String(req.path || '')
-
-      if (
-        requestPath.startsWith('/api/') ||
-        requestPath.startsWith('/uploads/') ||
-        requestPath.startsWith('/media/')
-      ) {
-        return next()
-      }
-
-      if (requestPath.includes('.')) {
-        return next()
-      }
-
-      return res.sendFile(path.join(frontendDistDir, 'index.html'))
-    })
   }
+
+  function serveSpaIndex(req, res, next) {
+    // Hostinger can start Passenger before the deployment's public directory
+    // is mounted. Resolve it again at request time instead of caching a null
+    // startup result that would leave every client-side route returning 404.
+    const runtimeFrontendDistDir = frontendDistDir || resolveFrontendDistDir()
+
+    if (!runtimeFrontendDistDir) {
+      return next()
+    }
+
+    return res.sendFile(path.join(runtimeFrontendDistDir, 'index.html'))
+  }
+
+  app.get(/^\/(?:tr|en|de|es)(?:\/.*)?$/, serveSpaIndex)
+
+  app.get(/.*/, (req, res, next) => {
+    const requestPath = String(req.path || '')
+
+    if (
+      requestPath.startsWith('/api/') ||
+      requestPath.startsWith('/uploads/') ||
+      requestPath.startsWith('/media/') ||
+      requestPath.includes('.')
+    ) {
+      return next()
+    }
+
+    return serveSpaIndex(req, res, next)
+  })
 
   app.use(notFound)
   app.use(errorHandler)
