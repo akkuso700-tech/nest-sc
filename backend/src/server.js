@@ -3,6 +3,7 @@ const { env } = require('./config/env')
 const { connectDatabase } = require('./config/database')
 const { createApp } = require('./app')
 const { initSocketServer } = require('./sockets')
+const { runWorker } = require('./workers/loopVideoWorker')
 
 async function bootstrap() {
   const app = createApp()
@@ -17,6 +18,11 @@ async function bootstrap() {
 
   try {
     await connectDatabase()
+    if (env.loopWorkerMode === 'embedded') {
+      void runWorker({ manageDatabase: false }).catch((error) => {
+        console.error('Embedded Loop worker failed:', error)
+      })
+    }
   } catch (error) {
     console.error('Failed to connect to database:', error)
   }
