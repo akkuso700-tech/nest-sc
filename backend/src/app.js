@@ -333,7 +333,7 @@ function createApp() {
             res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
           }
         },
-        index: false,
+        index: 'index.html',
       }),
     )
 
@@ -448,12 +448,7 @@ function createApp() {
     app.get('/post/:postId', handleCrawlerPostPreview)
 
     app.get(/.*/, (req, res, next) => {
-      const requestHost = String(req.hostname || '').toLowerCase()
       const requestPath = String(req.path || '')
-
-      if (requestHost.startsWith('api.')) {
-        return next()
-      }
 
       if (
         requestPath.startsWith('/api/') ||
