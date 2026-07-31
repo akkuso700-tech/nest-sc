@@ -168,6 +168,23 @@ function createApp() {
   const app = express()
   const frontendDistDir = resolveFrontendDistDir()
 
+  app.use((req, res, next) => {
+    const requestPath = String(req.originalUrl || req.url || '').split('?')[0]
+    const isLocalizedSpaPath = /^\/(?:tr|en|de|es)(?:\/|$)/.test(requestPath)
+    const isCrawlerPreviewPath = /^\/(?:tr|en|de|es)\/(?:posts|tag)\//.test(requestPath)
+
+    if (
+      ['GET', 'HEAD'].includes(req.method) &&
+      isLocalizedSpaPath &&
+      !(isCrawlerPreviewPath && shouldServeCrawlerPreview(req.headers?.['user-agent']))
+    ) {
+      res.set('X-Nest-Demo-Build', '6e4244b-spa-fallback')
+      return res.status(200).type('html').send(frontendIndexHtml)
+    }
+
+    return next()
+  })
+
   if (env.trustProxy) {
     app.set('trust proxy', 1)
   }
