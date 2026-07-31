@@ -63,10 +63,11 @@ function isRemoteOutput(result) {
   return /^https?:\/\//i.test(String(result?.hlsUrl || ''))
 }
 
-async function runWorker() {
-  await connectDatabase()
+async function runWorker(options = {}) {
+  const manageDatabase = options.manageDatabase !== false
+  if (manageDatabase) await connectDatabase()
   const workerId = buildWorkerId()
-  console.info(`Loop video worker started (${workerId}).`)
+  console.info(`Loop video worker started (${workerId}, mode=${manageDatabase ? 'external' : 'embedded'}).`)
 
   while (!stopping) {
     const job = await claimNextLoopVideoJob(workerId)
@@ -77,17 +78,16 @@ async function runWorker() {
     await processJob(job)
   }
 
-  await disconnectDatabase()
+  if (manageDatabase) await disconnectDatabase()
 }
 
 function requestStop() {
   stopping = true
 }
 
-process.on('SIGINT', requestStop)
-process.on('SIGTERM', requestStop)
-
 if (require.main === module) {
+  process.on('SIGINT', requestStop)
+  process.on('SIGTERM', requestStop)
   runWorker().catch((error) => {
     console.error('Loop video worker failed:', error)
     process.exitCode = 1

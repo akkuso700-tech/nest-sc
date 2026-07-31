@@ -1,6 +1,6 @@
 # Loop video worker
 
-Loop videolari HTTP istegi icinde degil, MongoDB kuyrugundan ayri bir Node prosesi tarafindan islenir.
+Loop videolari HTTP istegi icinde degil, MongoDB kuyrugundan worker modulu tarafindan islenir.
 
 ## Gereksinimler
 
@@ -11,28 +11,33 @@ Loop videolari HTTP istegi icinde degil, MongoDB kuyrugundan ayri bir Node prose
 
 ## Calistirma
 
-Tek sunucuda API ve ayri worker prosesini birlikte baslatmak icin:
+Hostinger shared hosting'de ek bir uzun omurlu proses acmadan baslatmak icin:
 
 ```bash
 npm start
 ```
 
-`npm run start:all` ayni proses yoneticisini dogrudan calistiran esdeger komuttur.
-Yalnizca API prosesine ihtiyac duyulan bakim senaryolarinda `npm run start:api`
-kullanilabilir.
+`LOOP_WORKER_MODE=embedded` kuyruk dongusunu API prosesi icinde tutar. FFmpeg
+donusumu yine ayri bir isletim sistemi prosesi olarak calisir; HTTP istegini
+bloklamaz. MongoDB partial-unique kilidi, birden fazla API instance'i olsa bile
+ayni anda yalnizca bir videonun islenmesini saglar.
 
-Proses yoneticisi iki ayri servis destekliyorsa:
+VPS veya ayri worker servisi olan bir ortamda:
 
 ```bash
-npm start
+LOOP_WORKER_MODE=external npm start
 npm run worker:loop
 ```
+
+`npm run start:all` bu iki prosesi tek yonetici altinda baslatan alternatiftir.
+Worker'i tamamen kapatmak icin `LOOP_WORKER_MODE=disabled` kullanilabilir.
 
 Worker sayisini baslangicta bir tutun. Her worker ayni anda bir FFmpeg isi alir; ikinci worker eklemek esit zamanli CPU tuketimini iki katina cikarir.
 
 ## Ortam degiskenleri
 
 - `LOOP_ASYNC_PROCESSING_ENABLED=true`
+- `LOOP_WORKER_MODE=embedded`
 - `LOOP_MAX_DURATION_SECONDS=90`
 - `LOOP_WORKER_POLL_MS=2000`
 - `LOOP_WORKER_LEASE_MS=1200000`

@@ -6,7 +6,7 @@
   "scripts": {
     "hostinger:build": "node scripts/verifyFrontendBundle.js",
     "dev": "node --watch-path=src src/server.js",
-    "start": "node src/startAll.js",
+    "start": "node src/server.js",
     "start:api": "node src/server.js",
     "start:all": "node src/startAll.js",
     "worker:loop": "node src/workers/loopVideoWorker.js",

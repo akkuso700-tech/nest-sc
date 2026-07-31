@@ -12,6 +12,7 @@ const videoProcessingJobSchema = new mongoose.Schema(
     sourcePath: { type: String, required: true, trim: true },
     originalName: { type: String, default: 'loop-video' },
     mimeType: { type: String, default: 'video/mp4' },
+    workerSlot: { type: String, default: 'loop-video', required: true },
     status: {
       type: String,
       enum: ['queued', 'processing', 'retry', 'completed', 'failed'],
@@ -34,6 +35,10 @@ const videoProcessingJobSchema = new mongoose.Schema(
 
 videoProcessingJobSchema.index({ status: 1, nextRunAt: 1, leaseExpiresAt: 1, createdAt: 1 })
 videoProcessingJobSchema.index({ post: 1, mediaIndex: 1 }, { unique: true })
+videoProcessingJobSchema.index(
+  { workerSlot: 1 },
+  { unique: true, partialFilterExpression: { status: 'processing' } },
+)
 
 const VideoProcessingJob = mongoose.model('VideoProcessingJob', videoProcessingJobSchema)
 

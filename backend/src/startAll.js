@@ -4,11 +4,11 @@ const { spawn } = require('child_process')
 const children = []
 let stopping = false
 
-function start(name, relativeScript) {
+function start(name, relativeScript, envOverrides = {}) {
   const child = spawn(process.execPath, [path.resolve(__dirname, relativeScript)], {
     stdio: 'inherit',
     windowsHide: true,
-    env: process.env,
+    env: { ...process.env, ...envOverrides },
   })
   children.push(child)
   child.on('exit', (code, signal) => {
@@ -36,5 +36,5 @@ function shutdown(exitCode = 0) {
 process.on('SIGINT', () => shutdown(0))
 process.on('SIGTERM', () => shutdown(0))
 
-start('API server', 'server.js')
+start('API server', 'server.js', { LOOP_WORKER_MODE: 'external' })
 start('Loop worker', 'workers/loopVideoWorker.js')

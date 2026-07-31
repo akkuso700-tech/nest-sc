@@ -2,6 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const path = require('path')
 const { Post } = require('../src/models/Post')
+const { VideoProcessingJob } = require('../src/models/VideoProcessingJob')
 const {
   selectAdaptiveRenditions,
   resolveFfmpegBinary,
@@ -35,6 +36,15 @@ test('processing states remain backwards compatible and include async states', (
   assert.ok(processingPath.enumValues.includes('processing'))
   assert.ok(processingPath.enumValues.includes('ready'))
   assert.ok(processingPath.enumValues.includes('failed'))
+})
+
+test('MongoDB index limits adaptive processing to one job across API instances', () => {
+  const workerSlotIndex = VideoProcessingJob.schema.indexes().find(
+    ([fields]) => fields.workerSlot === 1,
+  )
+  assert.ok(workerSlotIndex)
+  assert.equal(workerSlotIndex[1].unique, true)
+  assert.deepEqual(workerSlotIndex[1].partialFilterExpression, { status: 'processing' })
 })
 
 test('worker source paths are restricted to the uploads directory', () => {

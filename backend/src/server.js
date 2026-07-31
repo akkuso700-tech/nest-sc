@@ -3,10 +3,9 @@ const { env } = require('./config/env')
 const { connectDatabase } = require('./config/database')
 const { createApp } = require('./app')
 const { initSocketServer } = require('./sockets')
+const { runWorker } = require('./workers/loopVideoWorker')
 
 async function bootstrap() {
-  await connectDatabase()
-
   const app = createApp()
   const server = http.createServer(app)
   const io = initSocketServer(server)
@@ -16,6 +15,16 @@ async function bootstrap() {
   server.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`)
   })
+  try {
+    await connectDatabase()
+    if (env.loopWorkerMode === 'embedded') {
+      void runWorker({ manageDatabase: false }).catch((error) => {
+        console.error('Embedded Loop worker failed:', error)
+      })
+    }
+  } catch (error) {
+    console.error('Failed to connect to database:', error)
+  }
 }
 
 bootstrap().catch((error) => {

@@ -15,6 +15,7 @@ async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath, originalNa
         sourcePath,
         originalName: originalName || 'loop-video',
         mimeType: mimeType || 'video/mp4',
+        workerSlot: 'loop-video',
         status: 'queued',
         progress: 0,
         attempts: 0,
@@ -30,28 +31,35 @@ async function claimNextLoopVideoJob(workerId = buildWorkerId()) {
   const now = new Date()
   const leaseExpiresAt = new Date(now.getTime() + env.loopWorkerLeaseMs)
 
-  return VideoProcessingJob.findOneAndUpdate(
-    {
-      attempts: { $lt: env.loopWorkerMaxAttempts },
-      nextRunAt: { $lte: now },
-      $or: [
-        { status: { $in: ['queued', 'retry'] } },
-        { status: 'processing', leaseExpiresAt: { $lte: now } },
-      ],
-    },
-    {
-      $set: {
-        status: 'processing',
-        workerId,
-        leaseExpiresAt,
-        startedAt: now,
-        errorCode: '',
-        errorMessage: '',
+  try {
+    return await VideoProcessingJob.findOneAndUpdate(
+      {
+        attempts: { $lt: env.loopWorkerMaxAttempts },
+        nextRunAt: { $lte: now },
+        $or: [
+          { status: { $in: ['queued', 'retry'] } },
+          { status: 'processing', leaseExpiresAt: { $lte: now } },
+        ],
       },
-      $inc: { attempts: 1 },
-    },
-    { sort: { nextRunAt: 1, createdAt: 1 }, returnDocument: 'after' },
-  )
+      {
+        $set: {
+          status: 'processing',
+          workerSlot: 'loop-video',
+          workerId,
+          leaseExpiresAt,
+          startedAt: now,
+          errorCode: '',
+          errorMessage: '',
+        },
+        $inc: { attempts: 1 },
+      },
+      { sort: { nextRunAt: 1, createdAt: 1 }, returnDocument: 'after' },
+    )
+  } catch (error) {
+    // This index is the distributed single-worker lock across API instances.
+    if (error?.code === 11000) return null
+    throw error
+  }
 }
 
 async function updateJobProgress(jobId, progress) {
