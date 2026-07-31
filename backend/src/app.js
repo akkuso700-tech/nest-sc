@@ -18,6 +18,7 @@ const { sanitizeRequest } = require('./middlewares/sanitizeRequest')
 const { notFound } = require('./middlewares/notFound')
 const { errorHandler } = require('./middlewares/errorHandler')
 const { AppError } = require('./utils/AppError')
+const { frontendIndexHtml } = require('./frontendIndexHtml')
 const {
   accessTokenCookieName,
   refreshTokenCookieName,
@@ -456,7 +457,7 @@ function createApp() {
     const runtimeFrontendDistDir = frontendDistDir || resolveFrontendDistDir()
 
     if (!runtimeFrontendDistDir) {
-      return next()
+      return res.status(200).type('html').send(frontendIndexHtml)
     }
 
     return res.sendFile(path.join(runtimeFrontendDistDir, 'index.html'))
