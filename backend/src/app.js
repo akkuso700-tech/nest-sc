@@ -167,6 +167,8 @@ function createApp() {
   const app = express()
   const frontendDistDir = resolveFrontendDistDir()
 
+  console.info(`Frontend static directory: ${frontendDistDir || 'unavailable'}`)
+
   if (env.trustProxy) {
     app.set('trust proxy', 1)
   }
