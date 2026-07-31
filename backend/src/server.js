@@ -5,8 +5,6 @@ const { createApp } = require('./app')
 const { initSocketServer } = require('./sockets')
 
 async function bootstrap() {
-  await connectDatabase()
-
   const app = createApp()
   const server = http.createServer(app)
   const io = initSocketServer(server)
@@ -16,6 +14,12 @@ async function bootstrap() {
   server.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`)
   })
+
+  try {
+    await connectDatabase()
+  } catch (error) {
+    console.error('Failed to connect to database:', error)
+  }
 }
 
 bootstrap().catch((error) => {
