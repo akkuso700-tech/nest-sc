@@ -17,7 +17,9 @@ Tek sunucuda API ve ayri worker prosesini birlikte baslatmak icin:
 npm start
 ```
 
-`npm run start:all` ayni proses yoneticisini dogrudan calistiran esdeger komuttur.
+Hostinger'da `npm start`, HTTP dinleyicisini ana proseste acar ve ardindan worker'i
+ayri bir child proses olarak baslatir. `npm run start:all`, iki prosesi harici bir
+yonetici altinda baslatmak icin kullanilan esdeger alternatiftir.
 Yalnizca API prosesine ihtiyac duyulan bakim senaryolarinda `npm run start:api`
 kullanilabilir.
 

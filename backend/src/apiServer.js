@@ -4,7 +4,7 @@ const { connectDatabase } = require('./config/database')
 const { createApp } = require('./app')
 const { initSocketServer } = require('./sockets')
 
-async function bootstrap() {
+async function bootstrap(options = {}) {
   const app = createApp()
   const server = http.createServer(app)
   const io = initSocketServer(server)
@@ -13,6 +13,7 @@ async function bootstrap() {
 
   server.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`)
+    options.onListening?.(server)
   })
 
   try {
@@ -22,7 +23,11 @@ async function bootstrap() {
   }
 }
 
-bootstrap().catch((error) => {
-  console.error('Failed to start backend:', error)
-  process.exit(1)
-})
+if (require.main === module) {
+  bootstrap().catch((error) => {
+    console.error('Failed to start backend:', error)
+    process.exit(1)
+  })
+}
+
+module.exports = { bootstrap }
