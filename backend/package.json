@@ -1,10 +1,10 @@
 {
   "name": "backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "hostinger:build": "npm --prefix ../frontend ci --include=dev && npm --prefix ../frontend run build",
+    "hostinger:build": "node scripts/verifyFrontendBundle.js",
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js",
     "test": "node --test test/*.test.js"

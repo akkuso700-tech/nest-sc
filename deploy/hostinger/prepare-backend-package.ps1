@@ -5,6 +5,7 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Resolve-Path (Join-Path $scriptRoot "..\..")
 $backendDir = Join-Path $projectRoot "backend"
+$backendFrontendDir = Join-Path $backendDir "frontend-dist"
 $backendPublicDir = Join-Path $backendDir "public"
 $frontendDistDir = Join-Path $projectRoot "frontend\dist"
 $artifactsDir = Join-Path $scriptRoot "artifacts"
@@ -26,7 +27,10 @@ $frontendSourceDir = $null
 $frontendDistIndex = Join-Path $frontendDistDir "index.html"
 $frontendArtifactIndex = Join-Path $frontendArtifactDir "index.html"
 
-if (Test-Path (Join-Path $backendPublicDir "index.html")) {
+if (Test-Path (Join-Path $backendFrontendDir "index.html")) {
+  $frontendSourceDir = $backendFrontendDir
+}
+elseif (Test-Path (Join-Path $backendPublicDir "index.html")) {
   $frontendSourceDir = $backendPublicDir
 }
 elseif (Test-Path $frontendDistIndex) {
