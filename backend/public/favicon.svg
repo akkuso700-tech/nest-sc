@@ -1,0 +1,31 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="50%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+
+    <linearGradient id="shapeGradient" x1="78" y1="68" x2="178" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#DBEAFE"/>
+    </linearGradient>
+
+    <filter id="shadow" x="0" y="0" width="256" height="256" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1E3A8A" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect x="24" y="24" width="208" height="208" rx="56" fill="url(#bgGradient)" filter="url(#shadow)"/>
+
+  <circle cx="128" cy="128" r="54" stroke="rgba(255,255,255,0.22)" stroke-width="10"/>
+
+  <path
+    d="M82 174V86C82 79.373 87.373 74 94 74C98.293 74 102.24 76.284 104.39 80L128 121L151.61 80C153.76 76.284 157.707 74 162 74C168.627 74 174 79.373 174 86V174H153V120L136.66 148.58C132.89 155.17 123.11 155.17 119.34 148.58L103 120V174H82Z"
+    fill="url(#shapeGradient)"
+  />
+
+  <circle cx="70" cy="94" r="8" fill="#BFDBFE" fill-opacity="0.9"/>
+  <circle cx="188" cy="162" r="6" fill="#93C5FD" fill-opacity="0.85"/>
+  <circle cx="194" cy="92" r="5" fill="#DBEAFE" fill-opacity="0.85"/>
+</svg>

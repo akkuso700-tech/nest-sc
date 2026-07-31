@@ -27,11 +27,11 @@ $frontendSourceDir = $null
 $frontendDistIndex = Join-Path $frontendDistDir "index.html"
 $frontendArtifactIndex = Join-Path $frontendArtifactDir "index.html"
 
-if (Test-Path (Join-Path $backendFrontendDir "index.html")) {
-  $frontendSourceDir = $backendFrontendDir
-}
-elseif (Test-Path (Join-Path $backendPublicDir "index.html")) {
+if (Test-Path (Join-Path $backendPublicDir "index.html")) {
   $frontendSourceDir = $backendPublicDir
+}
+elseif (Test-Path (Join-Path $backendFrontendDir "index.html")) {
+  $frontendSourceDir = $backendFrontendDir
 }
 elseif (Test-Path $frontendDistIndex) {
   $frontendSourceDir = $frontendDistDir

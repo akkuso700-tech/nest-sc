@@ -8,10 +8,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   plugins: [react()],
   build: {
-    // Hostinger deploys the backend directory by itself. Keep a production
-    // frontend bundle inside that directory so the web app cannot disappear
-    // when the frontend source directory is unavailable during deployment.
-    outDir: path.resolve(__dirname, '../backend/frontend-dist'),
+    // Hostinger preserves the backend's conventional public directory in the
+    // runtime image. Bundle the SPA there so Express can always serve it.
+    outDir: path.resolve(__dirname, '../backend/public'),
     emptyOutDir: true,
     chunkSizeWarningLimit: 700,
     rollupOptions: {

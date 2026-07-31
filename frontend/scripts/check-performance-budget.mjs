@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 const frontendDirectory = path.resolve(scriptDirectory, '..')
-const outputDirectory = path.resolve(frontendDirectory, '../backend/frontend-dist')
+const outputDirectory = path.resolve(frontendDirectory, '../backend/public')
 const indexPath = path.join(outputDirectory, 'index.html')
 
 const budgets = {

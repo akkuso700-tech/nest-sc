@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const frontendDir = path.resolve(__dirname, '../frontend-dist')
+const frontendDir = path.resolve(__dirname, '../public')
 const frontendIndexPath = path.join(frontendDir, 'index.html')
 const frontendAssetsPath = path.join(frontendDir, 'assets')
 
