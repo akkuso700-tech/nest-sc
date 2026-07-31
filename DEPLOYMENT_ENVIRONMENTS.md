@@ -40,19 +40,19 @@ Her ortam icin ayri Node.js deployment tanimla:
 1. `api.nest-sc.com` deployment'i:
    - Branch: `main`
    - Root directory: `my-social-1/backend`
-   - Entry file: `src/server.js` (`npm start` ile ayni)
+   - Entry file: `src/startAll.js` (`npm start` kullaniliyorsa otomatik)
    - Build command: `npm run hostinger:build`
 2. `api-demo.nest-sc.com` deployment'i:
    - Branch: `develop`
    - Root directory: `my-social-1/backend`
-   - Entry file: `src/server.js` (`npm start` ile ayni)
+   - Entry file: `src/startAll.js` (`npm start` kullaniliyorsa otomatik)
    - Build command: `npm run hostinger:build`
 
 Eger `demo.nest-sc.com` icin de ayni backend deployment kullaniliyorsa:
 
 - Branch: `develop`
 - Root directory: `my-social-1/backend`
-- Entry file: `src/server.js` (`npm start` ile ayni)
+- Entry file: `src/startAll.js` (`npm start` kullaniliyorsa otomatik)
 - Build command: `npm run hostinger:build`
 
 Frontend icin iki ayri deployment kullan:

@@ -1,39 +1,28 @@
-const path = require('path')
-const { spawn } = require('child_process')
-const { bootstrap } = require('./apiServer')
+const http = require('http')
+const { env } = require('./config/env')
+const { connectDatabase } = require('./config/database')
+const { createApp } = require('./app')
+const { initSocketServer } = require('./sockets')
 
-let loopWorker = null
-let workerRestartTimer = null
-let stopping = false
+async function bootstrap() {
+  const app = createApp()
+  const server = http.createServer(app)
+  const io = initSocketServer(server)
 
-function startLoopWorker() {
-  if (stopping || loopWorker) return
-  loopWorker = spawn(process.execPath, [path.resolve(__dirname, 'workers/loopVideoWorker.js')], {
-    stdio: 'inherit',
-    windowsHide: true,
-    env: process.env,
+  app.locals.io = io
+
+  server.listen(env.port, () => {
+    console.log(`API listening on http://localhost:${env.port}`)
   })
-  loopWorker.on('exit', (code, signal) => {
-    loopWorker = null
-    if (stopping) return
-    console.error(`Loop worker exited unexpectedly (code=${code}, signal=${signal || 'none'}).`)
-    workerRestartTimer = setTimeout(startLoopWorker, 5_000)
-  })
+
+  try {
+    await connectDatabase()
+  } catch (error) {
+    console.error('Failed to connect to database:', error)
+  }
 }
 
-function stopLoopWorker() {
-  stopping = true
-  if (workerRestartTimer) clearTimeout(workerRestartTimer)
-  if (loopWorker && !loopWorker.killed) loopWorker.kill('SIGTERM')
-}
-
-process.on('SIGINT', stopLoopWorker)
-process.on('SIGTERM', stopLoopWorker)
-
-// Hostinger requires the configured entry process itself to call listen()
-// within its startup window. Start the independent worker only after that
-// listener is ready, so worker startup can never delay HTTP availability.
-bootstrap({ onListening: startLoopWorker }).catch((error) => {
+bootstrap().catch((error) => {
   console.error('Failed to start backend:', error)
   process.exit(1)
 })

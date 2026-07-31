@@ -5,9 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "hostinger:build": "npm --prefix ../frontend ci --include=dev && npm --prefix ../frontend run build",
-    "dev": "node --watch-path=src src/apiServer.js",
-    "start": "node src/server.js",
-    "start:api": "node src/apiServer.js",
+    "dev": "node --watch-path=src src/server.js",
+    "start": "node src/startAll.js",
+    "start:api": "node src/server.js",
     "start:all": "node src/startAll.js",
     "worker:loop": "node src/workers/loopVideoWorker.js",
     "test": "node --test test/*.test.js"
