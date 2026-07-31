@@ -39,6 +39,9 @@ export default defineConfig({
           if (id.includes('react-helmet-async')) {
             return 'vendor-seo'
           }
+          if (id.includes('/node_modules/hls.js/')) {
+            return 'vendor-hls'
+          }
           return 'vendor'
         },
       },

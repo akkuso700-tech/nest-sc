@@ -7,6 +7,8 @@ Options -Indexes
 <IfModule mod_mime.c>
   AddType image/avif .avif
   AddType image/webp .webp
+  AddType application/vnd.apple.mpegurl .m3u8
+  AddType video/mp4 .m4s
 </IfModule>
 
 <IfModule mod_expires.c>
@@ -19,6 +21,7 @@ Options -Indexes
   ExpiresByType video/mp4 "access plus 1 year"
   ExpiresByType video/webm "access plus 1 year"
   ExpiresByType video/ogg "access plus 1 year"
+  ExpiresByType application/vnd.apple.mpegurl "access plus 1 year"
 </IfModule>
 
 <IfModule mod_headers.c>

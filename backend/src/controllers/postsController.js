@@ -29,6 +29,8 @@ const {
 } = require('../utils/socialSerializers')
 const { normalizeUserMedia } = require('../utils/mediaUrls')
 const { sanitizeTitle, slugifyTitle } = require('../utils/postSeo')
+const { env } = require('../config/env')
+const { enqueueLoopVideo } = require('../services/videoProcessingQueueService')
 
 const TREND_CACHE_TTL_MS = 45 * 1000
 const LOOP_COMPLETION_THRESHOLD = 0.95
@@ -605,9 +607,19 @@ async function parsePostInput(req) {
   }
 
   const title = sanitizeTitle(result.data.title || '')
-  const media = await buildMediaItems(req.files || [], {
+  const builtMedia = await buildMediaItems(req.files || [], {
     contentType: result.data.contentType,
     trace: req.uploadPerfTrace || null,
+    deferLoopProcessing:
+      result.data.contentType === 'loop' && env.loopAsyncProcessingEnabled,
+  })
+  const processingJobs = []
+  const media = builtMedia.map((item, mediaIndex) => {
+    const { _processingSource, ...publicMedia } = item
+    if (_processingSource) {
+      processingJobs.push({ mediaIndex, ..._processingSource })
+    }
+    return publicMedia
   })
 
   if (!result.data.text.trim() && !media.length) {
@@ -653,6 +665,7 @@ async function parsePostInput(req) {
     privacy: result.data.privacy,
     contentType: result.data.contentType,
     media,
+    processingJobs,
     publication,
   }
 }
@@ -1888,6 +1901,24 @@ const createPost = asyncHandler(async (req, res) => {
       publication: parsedInput.publication,
     })
     perf.mark('post_create_done')
+
+    if (parsedInput.processingJobs?.length) {
+      try {
+        for (const job of parsedInput.processingJobs) {
+          await enqueueLoopVideo({
+            postId: post._id,
+            mediaIndex: job.mediaIndex,
+            sourcePath: job.path,
+            originalName: job.originalName,
+            mimeType: job.mimeType,
+          })
+        }
+      } catch (queueError) {
+        await Post.deleteOne({ _id: post._id })
+        throw queueError
+      }
+      perf.mark('video_queued')
+    }
     shouldCleanupUploadedFiles = false
     const io = req.app.locals.io || null
 
@@ -1911,12 +1942,18 @@ const createPost = asyncHandler(async (req, res) => {
 
     const isScheduled = parsedInput.publication?.status === 'scheduled'
 
-    res.status(201).json({
-      message: isScheduled ? 'Post scheduled successfully.' : 'Post created successfully.',
+    const isProcessing = Boolean(parsedInput.processingJobs?.length)
+    res.status(isProcessing ? 202 : 201).json({
+      message: isScheduled
+        ? 'Post scheduled successfully.'
+        : isProcessing
+          ? 'Loop video uploaded and queued for processing.'
+          : 'Post created successfully.',
       post: serializePostForViewer(populatedPost, req.user),
       meta: {
         scheduled: isScheduled,
         scheduledFor: parsedInput.publication?.scheduledFor || null,
+        processing: isProcessing,
       },
     })
     perf.flush({

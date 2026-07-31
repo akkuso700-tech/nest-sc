@@ -7,6 +7,8 @@
     "hostinger:build": "node scripts/verifyFrontendBundle.js",
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js",
+    "start:all": "node src/startAll.js",
+    "worker:loop": "node src/workers/loopVideoWorker.js",
     "test": "node --test test/*.test.js"
   },
   "keywords": [],
@@ -14,6 +16,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@aws-sdk/client-s3": "^3.910.0",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",

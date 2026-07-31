@@ -140,6 +140,12 @@ const envSchema = z.object({
   FFPROBE_PATH: optionalTrimmedString(2),
   LOOP_TRANSCODE_VIDEO_BITRATE_KBPS: z.coerce.number().int().positive().default(2200),
   LOOP_TRANSCODE_AUDIO_BITRATE_KBPS: z.coerce.number().int().positive().default(128),
+  LOOP_ASYNC_PROCESSING_ENABLED: z.string().optional(),
+  LOOP_MAX_DURATION_SECONDS: z.coerce.number().int().positive().default(90),
+  LOOP_WORKER_POLL_MS: z.coerce.number().int().positive().default(2000),
+  LOOP_WORKER_LEASE_MS: z.coerce.number().int().positive().default(20 * 60 * 1000),
+  LOOP_WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  LOOP_WORKER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
 })
 
 const parsedEnv = envSchema.safeParse(envSource)
@@ -247,6 +253,12 @@ const env = {
   ffprobePath: rawEnv.FFPROBE_PATH || undefined,
   loopTranscodeVideoBitrateKbps: rawEnv.LOOP_TRANSCODE_VIDEO_BITRATE_KBPS,
   loopTranscodeAudioBitrateKbps: rawEnv.LOOP_TRANSCODE_AUDIO_BITRATE_KBPS,
+  loopAsyncProcessingEnabled: parseBoolean(rawEnv.LOOP_ASYNC_PROCESSING_ENABLED, true),
+  loopMaxDurationSeconds: rawEnv.LOOP_MAX_DURATION_SECONDS,
+  loopWorkerPollMs: rawEnv.LOOP_WORKER_POLL_MS,
+  loopWorkerLeaseMs: rawEnv.LOOP_WORKER_LEASE_MS,
+  loopWorkerJobTimeoutMs: rawEnv.LOOP_WORKER_JOB_TIMEOUT_MS,
+  loopWorkerMaxAttempts: rawEnv.LOOP_WORKER_MAX_ATTEMPTS,
   jwt: {
     accessSecret: rawEnv.JWT_ACCESS_SECRET,
     refreshSecret: rawEnv.JWT_REFRESH_SECRET,

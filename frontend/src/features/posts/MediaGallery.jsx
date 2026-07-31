@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { resolveMediaUrlCandidates } from '../../utils/media.js'
+import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js'
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
+import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
 
 let activePreviewVideoElement = null
 
@@ -32,6 +33,18 @@ function PlayBadge() {
         <path d="m10 8 6 4-6 4V8Z" />
       </svg>
     </span>
+  )
+}
+
+function ProcessingBadge({ progress = 0 }) {
+  return (
+    <div className="absolute inset-0 z-10 grid place-items-center bg-black text-white">
+      <div className="px-4 text-center">
+        <span className="mx-auto block size-8 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+        <p className="mt-3 text-sm font-semibold">Video işleniyor</p>
+        <p className="mt-1 text-xs text-white/65">%{Math.max(0, Math.min(99, Number(progress || 0)))}</p>
+      </div>
+    </div>
   )
 }
 
@@ -244,6 +257,8 @@ function MediaGallery({
               item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
             )
             const mediaType = item.type === 'video' ? 'video' : 'image'
+            const mediaIsProcessing =
+              mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
             const isSingleFeedItem = feedLayout && limitedItems.length === 1
             const aspectClass = feedLayout
               ? isSingleFeedItem
@@ -266,7 +281,9 @@ function MediaGallery({
                 onFocus={() => handleVideoPreviewStart(refKey)}
                 onBlur={() => handleVideoPreviewStop(refKey)}
               >
-                {mediaType === 'video' ? (
+                {mediaIsProcessing ? (
+                  <ProcessingBadge progress={item?.processingProgress} />
+                ) : mediaType === 'video' ? (
                   <MediaVideo
                     refKey={refKey}
                     candidates={mediaCandidates}
@@ -277,6 +294,7 @@ function MediaGallery({
                     feedLayout={feedLayout}
                     preserveNaturalRatio={isSingleFeedItem}
                     reducedDataMode={reducedDataMode}
+                    hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
                   />
                 ) : (
                   <MediaImage
@@ -337,15 +355,26 @@ function MediaVideo({
   feedLayout = false,
   preserveNaturalRatio = false,
   reducedDataMode = false,
+  hlsUrl = '',
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const src = candidates[activeIndex] || ''
+  const internalVideoRef = useRef(null)
+  const adaptiveSource = useAdaptiveVideoSource({
+    videoRef: internalVideoRef,
+    hlsUrl,
+    fallbackUrl: src,
+    enabled: Boolean(hlsUrl),
+  })
 
   return (
     <>
       <video
-        ref={(node) => setVideoRef(refKey, node)}
-        src={src}
+        ref={(node) => {
+          internalVideoRef.current = node
+          setVideoRef(refKey, node)
+        }}
+        src={adaptiveSource}
         poster={posterUrl || undefined}
         controls={!interactive && !feedLayout}
         playsInline

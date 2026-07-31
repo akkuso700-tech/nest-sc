@@ -83,14 +83,16 @@ if ($finfo) {
     finfo_close($finfo);
 }
 
-$isAllowed = str_starts_with($mimeType, 'image/') || str_starts_with($mimeType, 'video/');
+$uploadClass = strtolower(trim((string)($_POST['upload_class'] ?? '')));
+$extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+$isLoopAsset = $uploadClass === 'loop-video' && in_array($extension, ['m3u8', 'm4s'], true);
+$isAllowed = str_starts_with($mimeType, 'image/') || str_starts_with($mimeType, 'video/') || $isLoopAsset;
 if (!$isAllowed) {
     respond(400, ['message' => 'Only image and video files are allowed.']);
 }
 
-$uploadClass = strtolower(trim((string)($_POST['upload_class'] ?? '')));
-$isLoopVideo = $uploadClass === 'loop-video' && str_starts_with($mimeType, 'video/');
-$maxFileSize = $isLoopVideo ? $LOOP_VIDEO_MAX_FILE_SIZE : $DEFAULT_MAX_FILE_SIZE;
+$isLoopUpload = $uploadClass === 'loop-video' && (str_starts_with($mimeType, 'video/') || $isLoopAsset);
+$maxFileSize = $isLoopUpload ? $LOOP_VIDEO_MAX_FILE_SIZE : $DEFAULT_MAX_FILE_SIZE;
 
 if ($fileSize <= 0 || $fileSize > $maxFileSize) {
     respond(400, ['message' => 'File size is invalid.']);
@@ -103,7 +105,6 @@ if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true) && !is_dir($targetDir)
     respond(500, ['message' => 'Failed to create target directory.']);
 }
 
-$extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 $safeExt = preg_replace('/[^a-z0-9]+/', '', $extension) ?: 'bin';
 $fileBase = sanitize_segment(pathinfo($originalName, PATHINFO_FILENAME), 'file');
 $requestedTargetName = sanitize_file_name((string)($_POST['target_name'] ?? ''), '');

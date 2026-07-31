@@ -96,6 +96,12 @@ function normalizeMediaList(media = []) {
     url: normalizeMediaUrl(item?.url),
     hlsUrl: normalizeMediaUrl(item?.hlsUrl),
     posterUrl: normalizeMediaUrl(item?.posterUrl),
+    renditions: Array.isArray(item?.renditions)
+      ? item.renditions.map((rendition) => ({
+          ...rendition,
+          url: normalizeMediaUrl(rendition?.url),
+        }))
+      : [],
   }))
 }
 

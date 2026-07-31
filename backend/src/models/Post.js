@@ -40,11 +40,24 @@ const postSchema = new mongoose.Schema(
         posterUrl: { type: String, default: '' },
         type: { type: String, enum: ['image', 'video'], required: true },
         durationSeconds: { type: Number, default: 0 },
+        width: { type: Number, default: 0 },
+        height: { type: Number, default: 0 },
         processing: {
           type: String,
-          enum: ['raw', 'transcoded', 'hls-ready'],
+          enum: ['raw', 'queued', 'processing', 'transcoded', 'hls-ready', 'ready', 'failed'],
           default: 'raw',
         },
+        processingProgress: { type: Number, min: 0, max: 100, default: 0 },
+        processingError: { type: String, default: '' },
+        renditions: [
+          {
+            name: { type: String, default: '' },
+            width: { type: Number, default: 0 },
+            height: { type: Number, default: 0 },
+            bitrateKbps: { type: Number, default: 0 },
+            url: { type: String, default: '' },
+          },
+        ],
       },
     ],
     contentType: {
