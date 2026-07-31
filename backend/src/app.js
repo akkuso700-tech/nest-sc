@@ -35,6 +35,7 @@ function resolveFrontendDistDir() {
   const backendRootDir = path.resolve(__dirname, '..')
   const candidateDirs = [
     path.resolve(backendRootDir, 'public'),
+    path.resolve(backendRootDir, 'frontend-dist'),
     path.resolve(process.cwd(), 'backend/public'),
     path.resolve(process.cwd(), 'public'),
     path.resolve(process.cwd(), '../frontend/dist'),
