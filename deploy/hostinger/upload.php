@@ -8,7 +8,7 @@ $UPLOAD_TOKEN = 'replace-with-a-long-random-upload-token';
 // Optional: keep empty to auto-detect current host (upload.nest-sc.com / upload-demo.nest-sc.com).
 $PUBLIC_BASE_URL = '';
 $UPLOAD_ROOT = __DIR__ . '/media';
-$MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+$MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 function respond(int $status, array $payload): void
 {

@@ -13,7 +13,6 @@ const { buildLoopVideoVariants } = require('../services/videoProcessingService')
 
 const unlinkFile = promisify(fs.unlink)
 const FILE_SIGNATURE_BYTES = 32
-const MAX_MEDIA_FILE_BYTES = 100 * 1024 * 1024
 
 const uploadsRoot = env.uploadsDir || path.resolve(process.cwd(), 'uploads')
 
@@ -57,7 +56,7 @@ function createUploadMiddleware(targetDirectory, maxFiles) {
     storage: createStorage(targetDirectory),
     fileFilter: mediaFileFilter,
     limits: {
-      fileSize: MAX_MEDIA_FILE_BYTES,
+      fileSize: 25 * 1024 * 1024,
       files: maxFiles,
     },
   })

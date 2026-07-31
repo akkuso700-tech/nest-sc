@@ -34,7 +34,6 @@ const {
 function resolveFrontendDistDir() {
   const backendRootDir = path.resolve(__dirname, '..')
   const candidateDirs = [
-    path.resolve(backendRootDir, 'frontend-dist'),
     path.resolve(backendRootDir, 'public'),
     path.resolve(process.cwd(), 'backend/public'),
     path.resolve(process.cwd(), 'public'),
@@ -333,7 +332,7 @@ function createApp() {
             res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
           }
         },
-        index: 'index.html',
+        index: false,
       }),
     )
 
@@ -448,7 +447,12 @@ function createApp() {
     app.get('/post/:postId', handleCrawlerPostPreview)
 
     app.get(/.*/, (req, res, next) => {
+      const requestHost = String(req.hostname || '').toLowerCase()
       const requestPath = String(req.path || '')
+
+      if (requestHost.startsWith('api.')) {
+        return next()
+      }
 
       if (
         requestPath.startsWith('/api/') ||
