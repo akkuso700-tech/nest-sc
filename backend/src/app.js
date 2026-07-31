@@ -333,7 +333,7 @@ function createApp() {
             res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
           }
         },
-        index: false,
+        index: 'index.html',
       }),
     )
 
