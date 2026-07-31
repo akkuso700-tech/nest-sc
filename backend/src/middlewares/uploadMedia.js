@@ -226,7 +226,7 @@ async function uploadMediaPathToRemoteStorage(filePath, {
 }
 
 async function buildMediaItems(files = [], options = {}) {
-  const { contentType = 'post', trace = null } = options
+  const { contentType = 'post', trace = null, deferLoopProcessing = false } = options
   const traceEnabled = Boolean(trace && typeof trace === 'object')
   const nowMs = () => Date.now()
   const totalStartMs = nowMs()
@@ -275,6 +275,25 @@ async function buildMediaItems(files = [], options = {}) {
     let processingState = 'raw'
     let resolvedDurationSeconds = 0
     const generatedPathsForCleanup = []
+
+    if (shouldBuildLoopVariants && deferLoopProcessing) {
+      mediaItems.push({
+        url: fallbackUrl,
+        hlsUrl: '',
+        posterUrl: '',
+        type: 'video',
+        durationSeconds: 0,
+        processing: 'queued',
+        processingProgress: 0,
+        processingError: '',
+        _processingSource: {
+          path: file.path,
+          originalName: file.originalname || path.basename(file.path),
+          mimeType: file.safeMimeType,
+        },
+      })
+      continue
+    }
 
     if (isVideo) {
       try {

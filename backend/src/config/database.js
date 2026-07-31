@@ -5,6 +5,7 @@ const { PostView } = require('../models/PostView')
 const { RecommendationEvent } = require('../models/RecommendationEvent')
 const { FeedSession } = require('../models/FeedSession')
 const { TelemetryReceipt } = require('../models/TelemetryReceipt')
+const { VideoProcessingJob } = require('../models/VideoProcessingJob')
 
 mongoose.set('strictQuery', true)
 
@@ -24,9 +25,14 @@ async function connectDatabase() {
     RecommendationEvent.createIndexes(),
     FeedSession.createIndexes(),
     TelemetryReceipt.createIndexes(),
+    VideoProcessingJob.createIndexes(),
   ]).catch((error) => {
     console.error('Failed to synchronize database indexes:', error)
   })
 }
 
-module.exports = { connectDatabase }
+async function disconnectDatabase() {
+  await mongoose.disconnect()
+}
+
+module.exports = { connectDatabase, disconnectDatabase }

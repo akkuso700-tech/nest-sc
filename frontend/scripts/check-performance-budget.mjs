@@ -14,6 +14,7 @@ const budgets = {
   initialCssGzipBytes: 24 * 1024,
   initialJavaScriptGzipBytes: 145 * 1024,
   largestJavaScriptChunkGzipBytes: 65 * 1024,
+  lazyHlsChunkGzipBytes: 115 * 1024,
 }
 
 function gzipSize(filePath) {
@@ -46,6 +47,12 @@ const allJavaScriptFiles = fs
   .readdirSync(path.join(outputDirectory, 'assets'))
   .filter((fileName) => fileName.endsWith('.js'))
   .map((fileName) => path.join(outputDirectory, 'assets', fileName))
+const regularJavaScriptFiles = allJavaScriptFiles.filter(
+  (filePath) => !path.basename(filePath).startsWith('vendor-hls-'),
+)
+const hlsJavaScriptFiles = allJavaScriptFiles.filter(
+  (filePath) => path.basename(filePath).startsWith('vendor-hls-'),
+)
 
 const measurements = {
   htmlGzipBytes: gzipSize(indexPath),
@@ -54,7 +61,8 @@ const measurements = {
     (total, filePath) => total + gzipSize(filePath),
     0,
   ),
-  largestJavaScriptChunkGzipBytes: Math.max(...allJavaScriptFiles.map(gzipSize), 0),
+  largestJavaScriptChunkGzipBytes: Math.max(...regularJavaScriptFiles.map(gzipSize), 0),
+  lazyHlsChunkGzipBytes: Math.max(...hlsJavaScriptFiles.map(gzipSize), 0),
 }
 
 const failures = Object.entries(measurements).filter(

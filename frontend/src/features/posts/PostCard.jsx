@@ -26,6 +26,7 @@ import { useAuth } from '../../store/AuthContext.jsx'
 import { resolveMediaUrl } from '../../utils/media.js'
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery.js'
+import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
 import {
   buildPostSharePayload,
   buildShareTargets,
@@ -569,29 +570,35 @@ function PostCard({
   const isLoopMobileVariant = isLoopVariant && isMobileViewport
   const isLoopDesktopVariant = isLoopVariant && !isMobileViewport
   const loopVideoItem = mediaItems.find((item) => item?.type === 'video') || null
-  const loopVideoSourceUrl = useMemo(() => {
-    if (!loopVideoItem) {
-      return ''
-    }
+  const loopFallbackUrl = resolveMediaUrl(loopVideoItem?.url || '')
+  const loopHlsUrl = resolveMediaUrl(loopVideoItem?.hlsUrl || '')
+  const loopProcessingState = `${loopVideoItem?.processing || 'raw'}`
+  const isLoopProcessing = ['queued', 'processing'].includes(loopProcessingState)
+  const loopVideoSourceUrl = useAdaptiveVideoSource({
+    videoRef: loopVideoRef,
+    hlsUrl: loopHlsUrl,
+    fallbackUrl: loopFallbackUrl,
+    enabled: Boolean(loopVideoItem && !isLoopProcessing),
+  })
+  const loopPosterUrl = resolveMediaUrl(loopVideoItem?.posterUrl || '')
 
-    const hlsUrl = `${loopVideoItem.hlsUrl || ''}`.trim()
-    if (
-      hlsUrl &&
-      typeof document !== 'undefined'
-    ) {
-      const probeVideo = document.createElement('video')
-      const canPlayNativeHls = Boolean(
-        probeVideo?.canPlayType &&
-          probeVideo.canPlayType('application/vnd.apple.mpegurl'),
-      )
-      if (canPlayNativeHls) {
-        return resolveMediaUrl(hlsUrl)
+  useEffect(() => {
+    if (!postId || !isLoopProcessing) return undefined
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const payload = await getPostDetail(postId)
+        if (!cancelled && payload?.post) setLocalPost(payload.post)
+      } catch {
+        // Keep the current processing card; the next poll can recover.
       }
     }
-
-    return resolveMediaUrl(loopVideoItem.url)
-  }, [loopVideoItem])
-  const loopPosterUrl = resolveMediaUrl(loopVideoItem?.posterUrl || '')
+    const intervalId = window.setInterval(refresh, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [isLoopProcessing, postId])
   const likes = localPost.likes ?? localPost.stats?.likes ?? 0
   const comments = localPost.comments ?? localPost.stats?.comments ?? 0
   const saves = localPost.saves ?? localPost.stats?.saves ?? 0
@@ -2133,6 +2140,25 @@ function PostCard({
                         : ''
                     }`}
                   >
+                    {isLoopProcessing ? (
+                      <div
+                        className={`grid w-full place-items-center bg-black text-white ${
+                          isLoopMobileVariant
+                            ? 'h-[calc(100dvh-60px)]'
+                            : isLoopDesktopVariant
+                              ? 'h-[calc(100vh-190px)] min-h-[620px] max-h-[820px]'
+                              : 'h-[72vh] md:h-[70vh]'
+                        }`}
+                      >
+                        <div className="px-6 text-center">
+                          <span className="mx-auto block size-9 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+                          <p className="mt-4 text-sm font-semibold">Video işleniyor</p>
+                          <p className="mt-1 text-xs text-white/65">
+                            %{Math.max(0, Math.min(99, Number(loopVideoItem.processingProgress || 0)))} tamamlandı
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
                     <video
                       ref={loopVideoRef}
                       src={loopVideoSourceUrl}
@@ -2178,7 +2204,8 @@ function PostCard({
                       onError={recoverLoopPlayback}
                       onEnded={handleLoopVideoEnded}
                     />
-                    {reducedDataMode && !isLoopPlaying && !loopPlaybackError ? (
+                    )}
+                    {!isLoopProcessing && reducedDataMode && !isLoopPlaying && !loopPlaybackError ? (
                       <button
                         type="button"
                         onClick={handleLoopMuteToggle}

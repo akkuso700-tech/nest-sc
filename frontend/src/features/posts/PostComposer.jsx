@@ -23,6 +23,8 @@ const COMPOSER_TEXTAREA_MAX_HEIGHT = 92
 const POST_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024
 const POST_VIDEO_MAX_BYTES = 18 * 1024 * 1024
 const LOOP_VIDEO_MAX_BYTES = 100 * 1024 * 1024
+const LOOP_VIDEO_MAX_DURATION_SECONDS = 90
+const STORY_VIDEO_MAX_DURATION_SECONDS = 15
 const STORY_MENTION_PATTERN = /^[\p{L}\p{N}_]{3,40}$/u
 const TITLE_MAX_LENGTH = 80
 
@@ -41,6 +43,24 @@ function createPreviewItems(files) {
     type: file.type.startsWith('video/') ? 'video' : 'image',
     name: file.name,
   }))
+}
+
+function readVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration || 0)
+      URL.revokeObjectURL(objectUrl)
+      resolve(duration)
+    }
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Video bilgileri okunamadi.'))
+    }
+    video.src = objectUrl
+  })
 }
 
 function syncTextareaHeight(element, maxHeight = COMPOSER_TEXTAREA_MAX_HEIGHT) {
@@ -803,7 +823,7 @@ function PostComposer({
     }
   }
 
-  function handleVideoSelection(event) {
+  async function handleVideoSelection(event) {
     const files = Array.from(event.target.files || [])
     event.target.value = ''
 
@@ -830,6 +850,21 @@ function PostComposer({
         }),
       )
       return
+    }
+
+    try {
+      const durationSeconds = await readVideoDuration(videoFile)
+      const maxDurationSeconds = isStoryComposer
+        ? STORY_VIDEO_MAX_DURATION_SECONDS
+        : allowLoopOption
+          ? LOOP_VIDEO_MAX_DURATION_SECONDS
+          : 0
+      if (maxDurationSeconds && durationSeconds > maxDurationSeconds + 0.25) {
+        setSubmitError(`Video en fazla ${maxDurationSeconds} saniye olabilir.`)
+        return
+      }
+    } catch {
+      // Server-side FFmpeg validation remains authoritative.
     }
 
     if (!isStoryComposer && selectedFiles.length) {
