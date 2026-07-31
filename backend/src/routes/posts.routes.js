@@ -38,7 +38,9 @@ const {
 } = require('../validators/postValidators')
 
 const postsRouter = express.Router()
-const uploadPostMedia = createUploadMiddleware('posts', 4)
+const uploadPostMedia = createUploadMiddleware('posts', 4, {
+  allowLargeLoopVideo: true,
+})
 const uploadCommentMedia = createUploadMiddleware('comments', 1)
 
 postsRouter.get('/feed', authenticateOptional, validateRequest(feedSchema), getFeed)

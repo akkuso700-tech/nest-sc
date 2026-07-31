@@ -22,6 +22,7 @@ const COMPOSER_TEXTAREA_MIN_HEIGHT = 92
 const COMPOSER_TEXTAREA_MAX_HEIGHT = 92
 const POST_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024
 const POST_VIDEO_MAX_BYTES = 18 * 1024 * 1024
+const LOOP_VIDEO_MAX_BYTES = 100 * 1024 * 1024
 const STORY_MENTION_PATTERN = /^[\p{L}\p{N}_]{3,40}$/u
 const TITLE_MAX_LENGTH = 80
 
@@ -817,10 +818,14 @@ function PostComposer({
       return
     }
 
-    if (videoFile.size > POST_VIDEO_MAX_BYTES) {
+    const maxVideoBytes = !isStoryComposer && allowLoopOption
+      ? LOOP_VIDEO_MAX_BYTES
+      : POST_VIDEO_MAX_BYTES
+
+    if (videoFile.size > maxVideoBytes) {
       setSubmitError(
         t('composer.videoTooLargeError', {
-          maxSize: formatBytes(POST_VIDEO_MAX_BYTES),
+          maxSize: formatBytes(maxVideoBytes),
           defaultValue: 'Video is too large. Max allowed: {{maxSize}}.',
         }),
       )
