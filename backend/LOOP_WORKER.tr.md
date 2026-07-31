@@ -14,8 +14,12 @@ Loop videolari HTTP istegi icinde degil, MongoDB kuyrugundan ayri bir Node prose
 Tek sunucuda API ve ayri worker prosesini birlikte baslatmak icin:
 
 ```bash
-npm run start:all
+npm start
 ```
+
+`npm run start:all` ayni proses yoneticisini dogrudan calistiran esdeger komuttur.
+Yalnizca API prosesine ihtiyac duyulan bakim senaryolarinda `npm run start:api`
+kullanilabilir.
 
 Proses yoneticisi iki ayri servis destekliyorsa:
 
