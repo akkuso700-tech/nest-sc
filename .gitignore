@@ -31,4 +31,5 @@ Thumbs.db
 .vscode/
 
 .codex/
+backend/public/
 deploy/hostinger/artifacts/

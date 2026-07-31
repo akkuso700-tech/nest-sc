@@ -1,1 +1,0 @@
-import{n as e}from"./apiClient-CKfxMbyD.js";function t(e={}){let t=new URLSearchParams;Object.entries(e).forEach(([e,n])=>{n===``||n==null||t.set(e,n)});let n=t.toString();return n?`?${n}`:``}function n(t){return e(`/reports`,{method:`POST`,body:JSON.stringify(t)})}function r(n={}){return e(`/reports/mine${t(n)}`)}export{r as n,n as t};
