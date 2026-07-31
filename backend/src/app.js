@@ -447,6 +447,10 @@ function createApp() {
     app.get('/:lang/posts/:postId', handleCrawlerPostPreview)
     app.get('/post/:postId', handleCrawlerPostPreview)
 
+    app.get(/^\/(?:tr|en|de|es)(?:\/.*)?$/, (req, res) =>
+      res.sendFile(path.join(frontendDistDir, 'index.html')),
+    )
+
     app.get(/.*/, (req, res, next) => {
       const requestPath = String(req.path || '')
 
