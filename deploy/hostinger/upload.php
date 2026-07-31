@@ -2,6 +2,14 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-Upload-Token');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 // Update these two values before uploading to Hostinger:
 $UPLOAD_TOKEN = 'replace-with-a-long-random-upload-token';
