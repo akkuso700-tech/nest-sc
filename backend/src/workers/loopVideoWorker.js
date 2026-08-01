@@ -29,9 +29,20 @@ async function removePath(filePath, options = {}) {
 }
 
 async function processJob(job) {
+  const processStartedAt = Date.now()
+  const claimedAt = new Date(job.startedAt || processStartedAt).getTime()
+  const createdAt = new Date(job.createdAt || processStartedAt).getTime()
+  const timings = {
+    queueWaitMs: Math.max(0, claimedAt - createdAt),
+    sourceMs: 0,
+    encodeMs: 0,
+    publishMs: 0,
+    finalizeMs: 0,
+  }
   let adaptiveResult = null
   let sourceMaterial = null
   let currentProgress = 0
+  let currentStage = 'source'
   let heartbeatBusy = false
   const heartbeatEveryMs = Math.max(5_000, Math.min(30_000, Math.floor(env.loopWorkerLeaseMs / 3)))
   const heartbeat = setInterval(async () => {
@@ -51,10 +62,14 @@ async function processJob(job) {
   }, heartbeatEveryMs)
   heartbeat.unref?.()
   try {
+    let stageStartedAt = Date.now()
     sourceMaterial = await materializeLoopJobSource(job)
+    timings.sourceMs = Date.now() - stageStartedAt
     const sourcePath = sourceMaterial.sourcePath
     currentProgress = 2
     await updateJobProgress(job._id, currentProgress)
+    currentStage = 'encode'
+    stageStartedAt = Date.now()
     adaptiveResult = await buildAdaptiveLoopVariants(sourcePath, {
       timeoutMs: env.loopWorkerJobTimeoutMs,
       onProgress: (progress) => {
@@ -62,14 +77,30 @@ async function processJob(job) {
         return updateJobProgress(job._id, progress)
       },
     })
+    timings.encodeMs = Date.now() - stageStartedAt
+    currentStage = 'publish'
+    stageStartedAt = Date.now()
     const published = await publishAdaptiveLoopOutputs(adaptiveResult)
+    timings.publishMs = Date.now() - stageStartedAt
     currentProgress = 95
     await updateJobProgress(job._id, currentProgress)
+    currentStage = 'finalize'
+    stageStartedAt = Date.now()
     await completeJob(job, published)
     await removePath(sourcePath)
     if (isRemoteOutput(published)) {
       await removePath(adaptiveResult.outputDirectory, { recursive: true })
     }
+    timings.finalizeMs = Date.now() - stageStartedAt
+    console.info(JSON.stringify({
+      tag: 'loop_worker_timing',
+      jobId: job.id,
+      postId: job.post,
+      attempt: job.attempts,
+      ok: true,
+      ...timings,
+      totalMs: Date.now() - processStartedAt,
+    }))
     console.info(JSON.stringify({ tag: 'loop_worker', jobId: job.id, postId: job.post, ok: true }))
   } catch (error) {
     await failOrRetryJob(job, error)
@@ -79,6 +110,17 @@ async function processJob(job) {
     if (error?.permanent && adaptiveResult?.outputDirectory) {
       await removePath(adaptiveResult.outputDirectory, { recursive: true })
     }
+    console.error(JSON.stringify({
+      tag: 'loop_worker_timing',
+      jobId: job.id,
+      postId: job.post,
+      attempt: job.attempts,
+      ok: false,
+      failedStage: currentStage,
+      ...timings,
+      totalMs: Date.now() - processStartedAt,
+      errorCode: error?.code || 'VIDEO_PROCESSING_FAILED',
+    }))
     console.error(JSON.stringify({
       tag: 'loop_worker',
       jobId: job.id,
