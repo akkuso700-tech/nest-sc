@@ -199,6 +199,16 @@ async function writeMasterPlaylist(outputDirectory, renditions) {
   return masterPath
 }
 
+function buildHlsPackageArgs(mp4Path) {
+  return [
+    '-y', '-i', mp4Path, '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy',
+    '-f', 'hls', '-hls_time', '4', '-hls_list_size', '0', '-hls_playlist_type', 'vod',
+    '-hls_segment_type', 'mpegts', '-hls_flags', 'independent_segments',
+    '-hls_segment_filename', 'segment-%05d.ts',
+    'index.m3u8',
+  ]
+}
+
 async function buildAdaptiveLoopVariants(localFilePath, options = {}) {
   const ffmpegBinary = resolveFfmpegBinary()
   const timeoutMs = Number(options.timeoutMs || env.loopWorkerJobTimeoutMs)
@@ -267,14 +277,7 @@ async function buildAdaptiveLoopVariants(localFilePath, options = {}) {
 
     await runBinary(
       ffmpegBinary,
-      [
-        '-y', '-i', mp4Path, '-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy',
-        '-f', 'hls', '-hls_time', '4', '-hls_list_size', '0', '-hls_playlist_type', 'vod',
-        '-hls_segment_type', 'fmp4', '-hls_flags', 'independent_segments',
-        '-hls_fmp4_init_filename', 'init.mp4',
-        '-hls_segment_filename', 'segment-%05d.m4s',
-        'index.m3u8',
-      ],
+      buildHlsPackageArgs(mp4Path),
       { timeoutMs: Math.min(timeoutMs, 120_000), cwd: renditionDirectory },
     )
 
@@ -491,6 +494,7 @@ module.exports = {
   probeVideoMetadata,
   selectAdaptiveRenditions,
   buildAdaptiveEncodeArgs,
+  buildHlsPackageArgs,
   effectiveRenditionBitrate,
   isEncoderResourceError,
   buildAdaptiveLoopVariants,
