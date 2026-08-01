@@ -22,6 +22,8 @@ const {
   LOOP_JOB_PRIORITIES,
   buildStalledLoopJobFilter,
   claimNextLoopVideoJob,
+  updateJobProgress,
+  failOrRetryJob,
 } = require('../src/services/videoProcessingQueueService')
 const { env } = require('../src/config/env')
 
@@ -192,6 +194,69 @@ test('worker considers only queued jobs after no expired lock holder is found', 
     assert.equal(Object.hasOwn(calls[1], '$or'), false)
   } finally {
     VideoProcessingJob.findOneAndUpdate = originalFindOneAndUpdate
+  }
+})
+
+test('worker progress updates are monotonic across publish retries', async () => {
+  const originalJobUpdateOne = VideoProcessingJob.updateOne
+  const originalFindById = VideoProcessingJob.findById
+  const originalPostUpdateOne = Post.updateOne
+  let jobUpdate = null
+  let postUpdate = null
+
+  VideoProcessingJob.updateOne = async (_filter, update) => {
+    jobUpdate = update
+  }
+  VideoProcessingJob.findById = () => ({
+    select() {
+      return this
+    },
+    async lean() {
+      return { post: 'post-id', mediaIndex: 0 }
+    },
+  })
+  Post.updateOne = async (_filter, update) => {
+    postUpdate = update
+  }
+
+  try {
+    await updateJobProgress('job-id', 12)
+    assert.equal(jobUpdate.$max.progress, 12)
+    assert.equal(Object.hasOwn(jobUpdate.$set, 'progress'), false)
+    assert.equal(postUpdate.$max['media.0.processingProgress'], 12)
+    assert.equal(Object.hasOwn(postUpdate.$set, 'media.0.processingProgress'), false)
+  } finally {
+    VideoProcessingJob.updateOne = originalJobUpdateOne
+    VideoProcessingJob.findById = originalFindById
+    Post.updateOne = originalPostUpdateOne
+  }
+})
+
+test('retrying a failed publish does not reset visible progress to zero', async () => {
+  const originalJobUpdateOne = VideoProcessingJob.updateOne
+  const originalPostUpdateOne = Post.updateOne
+  let jobUpdate = null
+  let postUpdate = null
+
+  VideoProcessingJob.updateOne = async (_filter, update) => {
+    jobUpdate = update
+  }
+  Post.updateOne = async (_filter, update) => {
+    postUpdate = update
+  }
+
+  try {
+    await failOrRetryJob(
+      { _id: 'job-id', post: 'post-id', mediaIndex: 0, attempts: 1, maxAttempts: 3 },
+      new Error('temporary publish failure'),
+    )
+    assert.equal(jobUpdate.$set.status, 'retry')
+    assert.equal(Object.hasOwn(jobUpdate.$set, 'progress'), false)
+    assert.equal(postUpdate.$set['media.0.processing'], 'queued')
+    assert.equal(Object.hasOwn(postUpdate.$set, 'media.0.processingProgress'), false)
+  } finally {
+    VideoProcessingJob.updateOne = originalJobUpdateOne
+    Post.updateOne = originalPostUpdateOne
   }
 })
 

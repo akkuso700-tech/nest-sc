@@ -17,8 +17,8 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
   const managedHls = useMemo(() => supportsManagedHlsSource(hlsUrl), [hlsUrl])
   const [directSource, setDirectSource] = useState(() => {
     if (!enabled || !hlsUrl) return fallbackUrl
-    if (nativeHls) return hlsUrl
-    return managedHls ? '' : fallbackUrl
+    if (!managedHls) return fallbackUrl
+    return nativeHls ? hlsUrl : ''
   })
 
   useEffect(() => {
@@ -28,15 +28,16 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
       return undefined
     }
 
-    if (nativeHls) {
-      setDirectSource(hlsUrl)
+    // Legacy remote fMP4 HLS manifests can stall on Hostinger even though the
+    // progressive MP4 is healthy. Never trust native-HLS capability detection
+    // for these manifests; some Chromium shells advertise support but stall.
+    if (!managedHls) {
+      setDirectSource(fallbackUrl)
       return undefined
     }
 
-    // Legacy remote fMP4 HLS manifests can stall on Hostinger even though the
-    // progressive MP4 is healthy. Use that MP4 immediately for existing posts.
-    if (!managedHls) {
-      setDirectSource(fallbackUrl)
+    if (nativeHls) {
+      setDirectSource(hlsUrl)
       return undefined
     }
 

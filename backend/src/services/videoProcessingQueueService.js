@@ -243,7 +243,6 @@ async function recoverStalledLoopJobs(options = {}) {
       {
         $set: {
           status: nextStatus,
-          progress: 0,
           nextRunAt: now,
           leaseExpiresAt: null,
           workerId: '',
@@ -259,7 +258,6 @@ async function recoverStalledLoopJobs(options = {}) {
       {
         $set: {
           [`media.${job.mediaIndex}.processing`]: exhausted ? 'failed' : 'queued',
-          [`media.${job.mediaIndex}.processingProgress`]: 0,
           [`media.${job.mediaIndex}.processingError`]: exhausted ? errorCode : '',
         },
       },
@@ -398,9 +396,9 @@ async function updateJobProgress(jobId, progress) {
       { _id: jobId, status: 'processing' },
       {
         $set: {
-          progress: safeProgress,
           leaseExpiresAt: new Date(Date.now() + env.loopWorkerLeaseMs),
         },
+        $max: { progress: safeProgress },
       },
     ),
     VideoProcessingJob.findById(jobId)
@@ -413,8 +411,8 @@ async function updateJobProgress(jobId, progress) {
           {
             $set: {
               [`media.${job.mediaIndex}.processing`]: 'processing',
-              [`media.${job.mediaIndex}.processingProgress`]: safeProgress,
             },
+            $max: { [`media.${job.mediaIndex}.processingProgress`]: safeProgress },
           },
         )
       }),
@@ -489,7 +487,6 @@ async function failOrRetryJob(job, error) {
     {
       $set: {
         [`media.${job.mediaIndex}.processing`]: shouldFail ? 'failed' : 'queued',
-        [`media.${job.mediaIndex}.processingProgress`]: 0,
         [`media.${job.mediaIndex}.processingError`]: shouldFail ? errorCode : '',
       },
     },

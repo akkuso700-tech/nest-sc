@@ -93,7 +93,7 @@ if ($finfo) {
 
 $uploadClass = strtolower(trim((string)($_POST['upload_class'] ?? '')));
 $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-$isLoopAsset = $uploadClass === 'loop-video' && in_array($extension, ['m3u8', 'm4s'], true);
+$isLoopAsset = $uploadClass === 'loop-video' && in_array($extension, ['m3u8', 'm4s', 'ts'], true);
 $isAllowed = str_starts_with($mimeType, 'image/') || str_starts_with($mimeType, 'video/') || $isLoopAsset;
 if (!$isAllowed) {
     respond(400, ['message' => 'Only image and video files are allowed.']);
