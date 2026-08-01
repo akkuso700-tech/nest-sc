@@ -43,14 +43,46 @@ async function uploadGeneratedFile(filePath, folder = 'loops') {
   )
 }
 
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const values = Array.from(items || [])
+  if (!values.length) return []
+
+  const results = new Array(values.length)
+  const workerCount = Math.min(
+    values.length,
+    Math.max(1, Math.floor(Number(concurrency) || 1)),
+  )
+  let nextIndex = 0
+
+  async function runWorker() {
+    while (nextIndex < values.length) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      results[currentIndex] = await mapper(values[currentIndex], currentIndex)
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()))
+  return results
+}
+
 async function publishRemoteRendition(rendition) {
   const files = await fs.promises.readdir(rendition.directory)
-  const assetFiles = files.filter((name) => name === 'init.mp4' || name.endsWith('.m4s'))
+  const assetFiles = files
+    .filter((name) => name === 'init.mp4' || name.endsWith('.m4s'))
+    .sort()
   const uploadedAssets = new Map()
 
-  for (const fileName of assetFiles) {
-    const uploaded = await uploadGeneratedFile(path.join(rendition.directory, fileName))
-    uploadedAssets.set(fileName, uploaded.url)
+  const uploaded = await mapWithConcurrency(
+    assetFiles,
+    env.loopUploadConcurrency,
+    async (fileName) => {
+      const result = await uploadGeneratedFile(path.join(rendition.directory, fileName))
+      return [fileName, result.url]
+    },
+  )
+  for (const [fileName, url] of uploaded) {
+    uploadedAssets.set(fileName, url)
   }
 
   const sourceManifest = await fs.promises.readFile(rendition.manifestPath, 'utf8')
@@ -140,5 +172,6 @@ async function publishAdaptiveLoopOutputs(result) {
 module.exports = {
   assertPathInsideUploads,
   buildLocalMediaUrl,
+  mapWithConcurrency,
   publishAdaptiveLoopOutputs,
 }

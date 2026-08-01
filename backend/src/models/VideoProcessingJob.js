@@ -21,6 +21,7 @@ const videoProcessingJobSchema = new mongoose.Schema(
       index: true,
     },
     progress: { type: Number, min: 0, max: 100, default: 0 },
+    priority: { type: Number, min: 0, max: 100, default: 100, index: true },
     attempts: { type: Number, min: 0, default: 0 },
     recoveryCount: { type: Number, min: 0, default: 0 },
     maxAttempts: { type: Number, min: 1, default: 3 },
@@ -42,6 +43,7 @@ videoProcessingJobSchema.pre('validate', function validateSource() {
 })
 
 videoProcessingJobSchema.index({ status: 1, nextRunAt: 1, leaseExpiresAt: 1, createdAt: 1 })
+videoProcessingJobSchema.index({ status: 1, priority: -1, nextRunAt: 1, createdAt: 1 })
 videoProcessingJobSchema.index({ post: 1, mediaIndex: 1 }, { unique: true })
 videoProcessingJobSchema.index(
   { workerSlot: 1 },

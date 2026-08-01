@@ -15,7 +15,9 @@ const {
 const {
   assertPathInsideUploads,
   buildLocalMediaUrl,
+  mapWithConcurrency,
 } = require('../src/services/loopVideoPublishingService')
+const { LOOP_JOB_PRIORITIES } = require('../src/services/videoProcessingQueueService')
 const { env } = require('../src/config/env')
 
 test('adaptive ladder does not upscale a 540p source', () => {
@@ -113,4 +115,28 @@ test('fallback profile reports its reduced effective bitrate in HLS metadata', (
 test('worker lease model provides a unique named lease with expiry', () => {
   assert.equal(WorkerLease.schema.path('_id').instance, 'String')
   assert.equal(WorkerLease.schema.path('expiresAt').instance, 'Date')
+})
+
+test('new Loop uploads have higher queue priority than backfill jobs', () => {
+  assert.ok(LOOP_JOB_PRIORITIES.USER_UPLOAD > LOOP_JOB_PRIORITIES.BACKFILL)
+  assert.equal(VideoProcessingJob.schema.path('priority').defaultValue, LOOP_JOB_PRIORITIES.USER_UPLOAD)
+  const priorityIndex = VideoProcessingJob.schema.indexes().find(
+    ([fields]) => fields.status === 1 && fields.priority === -1,
+  )
+  assert.ok(priorityIndex)
+})
+
+test('remote HLS asset mapper preserves order and bounds concurrency', async () => {
+  let active = 0
+  let peak = 0
+  const results = await mapWithConcurrency([1, 2, 3, 4, 5], 3, async (value) => {
+    active += 1
+    peak = Math.max(peak, active)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    active -= 1
+    return value * 2
+  })
+
+  assert.deepEqual(results, [2, 4, 6, 8, 10])
+  assert.equal(peak, 3)
 })

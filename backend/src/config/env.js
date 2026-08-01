@@ -153,6 +153,7 @@ const envSchema = z.object({
   LOOP_BACKFILL_LEADER_LEASE_MS: z.coerce.number().int().positive().default(5 * 60 * 1000),
   LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS: z.coerce.number().int().positive().default(2 * 60 * 1000),
   LOOP_BACKFILL_MAX_SOURCE_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  LOOP_UPLOAD_CONCURRENCY: z.coerce.number().int().min(1).max(6).default(3),
 })
 
 const parsedEnv = envSchema.safeParse(envSource)
@@ -273,6 +274,7 @@ const env = {
   loopBackfillLeaderLeaseMs: rawEnv.LOOP_BACKFILL_LEADER_LEASE_MS,
   loopBackfillDownloadTimeoutMs: rawEnv.LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS,
   loopBackfillMaxSourceBytes: rawEnv.LOOP_BACKFILL_MAX_SOURCE_BYTES,
+  loopUploadConcurrency: rawEnv.LOOP_UPLOAD_CONCURRENCY,
   jwt: {
     accessSecret: rawEnv.JWT_ACCESS_SECRET,
     refreshSecret: rawEnv.JWT_REFRESH_SECRET,

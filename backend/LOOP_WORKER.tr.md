@@ -49,6 +49,7 @@ Worker sayisini baslangicta bir tutun. Her worker ayni anda bir FFmpeg isi alir;
 - `LOOP_BACKFILL_LEADER_LEASE_MS=300000`
 - `LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS=120000`
 - `LOOP_BACKFILL_MAX_SOURCE_BYTES=104857600`
+- `LOOP_UPLOAD_CONCURRENCY=3`
 
 Worker 360p, 540p ve 720p varyantlarini, WebP posterini, 720p'ye kadar MP4 fallback dosyasini ve adaptif HLS master playlistini uretir. Kaynak cozunurlukten daha buyuk piksel boyutu uretilmez.
 
@@ -59,6 +60,12 @@ tamamini dusurmez; hazir alt kalitelerle HLS yayina alinir.
 Kaynak limiti nedeniyle daha once `failed` olan uzak-kaynakli backfill isleri,
 yeni profil devreye girdiginde lider worker tarafindan limit dahilinde yeniden
 kuyruga alinir.
+
+Yeni kullanici yuklemeleri backfill islerinden once calisir. HLS segmentleri
+uzak depolamaya varsayilan olarak en fazla uc eszamanli istekle gonderilir;
+encoder ise paylasimli hosting guvenligi icin tek thread ve seri kalir.
+`loop_worker_timing` kaydi kuyruk bekleme, kaynak hazirlama, encode, yayinlama
+ve tamamlama surelerini milisaniye olarak raporlar.
 
 ## Eski raw Loop videolari
 

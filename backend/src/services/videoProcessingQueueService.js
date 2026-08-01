@@ -4,11 +4,24 @@ const { WorkerLease } = require('../models/WorkerLease')
 const { Post } = require('../models/Post')
 const { env } = require('../config/env')
 
+const LOOP_JOB_PRIORITIES = Object.freeze({
+  BACKFILL: 10,
+  USER_UPLOAD: 100,
+})
+
 function buildWorkerId() {
   return `${os.hostname()}:${process.pid}`
 }
 
-async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath = '', sourceUrl = '', originalName, mimeType }) {
+async function enqueueLoopVideo({
+  postId,
+  mediaIndex = 0,
+  sourcePath = '',
+  sourceUrl = '',
+  originalName,
+  mimeType,
+  priority = LOOP_JOB_PRIORITIES.USER_UPLOAD,
+}) {
   return VideoProcessingJob.findOneAndUpdate(
     { post: postId, mediaIndex },
     {
@@ -20,6 +33,7 @@ async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath = '', sourc
         workerSlot: 'loop-video',
         status: 'queued',
         progress: 0,
+        priority,
         attempts: 0,
         maxAttempts: env.loopWorkerMaxAttempts,
         nextRunAt: new Date(),
@@ -91,6 +105,7 @@ async function enqueueRawLoopBackfill(options = {}) {
           progress: 0,
           attempts: 0,
           maxAttempts: env.loopWorkerMaxAttempts,
+          priority: LOOP_JOB_PRIORITIES.BACKFILL,
           nextRunAt: new Date(),
           leaseExpiresAt: null,
           workerId: '',
@@ -163,6 +178,7 @@ async function enqueueRawLoopBackfill(options = {}) {
         sourceUrl: media.url,
         originalName: originalNameFromUrl(media.url),
         mimeType: 'video/mp4',
+        priority: LOOP_JOB_PRIORITIES.BACKFILL,
       })
     } catch (error) {
       if (error?.code === 11000) continue
@@ -261,7 +277,7 @@ async function claimNextLoopVideoJob(workerId = buildWorkerId()) {
         },
         $inc: { attempts: 1 },
       },
-      { sort: { nextRunAt: 1, createdAt: 1 }, returnDocument: 'after' },
+      { sort: { priority: -1, nextRunAt: 1, createdAt: 1 }, returnDocument: 'after' },
     )
   } catch (error) {
     // This index is the distributed single-worker lock across API instances.
@@ -376,6 +392,7 @@ async function failOrRetryJob(job, error) {
 }
 
 module.exports = {
+  LOOP_JOB_PRIORITIES,
   buildWorkerId,
   acquireWorkerLease,
   enqueueLoopVideo,
