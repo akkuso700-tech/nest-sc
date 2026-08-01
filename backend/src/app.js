@@ -452,9 +452,9 @@ function createApp() {
 
   function serveSpaIndex(req, res, next) {
     // Hostinger can start Passenger before the deployment's public directory
-    // is mounted. Resolve it again at request time instead of caching a null
-    // startup result that would leave every client-side route returning 404.
-    const runtimeFrontendDistDir = frontendDistDir || resolveFrontendDistDir()
+    // is mounted or can swap that directory during a rolling deployment.
+    // Always resolve the current directory instead of retaining a stale path.
+    const runtimeFrontendDistDir = resolveFrontendDistDir()
 
     if (!runtimeFrontendDistDir) {
       res.set('Cache-Control', 'no-store')
@@ -463,7 +463,16 @@ function createApp() {
     }
 
     res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate')
-    return res.sendFile(path.join(runtimeFrontendDistDir, 'index.html'))
+    return res.sendFile(path.join(runtimeFrontendDistDir, 'index.html'), (error) => {
+      if (!error) return
+      if (error.code === 'ENOENT' && !res.headersSent) {
+        res.set('Cache-Control', 'no-store')
+        res.set('Retry-After', '2')
+        res.status(503).type('html').send(frontendIndexHtml)
+        return
+      }
+      next(error)
+    })
   }
 
   app.get(/^\/(?:tr|en|de|es)(?:\/.*)?$/, serveSpaIndex)
