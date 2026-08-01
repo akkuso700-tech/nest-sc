@@ -10,6 +10,18 @@ function resolveFfmpegBinary() {
   return env.ffmpegPath || ffmpegInstaller.path || 'ffmpeg'
 }
 
+function ensureBinaryExecutable(binary) {
+  if (process.platform === 'win32' || !path.isAbsolute(binary) || !fileExists(binary)) {
+    return
+  }
+
+  try {
+    fs.chmodSync(binary, 0o755)
+  } catch {
+    // spawn() will return the actionable platform error if chmod is unavailable.
+  }
+}
+
 function fileExists(filePath) {
   try {
     fs.accessSync(filePath, fs.constants.F_OK)
@@ -21,6 +33,7 @@ function fileExists(filePath) {
 
 function runBinary(binary, args = [], options = {}) {
   return new Promise((resolve, reject) => {
+    ensureBinaryExecutable(binary)
     const childProcess = spawn(binary, args, {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -233,7 +246,15 @@ async function isBinaryAvailable(binary) {
       binary,
       runBinary(binary, ['-version'])
         .then(() => true)
-        .catch(() => false),
+        .catch((error) => {
+          console.error(JSON.stringify({
+            tag: 'media_binary_unavailable',
+            binary: path.basename(binary),
+            errorCode: error?.code || 'BINARY_START_FAILED',
+            errorMessage: error?.message || 'Media binary could not be started.',
+          }))
+          return false
+        }),
     )
   }
 
