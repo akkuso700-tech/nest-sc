@@ -267,6 +267,7 @@ function PostComposer({
   const [showDismissMenu, setShowDismissMenu] = useState(false)
   const [showPlanner, setShowPlanner] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
   const [storyMusicTitle, setStoryMusicTitle] = useState('')
@@ -1044,7 +1045,10 @@ function PostComposer({
         payload = formData
       }
 
-      const response = await onSubmit(payload)
+      setUploadProgress(0)
+      const response = await onSubmit(payload, {
+        onUploadProgress: ({ percent }) => setUploadProgress(percent),
+      })
       const submitDurationMs = Date.now() - submitStartMs
       const successMessage =
         response?.message ||
@@ -1056,6 +1060,7 @@ function PostComposer({
 
       resetComposer()
       setSubmitSuccess(successMessage)
+      setUploadProgress(0)
       logUploadPerf({
         flow: 'create_post',
         ok: true,
@@ -1066,6 +1071,7 @@ function PostComposer({
         mediaBytes: selectedFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0),
       })
     } catch (error) {
+      setUploadProgress(0)
       setSubmitError(error.message || t('home.postPublishFailed', { defaultValue: 'Post action could not be completed.' }))
       logUploadPerf({
         flow: 'create_post',
@@ -1679,7 +1685,9 @@ function PostComposer({
                   className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                 >
                   {isSubmitting
-                    ? t('composer.sharing', { defaultValue: 'Sharing...' })
+                    ? uploadProgress > 0
+                      ? `Yükleniyor %${uploadProgress}`
+                      : t('composer.sharing', { defaultValue: 'Sharing...' })
                     : t('common.share', { defaultValue: 'Share' })}
               </button>
             </div>
@@ -2212,7 +2220,9 @@ function PostComposer({
                       className="rounded-lg cursor-pointer bg-primary px-10 py-2 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                     >
                       {isSubmitting
-                        ? t('composer.sharing', { defaultValue: 'Sharing...' })
+                        ? uploadProgress > 0
+                          ? `Yükleniyor %${uploadProgress}`
+                          : t('composer.sharing', { defaultValue: 'Sharing...' })
                         : t('common.share', { defaultValue: 'Share' })}
                     </button>
                   </div>

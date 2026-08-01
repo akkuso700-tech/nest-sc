@@ -91,18 +91,23 @@ function normalizeMediaList(media = []) {
     return []
   }
 
-  return media.map((item) => ({
-    ...item,
-    url: normalizeMediaUrl(item?.url),
-    hlsUrl: normalizeMediaUrl(item?.hlsUrl),
-    posterUrl: normalizeMediaUrl(item?.posterUrl),
-    renditions: Array.isArray(item?.renditions)
-      ? item.renditions.map((rendition) => ({
-          ...rendition,
-          url: normalizeMediaUrl(rendition?.url),
-        }))
-      : [],
-  }))
+  return media.map((item) => {
+    const plainItem = typeof item?.toObject === 'function' ? item.toObject() : item || {}
+    const publicItem = { ...plainItem }
+    delete publicItem.storageKeys
+    return {
+      ...publicItem,
+      url: normalizeMediaUrl(publicItem.url),
+      hlsUrl: normalizeMediaUrl(publicItem.hlsUrl),
+      posterUrl: normalizeMediaUrl(publicItem.posterUrl),
+      renditions: Array.isArray(publicItem.renditions)
+        ? publicItem.renditions.map((rendition) => ({
+            ...(typeof rendition?.toObject === 'function' ? rendition.toObject() : rendition),
+            url: normalizeMediaUrl(rendition?.url),
+          }))
+        : [],
+    }
+  })
 }
 
 function normalizeUserMedia(user = null) {

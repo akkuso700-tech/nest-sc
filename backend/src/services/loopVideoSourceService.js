@@ -5,6 +5,8 @@ const { Transform, Readable } = require('stream')
 const { pipeline } = require('stream/promises')
 const { env } = require('../config/env')
 const { assertPathInsideUploads } = require('./loopVideoPublishingService')
+const { resolveS3Client } = require('./mediaStorageService')
+const { createS3SourceReadCommand } = require('./directVideoUploadService')
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.mov', '.webm'])
 
@@ -181,6 +183,69 @@ async function downloadRemoteLoopSource(sourceUrl, options = {}) {
   }
 }
 
+function assertTrustedS3SourceObjectKey(objectKey) {
+  const normalizedKey = String(objectKey || '').trim().replace(/^\/+/, '')
+  const prefix = `${String(env.s3Prefix || 'nest-social').replace(/^\/+|\/+$/g, '')}/loop-sources/`
+  if (!normalizedKey.startsWith(prefix) || normalizedKey.includes('..')) {
+    const error = new Error('Video source object key is not trusted.')
+    error.code = 'UNTRUSTED_VIDEO_SOURCE_OBJECT'
+    error.permanent = true
+    throw error
+  }
+  return normalizedKey
+}
+
+async function downloadS3LoopSource(objectKey, options = {}) {
+  const normalizedKey = assertTrustedS3SourceObjectKey(objectKey)
+  const destinationRoot = options.destinationRoot || path.join(env.uploadsDir, 'loop-s3-sources')
+  const maxBytes = Number(options.maxBytes || env.loopBackfillMaxSourceBytes)
+  const jobId = String(options.jobId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, '-')
+  const response = await resolveS3Client().send(createS3SourceReadCommand(normalizedKey))
+  const contentLength = Number(response.ContentLength || 0)
+  const contentType = String(response.ContentType || '').toLowerCase()
+  if (!response.Body || (contentType && !contentType.startsWith('video/'))) {
+    const error = new Error('Stored Loop source is not a readable video.')
+    error.code = 'S3_VIDEO_SOURCE_INVALID'
+    error.permanent = true
+    throw error
+  }
+  if (contentLength > maxBytes) {
+    const error = new Error('Stored Loop source exceeds the configured size limit.')
+    error.code = 'S3_VIDEO_SOURCE_TOO_LARGE'
+    error.permanent = true
+    throw error
+  }
+
+  await fs.promises.mkdir(destinationRoot, { recursive: true })
+  const pseudoUrl = new URL(`https://storage.invalid/${normalizedKey}`)
+  const extension = safeVideoExtension(pseudoUrl, contentType)
+  const destinationPath = assertPathInsideUploads(
+    path.join(destinationRoot, `${jobId}-${crypto.randomUUID().slice(0, 8)}${extension}`),
+  )
+  let downloadedBytes = 0
+  const limiter = new Transform({
+    transform(chunk, _encoding, callback) {
+      downloadedBytes += chunk.length
+      if (downloadedBytes > maxBytes) {
+        const error = new Error('Stored Loop source exceeds the configured size limit.')
+        error.code = 'S3_VIDEO_SOURCE_TOO_LARGE'
+        error.permanent = true
+        callback(error)
+        return
+      }
+      callback(null, chunk)
+    },
+  })
+
+  try {
+    await pipeline(response.Body, limiter, fs.createWriteStream(destinationPath))
+    return destinationPath
+  } catch (error) {
+    await fs.promises.rm(destinationPath, { force: true }).catch(() => undefined)
+    throw error
+  }
+}
+
 async function materializeLoopJobSource(job, options = {}) {
   if (job?.sourcePath) {
     let sourcePath
@@ -202,6 +267,14 @@ async function materializeLoopJobSource(job, options = {}) {
     return { sourcePath, temporary: false }
   }
 
+  if (job?.sourceObjectKey) {
+    const sourcePath = await downloadS3LoopSource(job.sourceObjectKey, {
+      ...options,
+      jobId: job._id || job.id,
+    })
+    return { sourcePath, sourceObjectKey: job.sourceObjectKey, temporary: true }
+  }
+
   if (!job?.sourceUrl) {
     const error = new Error('Video job has no source path or source URL.')
     error.code = 'VIDEO_JOB_SOURCE_MISSING'
@@ -220,6 +293,8 @@ module.exports = {
   configuredLoopSourceOrigins,
   assertTrustedLoopSourceUrl,
   downloadRemoteLoopSource,
+  assertTrustedS3SourceObjectKey,
+  downloadS3LoopSource,
   rebaseLegacyLoopSourcePath,
   materializeLoopJobSource,
 }

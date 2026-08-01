@@ -11,6 +11,7 @@ const videoProcessingJobSchema = new mongoose.Schema(
     mediaIndex: { type: Number, min: 0, default: 0 },
     sourcePath: { type: String, default: '', trim: true },
     sourceUrl: { type: String, default: '', trim: true },
+    sourceObjectKey: { type: String, default: '', trim: true },
     originalName: { type: String, default: 'loop-video' },
     mimeType: { type: String, default: 'video/mp4' },
     workerSlot: { type: String, default: 'loop-video', required: true },
@@ -37,8 +38,8 @@ const videoProcessingJobSchema = new mongoose.Schema(
 )
 
 videoProcessingJobSchema.pre('validate', function validateSource() {
-  if (!this.sourcePath && !this.sourceUrl) {
-    this.invalidate('sourcePath', 'A source path or source URL is required.')
+  if (!this.sourcePath && !this.sourceUrl && !this.sourceObjectKey) {
+    this.invalidate('sourcePath', 'A source path, source URL, or object key is required.')
   }
 })
 

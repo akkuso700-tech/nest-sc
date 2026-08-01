@@ -31,6 +31,13 @@ const { normalizeUserMedia } = require('../utils/mediaUrls')
 const { sanitizeTitle, slugifyTitle } = require('../utils/postSeo')
 const { env } = require('../config/env')
 const { enqueueLoopVideo } = require('../services/videoProcessingQueueService')
+const { VideoUploadSession } = require('../models/VideoUploadSession')
+const { VideoProcessingJob } = require('../models/VideoProcessingJob')
+const {
+  getUploadedSessionForPost,
+  deleteS3Object,
+  deletePublishedMediaObjects,
+} = require('../services/directVideoUploadService')
 
 const TREND_CACHE_TTL_MS = 45 * 1000
 const LOOP_COMPLETION_THRESHOLD = 0.95
@@ -591,6 +598,7 @@ const createPostBodySchema = z.object({
   contentType: z.enum(['post', 'loop']).optional().default('post'),
   publishMode: z.enum(['publish', 'schedule']).optional().default('publish'),
   scheduledFor: z.string().datetime().optional(),
+  uploadSessionId: z.string().trim().optional(),
 })
 
 const createCommentBodySchema = z
@@ -607,12 +615,46 @@ async function parsePostInput(req) {
   }
 
   const title = sanitizeTitle(result.data.title || '')
+  let directUploadSession = null
+  if (result.data.uploadSessionId) {
+    if (result.data.contentType !== 'loop' || (req.files || []).length) {
+      throw new AppError('Direct video uploads can only be attached to a Loop post.', 400)
+    }
+    if (!mongoose.isValidObjectId(result.data.uploadSessionId)) {
+      throw new AppError('Invalid video upload session.', 400)
+    }
+    directUploadSession = await getUploadedSessionForPost({
+      ownerId: req.user._id,
+      uploadId: result.data.uploadSessionId,
+    })
+    if (!directUploadSession) {
+      throw new AppError('Uploaded video session was not found or is not ready.', 409)
+    }
+  }
+
   const builtMedia = await buildMediaItems(req.files || [], {
     contentType: result.data.contentType,
     trace: req.uploadPerfTrace || null,
     deferLoopProcessing:
       result.data.contentType === 'loop' && env.loopAsyncProcessingEnabled,
   })
+  if (directUploadSession) {
+    builtMedia.push({
+      url: '',
+      hlsUrl: '',
+      posterUrl: '',
+      type: 'video',
+      durationSeconds: 0,
+      processing: 'queued',
+      processingProgress: 0,
+      processingError: '',
+      _processingSource: {
+        objectKey: directUploadSession.objectKey,
+        originalName: directUploadSession.originalName,
+        mimeType: directUploadSession.mimeType,
+      },
+    })
+  }
   const processingJobs = []
   const media = builtMedia.map((item, mediaIndex) => {
     const { _processingSource, ...publicMedia } = item
@@ -666,6 +708,7 @@ async function parsePostInput(req) {
     contentType: result.data.contentType,
     media,
     processingJobs,
+    directUploadSession,
     publication,
   }
 }
@@ -1902,6 +1945,28 @@ const createPost = asyncHandler(async (req, res) => {
     })
     perf.mark('post_create_done')
 
+    if (parsedInput.directUploadSession) {
+      const attachedSession = await VideoUploadSession.findOneAndUpdate(
+        {
+          _id: parsedInput.directUploadSession._id,
+          owner: req.user._id,
+          status: 'uploaded',
+        },
+        {
+          $set: {
+            status: 'attached',
+            post: post._id,
+            attachedAt: new Date(),
+          },
+        },
+        { returnDocument: 'after' },
+      )
+      if (!attachedSession) {
+        await Post.deleteOne({ _id: post._id })
+        throw new AppError('Video upload was already attached to another post.', 409)
+      }
+    }
+
     if (parsedInput.processingJobs?.length) {
       try {
         for (const job of parsedInput.processingJobs) {
@@ -1910,12 +1975,19 @@ const createPost = asyncHandler(async (req, res) => {
             mediaIndex: job.mediaIndex,
             sourcePath: job.path,
             sourceUrl: job.sourceUrl,
+            sourceObjectKey: job.objectKey,
             originalName: job.originalName,
             mimeType: job.mimeType,
           })
         }
       } catch (queueError) {
         await Post.deleteOne({ _id: post._id })
+        if (parsedInput.directUploadSession) {
+          await VideoUploadSession.updateOne(
+            { _id: parsedInput.directUploadSession._id, post: post._id },
+            { $set: { status: 'uploaded', post: null, attachedAt: null } },
+          )
+        }
         throw queueError
       }
       perf.mark('video_queued')
@@ -2073,12 +2145,24 @@ const getFeed = asyncHandler(async (req, res) => {
   }
   let sort = { createdAt: -1 }
   const isLoopView = view === 'loop'
+  const viewingOwnAuthor = Boolean(
+    authorId && req.user?._id && String(authorId) === String(req.user._id),
+  )
 
   const shouldIncludeLoopInExploreTopic = !authorId && view === 'explore' && Boolean(topic)
 
   if (isLoopView) {
     filter.contentType = 'loop'
-    filter['media.type'] = 'video'
+    appendAndFilter(filter, {
+      media: {
+        $elemMatch: {
+          type: 'video',
+          ...(viewingOwnAuthor
+            ? {}
+            : { processing: { $nin: ['queued', 'processing', 'failed'] } }),
+        },
+      },
+    })
   } else if (!authorId) {
     if (shouldIncludeLoopInExploreTopic) {
       appendAndFilter(filter, {
@@ -2089,6 +2173,22 @@ const getFeed = asyncHandler(async (req, res) => {
         $or: [{ contentType: { $exists: false } }, { contentType: 'post' }],
       })
     }
+  }
+
+  if (!viewingOwnAuthor) {
+    appendAndFilter(filter, {
+      $or: [
+        { contentType: { $ne: 'loop' } },
+        {
+          media: {
+            $elemMatch: {
+              type: 'video',
+              processing: { $nin: ['queued', 'processing', 'failed'] },
+            },
+          },
+        },
+      ],
+    })
   }
 
   if (topic) {
@@ -3253,6 +3353,19 @@ const deletePost = asyncHandler(async (req, res) => {
   }
 
   await Comment.deleteMany({ post: post._id })
+  const processingJobs = await VideoProcessingJob.find({ post: post._id })
+    .select('sourceObjectKey')
+    .lean()
+  const sourceObjectKeys = processingJobs.map((job) => job.sourceObjectKey).filter(Boolean)
+  const publishedObjectKeys = (post.media || []).flatMap((media) => media.storageKeys || [])
+  await Promise.allSettled([
+    ...sourceObjectKeys.map((objectKey) => deleteS3Object(objectKey)),
+    deletePublishedMediaObjects(publishedObjectKeys),
+  ])
+  await Promise.all([
+    VideoProcessingJob.deleteMany({ post: post._id }),
+    VideoUploadSession.deleteMany({ post: post._id }),
+  ])
   await post.deleteOne()
   emitTrendsUpdate(io)
 

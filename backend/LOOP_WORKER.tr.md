@@ -29,6 +29,18 @@ LOOP_WORKER_MODE=external npm start
 npm run worker:loop
 ```
 
+HTTP health endpoint isteyen Hostinger/Render benzeri platformlarda ayri worker
+deployment'inin baslatma komutu `npm run worker:service` olmalidir. Saglik yolu
+`/health`'tir. API deployment'inda `LOOP_WORKER_MODE=external`, worker
+deployment'inda ayni MongoDB ve S3 ayarlari kullanilir.
+
+Direct multipart kaynaklari icin ek ayarlar:
+
+- `STORAGE_PROVIDER=s3`
+- `S3_SOURCE_BUCKET=nest-sc-sources-demo` (private)
+- `DIRECT_VIDEO_UPLOADS_ENABLED=true`
+- Bucket CORS politikasinda `PUT`, demo origin'i ve exposed `ETag`
+
 `npm run start:all` bu iki prosesi tek yonetici altinda baslatan alternatiftir.
 Worker'i tamamen kapatmak icin `LOOP_WORKER_MODE=disabled` kullanilabilir.
 

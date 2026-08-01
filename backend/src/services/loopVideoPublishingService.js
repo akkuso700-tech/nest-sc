@@ -73,17 +73,19 @@ async function publishRemoteRendition(rendition) {
     .filter((name) => name.endsWith('.ts'))
     .sort()
   const uploadedAssets = new Map()
+  const storageKeys = []
 
   const uploaded = await mapWithConcurrency(
     assetFiles,
     env.loopUploadConcurrency,
     async (fileName) => {
       const result = await uploadGeneratedFile(path.join(rendition.directory, fileName))
-      return [fileName, result.url]
+      return [fileName, result.url, result.objectKey]
     },
   )
-  for (const [fileName, url] of uploaded) {
+  for (const [fileName, url, objectKey] of uploaded) {
     uploadedAssets.set(fileName, url)
+    if (objectKey) storageKeys.push(objectKey)
   }
 
   const sourceManifest = await fs.promises.readFile(rendition.manifestPath, 'utf8')
@@ -105,6 +107,7 @@ async function publishRemoteRendition(rendition) {
   const rewrittenPath = path.join(rendition.directory, 'index-remote.m3u8')
   await fs.promises.writeFile(rewrittenPath, rewrittenManifest, 'utf8')
   const uploadedManifest = await uploadGeneratedFile(rewrittenPath)
+  if (uploadedManifest.objectKey) storageKeys.push(uploadedManifest.objectKey)
 
   return {
     name: rendition.name,
@@ -112,6 +115,7 @@ async function publishRemoteRendition(rendition) {
     height: rendition.height,
     bitrateKbps: rendition.bitrateKbps,
     url: uploadedManifest.url,
+    storageKeys,
   }
 }
 
@@ -147,6 +151,7 @@ async function publishAdaptiveLoopOutputs(result) {
         bitrateKbps: rendition.bitrateKbps,
         url: buildLocalMediaUrl(rendition.manifestPath),
       })),
+      storageKeys: [],
     }
   }
 
@@ -160,6 +165,12 @@ async function publishAdaptiveLoopOutputs(result) {
     uploadGeneratedFile(result.posterPath),
     uploadGeneratedFile(remoteMasterPath),
   ])
+  const storageKeys = [
+    ...remoteRenditions.flatMap((rendition) => rendition.storageKeys || []),
+    fallback.objectKey,
+    poster.objectKey,
+    master.objectKey,
+  ].filter(Boolean)
 
   return {
     url: fallback.url,
@@ -168,7 +179,8 @@ async function publishAdaptiveLoopOutputs(result) {
     durationSeconds: result.durationSeconds,
     width: result.width,
     height: result.height,
-    renditions: remoteRenditions,
+    renditions: remoteRenditions.map(({ storageKeys: _storageKeys, ...rendition }) => rendition),
+    storageKeys,
   }
 }
 
