@@ -337,8 +337,9 @@ function normalizeToAbsoluteUrl(value, preferredBaseUrl = '') {
   return urlValue
 }
 
-async function uploadBufferToHostinger({
-  buffer,
+async function uploadBlobToHostinger({
+  blob,
+  bytes = 0,
   fileName = 'upload.bin',
   folder = 'uploads',
   contentType = 'application/octet-stream',
@@ -354,15 +355,17 @@ async function uploadBufferToHostinger({
 
   for (const uploadUrl of uploadUrlCandidates) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), env.hostingerUploadTimeoutMs || 15000)
+    const uploadTimeoutMs = uploadClass === 'loop-video'
+      ? Math.max(env.hostingerUploadTimeoutMs || 0, 2 * 60 * 1000)
+      : env.hostingerUploadTimeoutMs || 15000
+    const timeoutId = setTimeout(() => controller.abort(), uploadTimeoutMs)
     let response
     let payload = {}
     let responseText = ''
 
     try {
       const formData = new FormData()
-      const fileBlob = new Blob([buffer], { type: contentType })
-      formData.append('file', fileBlob, buildUniqueFileName(fileName))
+      formData.append('file', blob, buildUniqueFileName(fileName))
       formData.append('folder', safeFolder)
       if (uploadClass === 'loop-video') {
         formData.append('upload_class', uploadClass)
@@ -419,12 +422,21 @@ async function uploadBufferToHostinger({
 
     return {
       url: absoluteUrl,
-      bytes: payload?.bytes || buffer.length,
+      bytes: payload?.bytes || bytes || blob.size || 0,
       durationSeconds: 0,
     }
   }
 
   throw new AppError(lastFailureMessage, 502)
+}
+
+async function uploadBufferToHostinger(options) {
+  const { buffer, contentType = 'application/octet-stream' } = options
+  return uploadBlobToHostinger({
+    ...options,
+    blob: new Blob([buffer], { type: contentType }),
+    bytes: buffer.length,
+  })
 }
 
 async function uploadBufferToRemoteStorage({
@@ -465,16 +477,33 @@ async function uploadLocalFileToRemoteStorage(file, {
     throw new AppError('Uploaded file path is missing.', 400)
   }
 
-  const fileBuffer = await fs.promises.readFile(file.path)
   const originalName = file.originalname || path.basename(file.path) || 'upload.bin'
   const mimeType = file.mimetype || 'application/octet-stream'
-  const uploaded = await uploadBufferToRemoteStorage({
-    buffer: fileBuffer,
-    fileName: originalName,
-    folder,
-    contentType: mimeType,
-    uploadClass,
-  })
+  let uploaded
+
+  if (isHostingerStorageEnabled() && typeof fs.openAsBlob === 'function') {
+    const [fileBlob, fileStats] = await Promise.all([
+      fs.openAsBlob(file.path, { type: mimeType }),
+      fs.promises.stat(file.path),
+    ])
+    uploaded = await uploadBlobToHostinger({
+      blob: fileBlob,
+      bytes: fileStats.size,
+      fileName: originalName,
+      folder,
+      contentType: mimeType,
+      uploadClass,
+    })
+  } else {
+    const fileBuffer = await fs.promises.readFile(file.path)
+    uploaded = await uploadBufferToRemoteStorage({
+      buffer: fileBuffer,
+      fileName: originalName,
+      folder,
+      contentType: mimeType,
+      uploadClass,
+    })
+  }
 
   return {
     ...uploaded,

@@ -71,6 +71,37 @@ function safeVideoExtension(parsedUrl, mimeType = '') {
   return '.mp4'
 }
 
+function rebaseLegacyLoopSourcePath(sourcePath) {
+  const normalizedPath = String(sourcePath || '').replace(/\\/g, '/')
+  const uploadsMarker = '/uploads/'
+  const uploadsIndex = normalizedPath.toLowerCase().lastIndexOf(uploadsMarker)
+
+  if (uploadsIndex < 0) {
+    const error = new Error('Video job path is outside the configured uploads directory.')
+    error.code = 'INVALID_JOB_SOURCE_PATH'
+    error.permanent = true
+    throw error
+  }
+
+  const relativeParts = normalizedPath
+    .slice(uploadsIndex + uploadsMarker.length)
+    .split('/')
+    .filter(Boolean)
+
+  if (
+    !relativeParts.length ||
+    !['posts', 'loop-backfill'].includes(relativeParts[0].toLowerCase()) ||
+    relativeParts.some((part) => part === '.' || part === '..')
+  ) {
+    const error = new Error('Video job path is outside the configured uploads directory.')
+    error.code = 'INVALID_JOB_SOURCE_PATH'
+    error.permanent = true
+    throw error
+  }
+
+  return assertPathInsideUploads(path.join(env.uploadsDir, ...relativeParts))
+}
+
 async function downloadRemoteLoopSource(sourceUrl, options = {}) {
   const {
     allowedOrigins = configuredLoopSourceOrigins(),
@@ -152,8 +183,22 @@ async function downloadRemoteLoopSource(sourceUrl, options = {}) {
 
 async function materializeLoopJobSource(job, options = {}) {
   if (job?.sourcePath) {
-    const sourcePath = assertPathInsideUploads(job.sourcePath)
-    await fs.promises.access(sourcePath, fs.constants.R_OK)
+    let sourcePath
+    try {
+      sourcePath = assertPathInsideUploads(job.sourcePath)
+    } catch (error) {
+      if (error?.code !== 'INVALID_JOB_SOURCE_PATH') throw error
+      sourcePath = rebaseLegacyLoopSourcePath(job.sourcePath)
+    }
+
+    try {
+      await fs.promises.access(sourcePath, fs.constants.R_OK)
+    } catch {
+      const error = new Error('The uploaded Loop source is no longer available after deployment.')
+      error.code = 'VIDEO_JOB_SOURCE_MISSING'
+      error.permanent = true
+      throw error
+    }
     return { sourcePath, temporary: false }
   }
 
@@ -175,5 +220,6 @@ module.exports = {
   configuredLoopSourceOrigins,
   assertTrustedLoopSourceUrl,
   downloadRemoteLoopSource,
+  rebaseLegacyLoopSourcePath,
   materializeLoopJobSource,
 }

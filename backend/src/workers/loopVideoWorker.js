@@ -12,6 +12,7 @@ const {
   claimNextLoopVideoJob,
   enqueueRawLoopBackfill,
   recoverStalledLoopJobs,
+  requeueRelocatedLoopJobs,
   updateJobProgress,
   completeJob,
   failOrRetryJob,
@@ -165,6 +166,12 @@ async function runWorker(options = {}) {
   }
 
   await recoverInterruptedJobs()
+
+  const relocatedJobs = await requeueRelocatedLoopJobs()
+  console.info(JSON.stringify({
+    tag: 'loop_worker_relocated_sources',
+    requeued: relocatedJobs.length,
+  }))
 
   if (env.loopRawBackfillLimit > 0) {
     const isBackfillLeader = await acquireWorkerLease(

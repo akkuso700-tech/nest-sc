@@ -270,6 +270,64 @@ async function recoverStalledLoopJobs(options = {}) {
   return recovered
 }
 
+async function requeueRelocatedLoopJobs(options = {}) {
+  const limit = Math.max(1, Math.min(20, Number(options.limit || 5)))
+  const candidates = await VideoProcessingJob.find({
+    status: 'failed',
+    errorCode: 'INVALID_JOB_SOURCE_PATH',
+    sourcePath: { $nin: ['', null] },
+    $or: [
+      { recoveryCount: { $lt: 1 } },
+      { recoveryCount: { $exists: false } },
+    ],
+  })
+    .select('_id post mediaIndex')
+    .sort({ updatedAt: 1 })
+    .limit(limit)
+    .lean()
+
+  const requeued = []
+  for (const job of candidates) {
+    const updated = await VideoProcessingJob.updateOne(
+      {
+        _id: job._id,
+        status: 'failed',
+        errorCode: 'INVALID_JOB_SOURCE_PATH',
+      },
+      {
+        $set: {
+          status: 'queued',
+          progress: 0,
+          attempts: 0,
+          maxAttempts: env.loopWorkerMaxAttempts,
+          priority: LOOP_JOB_PRIORITIES.USER_UPLOAD,
+          nextRunAt: new Date(),
+          leaseExpiresAt: null,
+          workerId: '',
+          errorCode: '',
+          errorMessage: '',
+        },
+        $inc: { recoveryCount: 1 },
+      },
+    )
+    if (!updated.modifiedCount) continue
+
+    await Post.updateOne(
+      { _id: job.post },
+      {
+        $set: {
+          [`media.${job.mediaIndex}.processing`]: 'queued',
+          [`media.${job.mediaIndex}.processingProgress`]: 0,
+          [`media.${job.mediaIndex}.processingError`]: '',
+        },
+      },
+    )
+    requeued.push(job)
+  }
+
+  return requeued
+}
+
 // Kept as an alias so older scripts can update without a coordinated restart.
 const recoverStalledRemoteLoopJobs = recoverStalledLoopJobs
 
@@ -447,6 +505,7 @@ module.exports = {
   buildStalledLoopJobFilter,
   recoverStalledLoopJobs,
   recoverStalledRemoteLoopJobs,
+  requeueRelocatedLoopJobs,
   claimNextLoopVideoJob,
   updateJobProgress,
   completeJob,

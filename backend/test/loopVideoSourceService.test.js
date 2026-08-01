@@ -7,6 +7,8 @@ const { VideoProcessingJob } = require('../src/models/VideoProcessingJob')
 const {
   assertTrustedLoopSourceUrl,
   downloadRemoteLoopSource,
+  rebaseLegacyLoopSourcePath,
+  materializeLoopJobSource,
 } = require('../src/services/loopVideoSourceService')
 
 test('video jobs accept a trusted remote source without a local path', async () => {
@@ -87,5 +89,31 @@ test('backfill rejects sources larger than the configured limit', async () => {
       },
     ),
     { code: 'BACKFILL_SOURCE_TOO_LARGE' },
+  )
+})
+
+test('legacy release upload paths are safely rebased to the current uploads root', async () => {
+  const postsDirectory = path.join(env.uploadsDir, 'posts')
+  const fileName = `legacy-loop-${Date.now()}.mp4`
+  const currentPath = path.join(postsDirectory, fileName)
+  await fs.promises.mkdir(postsDirectory, { recursive: true })
+  await fs.promises.writeFile(currentPath, 'legacy-video')
+
+  try {
+    const legacyPath = path.join(path.parse(env.uploadsDir).root, 'old-release', 'uploads', 'posts', fileName)
+    assert.equal(rebaseLegacyLoopSourcePath(legacyPath), path.resolve(currentPath))
+
+    const materialized = await materializeLoopJobSource({ sourcePath: legacyPath })
+    assert.equal(materialized.sourcePath, path.resolve(currentPath))
+    assert.equal(materialized.temporary, false)
+  } finally {
+    await fs.promises.rm(currentPath, { force: true })
+  }
+})
+
+test('legacy source rebasing rejects paths outside known Loop upload folders', () => {
+  assert.throws(
+    () => rebaseLegacyLoopSourcePath('/old-release/uploads/private/secret.mp4'),
+    { code: 'INVALID_JOB_SOURCE_PATH' },
   )
 })

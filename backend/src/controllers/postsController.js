@@ -1909,6 +1909,7 @@ const createPost = asyncHandler(async (req, res) => {
             postId: post._id,
             mediaIndex: job.mediaIndex,
             sourcePath: job.path,
+            sourceUrl: job.sourceUrl,
             originalName: job.originalName,
             mimeType: job.mimeType,
           })
