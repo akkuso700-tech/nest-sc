@@ -17,7 +17,11 @@ const {
   buildLocalMediaUrl,
   mapWithConcurrency,
 } = require('../src/services/loopVideoPublishingService')
-const { LOOP_JOB_PRIORITIES } = require('../src/services/videoProcessingQueueService')
+const {
+  LOOP_JOB_PRIORITIES,
+  buildStalledLoopJobFilter,
+  claimNextLoopVideoJob,
+} = require('../src/services/videoProcessingQueueService')
 const { env } = require('../src/config/env')
 
 test('adaptive ladder does not upscale a 540p source', () => {
@@ -124,6 +128,62 @@ test('new Loop uploads have higher queue priority than backfill jobs', () => {
     ([fields]) => fields.status === 1 && fields.priority === -1,
   )
   assert.ok(priorityIndex)
+})
+
+test('stalled worker recovery covers local and remote Loop sources', () => {
+  const now = new Date('2026-08-01T18:00:00.000Z')
+  const staleBefore = new Date('2026-08-01T17:55:00.000Z')
+  const filter = buildStalledLoopJobFilter({ now, staleBefore })
+
+  assert.equal(filter.status, 'processing')
+  assert.equal(filter.workerSlot, 'loop-video')
+  assert.equal(Object.hasOwn(filter, 'sourceUrl'), false)
+  assert.equal(Object.hasOwn(filter, 'sourcePath'), false)
+  assert.deepEqual(filter.$or[0], { leaseExpiresAt: { $lte: now } })
+  assert.deepEqual(filter.$or[1], { updatedAt: { $lte: staleBefore } })
+})
+
+test('worker claims an expired lock holder before a higher-priority queued job', async () => {
+  const originalFindOneAndUpdate = VideoProcessingJob.findOneAndUpdate
+  const calls = []
+  const interruptedJob = { id: 'stalled-job', status: 'processing' }
+
+  VideoProcessingJob.findOneAndUpdate = async (filter) => {
+    calls.push(filter)
+    return interruptedJob
+  }
+
+  try {
+    const claimed = await claimNextLoopVideoJob('test-worker')
+    assert.equal(claimed, interruptedJob)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].status, 'processing')
+    assert.ok(calls[0].leaseExpiresAt.$lte instanceof Date)
+  } finally {
+    VideoProcessingJob.findOneAndUpdate = originalFindOneAndUpdate
+  }
+})
+
+test('worker considers only queued jobs after no expired lock holder is found', async () => {
+  const originalFindOneAndUpdate = VideoProcessingJob.findOneAndUpdate
+  const calls = []
+  const queuedJob = { id: 'queued-job', status: 'processing' }
+
+  VideoProcessingJob.findOneAndUpdate = async (filter) => {
+    calls.push(filter)
+    return calls.length === 1 ? null : queuedJob
+  }
+
+  try {
+    const claimed = await claimNextLoopVideoJob('test-worker')
+    assert.equal(claimed, queuedJob)
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0].status, 'processing')
+    assert.deepEqual(calls[1].status, { $in: ['queued', 'retry'] })
+    assert.equal(Object.hasOwn(calls[1], '$or'), false)
+  } finally {
+    VideoProcessingJob.findOneAndUpdate = originalFindOneAndUpdate
+  }
 })
 
 test('remote HLS asset mapper preserves order and bounds concurrency', async () => {

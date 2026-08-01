@@ -9,6 +9,9 @@ const LOOP_JOB_PRIORITIES = Object.freeze({
   USER_UPLOAD: 100,
 })
 
+const LOOP_WORKER_SLOT = 'loop-video'
+let lastLockBusyLogAt = 0
+
 function buildWorkerId() {
   return `${os.hostname()}:${process.pid}`
 }
@@ -30,7 +33,7 @@ async function enqueueLoopVideo({
         sourceUrl,
         originalName: originalName || 'loop-video',
         mimeType: mimeType || 'video/mp4',
-        workerSlot: 'loop-video',
+        workerSlot: LOOP_WORKER_SLOT,
         status: 'queued',
         progress: 0,
         priority,
@@ -204,32 +207,48 @@ async function enqueueRawLoopBackfill(options = {}) {
   return queued
 }
 
-async function recoverStalledRemoteLoopJobs(options = {}) {
+function buildStalledLoopJobFilter({ now, staleBefore }) {
+  return {
+    status: 'processing',
+    workerSlot: LOOP_WORKER_SLOT,
+    $or: [
+      { leaseExpiresAt: { $lte: now } },
+      { updatedAt: { $lte: staleBefore } },
+    ],
+  }
+}
+
+async function recoverStalledLoopJobs(options = {}) {
   const limit = Math.max(1, Math.min(20, Number(options.limit || 5)))
   const staleMs = Math.max(30_000, Number(options.staleMs || env.loopWorkerStaleMs))
-  const staleBefore = new Date(Date.now() - staleMs)
-  const candidates = await VideoProcessingJob.find({
-    status: 'processing',
-    sourceUrl: { $nin: ['', null] },
-    updatedAt: { $lte: staleBefore },
-  })
-    .select('_id post mediaIndex')
-    .sort({ updatedAt: 1 })
+  const now = options.now instanceof Date ? options.now : new Date()
+  const staleBefore = new Date(now.getTime() - staleMs)
+  const stalledFilter = buildStalledLoopJobFilter({ now, staleBefore })
+  const candidates = await VideoProcessingJob.find(stalledFilter)
+    .select('_id post mediaIndex attempts maxAttempts sourcePath sourceUrl leaseExpiresAt updatedAt')
+    .sort({ leaseExpiresAt: 1, updatedAt: 1 })
     .limit(limit)
     .lean()
 
   const recovered = []
   for (const job of candidates) {
+    const exhausted = Number(job.attempts || 0) >= Number(job.maxAttempts || env.loopWorkerMaxAttempts)
+    const nextStatus = exhausted ? 'failed' : 'retry'
+    const errorCode = exhausted ? 'WORKER_RESTART_LIMIT' : 'WORKER_INTERRUPTED'
+    const errorMessage = exhausted
+      ? 'The worker stopped repeatedly before completing the video.'
+      : 'The previous worker stopped before completing the job.'
     const result = await VideoProcessingJob.updateOne(
-      { _id: job._id, status: 'processing', updatedAt: { $lte: staleBefore } },
+      { _id: job._id, ...stalledFilter },
       {
         $set: {
-          status: 'retry',
-          nextRunAt: new Date(),
+          status: nextStatus,
+          progress: 0,
+          nextRunAt: now,
           leaseExpiresAt: null,
           workerId: '',
-          errorCode: 'WORKER_INTERRUPTED',
-          errorMessage: 'The previous worker stopped before completing the job.',
+          errorCode,
+          errorMessage,
         },
       },
     )
@@ -239,49 +258,77 @@ async function recoverStalledRemoteLoopJobs(options = {}) {
       { _id: job.post },
       {
         $set: {
-          [`media.${job.mediaIndex}.processing`]: 'queued',
+          [`media.${job.mediaIndex}.processing`]: exhausted ? 'failed' : 'queued',
           [`media.${job.mediaIndex}.processingProgress`]: 0,
-          [`media.${job.mediaIndex}.processingError`]: '',
+          [`media.${job.mediaIndex}.processingError`]: exhausted ? errorCode : '',
         },
       },
     )
-    recovered.push(job)
+    recovered.push({ ...job, recoveryStatus: nextStatus, recoveryErrorCode: errorCode })
   }
 
   return recovered
 }
 
+// Kept as an alias so older scripts can update without a coordinated restart.
+const recoverStalledRemoteLoopJobs = recoverStalledLoopJobs
+
 async function claimNextLoopVideoJob(workerId = buildWorkerId()) {
   const now = new Date()
   const leaseExpiresAt = new Date(now.getTime() + env.loopWorkerLeaseMs)
+
+  const claimUpdate = {
+    $set: {
+      status: 'processing',
+      workerSlot: LOOP_WORKER_SLOT,
+      workerId,
+      leaseExpiresAt,
+      startedAt: now,
+      errorCode: '',
+      errorMessage: '',
+    },
+    $inc: { attempts: 1 },
+  }
+
+  // Always reclaim the expired lock holder before considering higher-priority
+  // queued jobs. Otherwise the unique worker-slot index rejects the queued job
+  // forever and the same job wins the priority sort on every poll.
+  const interruptedJob = await VideoProcessingJob.findOneAndUpdate(
+    {
+      status: 'processing',
+      workerSlot: LOOP_WORKER_SLOT,
+      attempts: { $lt: env.loopWorkerMaxAttempts },
+      leaseExpiresAt: { $lte: now },
+    },
+    claimUpdate,
+    { sort: { leaseExpiresAt: 1, createdAt: 1 }, returnDocument: 'after' },
+  )
+
+  if (interruptedJob) return interruptedJob
 
   try {
     return await VideoProcessingJob.findOneAndUpdate(
       {
         attempts: { $lt: env.loopWorkerMaxAttempts },
         nextRunAt: { $lte: now },
-        $or: [
-          { status: { $in: ['queued', 'retry'] } },
-          { status: 'processing', leaseExpiresAt: { $lte: now } },
-        ],
+        status: { $in: ['queued', 'retry'] },
       },
-      {
-        $set: {
-          status: 'processing',
-          workerSlot: 'loop-video',
-          workerId,
-          leaseExpiresAt,
-          startedAt: now,
-          errorCode: '',
-          errorMessage: '',
-        },
-        $inc: { attempts: 1 },
-      },
+      claimUpdate,
       { sort: { priority: -1, nextRunAt: 1, createdAt: 1 }, returnDocument: 'after' },
     )
   } catch (error) {
     // This index is the distributed single-worker lock across API instances.
-    if (error?.code === 11000) return null
+    if (error?.code === 11000) {
+      const nowMs = Date.now()
+      if (nowMs - lastLockBusyLogAt >= 30_000) {
+        lastLockBusyLogAt = nowMs
+        console.info(JSON.stringify({
+          tag: 'loop_worker_lock_busy',
+          workerId,
+        }))
+      }
+      return null
+    }
     throw error
   }
 }
@@ -397,6 +444,8 @@ module.exports = {
   acquireWorkerLease,
   enqueueLoopVideo,
   enqueueRawLoopBackfill,
+  buildStalledLoopJobFilter,
+  recoverStalledLoopJobs,
   recoverStalledRemoteLoopJobs,
   claimNextLoopVideoJob,
   updateJobProgress,
