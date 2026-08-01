@@ -46,10 +46,19 @@ Worker sayisini baslangicta bir tutun. Her worker ayni anda bir FFmpeg isi alir;
 - `LOOP_WORKER_JOB_TIMEOUT_MS=900000`
 - `LOOP_WORKER_MAX_ATTEMPTS=3`
 - `LOOP_RAW_BACKFILL_LIMIT=0`
+- `LOOP_BACKFILL_LEADER_LEASE_MS=300000`
 - `LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS=120000`
 - `LOOP_BACKFILL_MAX_SOURCE_BYTES=104857600`
 
 Worker 360p, 540p ve 720p varyantlarini, WebP posterini, 720p'ye kadar MP4 fallback dosyasini ve adaptif HLS master playlistini uretir. Kaynak cozunurlukten daha buyuk piksel boyutu uretilmez.
+
+Paylasimli hosting profili x264 ve filtreleri tek thread ile sinirlar. Encoder
+kaynak nedeniyle acilamazsa ayni rendition `superfast` profiliyle tekrar
+denenir. En az bir alt rendition tamamlanmissa ust kalite hatasi videonun
+tamamini dusurmez; hazir alt kalitelerle HLS yayina alinir.
+Kaynak limiti nedeniyle daha once `failed` olan uzak-kaynakli backfill isleri,
+yeni profil devreye girdiginde lider worker tarafindan limit dahilinde yeniden
+kuyruga alinir.
 
 ## Eski raw Loop videolari
 

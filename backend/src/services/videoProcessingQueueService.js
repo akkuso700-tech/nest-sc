@@ -1,5 +1,6 @@
 const os = require('os')
 const { VideoProcessingJob } = require('../models/VideoProcessingJob')
+const { WorkerLease } = require('../models/WorkerLease')
 const { Post } = require('../models/Post')
 const { env } = require('../config/env')
 
@@ -28,6 +29,32 @@ async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath = '', sourc
   )
 }
 
+async function acquireWorkerLease(key, owner, leaseMs) {
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + Math.max(30_000, Number(leaseMs) || 0))
+
+  try {
+    const lease = await WorkerLease.findOneAndUpdate(
+      {
+        _id: key,
+        $or: [
+          { expiresAt: { $lte: now } },
+          { owner },
+        ],
+      },
+      {
+        $set: { owner, expiresAt },
+      },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+    ).lean()
+
+    return Boolean(lease && lease.owner === owner)
+  } catch (error) {
+    if (error?.code === 11000) return false
+    throw error
+  }
+}
+
 function originalNameFromUrl(sourceUrl) {
   try {
     return decodeURIComponent(new URL(sourceUrl).pathname.split('/').pop() || 'loop-video.mp4')
@@ -39,6 +66,57 @@ function originalNameFromUrl(sourceUrl) {
 async function enqueueRawLoopBackfill(options = {}) {
   const limit = Math.max(0, Math.min(20, Number(options.limit ?? env.loopRawBackfillLimit) || 0))
   if (!limit) return []
+
+  const queued = []
+  const failedEncoderJobs = await VideoProcessingJob.find({
+    status: 'failed',
+    sourceUrl: { $nin: ['', null] },
+    $or: [
+      { recoveryCount: { $lt: 1 } },
+      { recoveryCount: { $exists: false } },
+    ],
+    errorCode: { $in: ['ENCODER_RESOURCE_LIMIT', 'VIDEO_PROCESSING_FAILED'] },
+  })
+    .select('_id post mediaIndex')
+    .sort({ updatedAt: 1 })
+    .limit(limit)
+    .lean()
+
+  for (const failedJob of failedEncoderJobs) {
+    const job = await VideoProcessingJob.findOneAndUpdate(
+      { _id: failedJob._id, status: 'failed' },
+      {
+        $set: {
+          status: 'queued',
+          progress: 0,
+          attempts: 0,
+          maxAttempts: env.loopWorkerMaxAttempts,
+          nextRunAt: new Date(),
+          leaseExpiresAt: null,
+          workerId: '',
+          errorCode: '',
+          errorMessage: '',
+        },
+        $inc: { recoveryCount: 1 },
+      },
+      { returnDocument: 'after' },
+    )
+    if (!job) continue
+
+    await Post.updateOne(
+      { _id: failedJob.post },
+      {
+        $set: {
+          [`media.${failedJob.mediaIndex}.processing`]: 'queued',
+          [`media.${failedJob.mediaIndex}.processingProgress`]: 0,
+          [`media.${failedJob.mediaIndex}.processingError`]: '',
+        },
+      },
+    )
+    queued.push(job)
+  }
+
+  if (queued.length >= limit) return queued
 
   const candidates = await Post.find({
     contentType: 'loop',
@@ -62,7 +140,6 @@ async function enqueueRawLoopBackfill(options = {}) {
     .limit(Math.max(limit * 4, limit))
     .lean()
 
-  const queued = []
   for (const post of candidates) {
     if (queued.length >= limit) break
     const mediaIndex = (post.media || []).findIndex(
@@ -300,6 +377,7 @@ async function failOrRetryJob(job, error) {
 
 module.exports = {
   buildWorkerId,
+  acquireWorkerLease,
   enqueueLoopVideo,
   enqueueRawLoopBackfill,
   recoverStalledRemoteLoopJobs,

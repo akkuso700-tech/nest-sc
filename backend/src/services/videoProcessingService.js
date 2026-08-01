@@ -124,6 +124,67 @@ function buildScaleFilter(shortEdge) {
   return `scale=w='if(gt(iw,ih),-2,min(${shortEdge},iw))':h='if(gt(iw,ih),min(${shortEdge},ih),-2)',format=yuv420p`
 }
 
+const LOW_RESOURCE_ENCODER_PROFILES = [
+  { name: 'single-thread-veryfast', preset: 'veryfast', bitrateScale: 1 },
+  { name: 'single-thread-superfast', preset: 'superfast', bitrateScale: 0.85 },
+]
+
+function buildAdaptiveEncodeArgs(localFilePath, mp4Path, rendition, profile) {
+  const bitrateKbps = Math.max(300, Math.round(rendition.bitrateKbps * profile.bitrateScale))
+  return [
+    '-y', '-filter_threads', '1', '-filter_complex_threads', '1', '-i', localFilePath,
+    '-map', '0:v:0', '-map', '0:a:0?',
+    '-vf', buildScaleFilter(rendition.shortEdge), '-r', '30',
+    '-c:v', 'libx264', '-profile:v', 'main', '-level:v', '4.0',
+    '-preset', profile.preset, '-threads', '1',
+    '-x264-params', 'threads=1:lookahead_threads=1',
+    '-b:v', `${bitrateKbps}k`, '-maxrate', `${bitrateKbps}k`, '-bufsize', `${bitrateKbps * 2}k`,
+    '-g', '60', '-keyint_min', '60', '-sc_threshold', '0',
+    '-c:a', 'aac', '-b:a', '96k', '-ac', '2', '-ar', '48000',
+    '-movflags', '+faststart', mp4Path,
+  ]
+}
+
+function effectiveRenditionBitrate(rendition, profile) {
+  return Math.max(300, Math.round(rendition.bitrateKbps * profile.bitrateScale))
+}
+
+function isEncoderResourceError(error) {
+  return /error initializing output stream|error while opening encoder|cannot allocate memory|resource temporarily unavailable|pthread_create failed/i
+    .test(String(error?.message || ''))
+}
+
+async function encodeRenditionWithFallback(ffmpegBinary, localFilePath, mp4Path, rendition, timeoutMs) {
+  let lastError = null
+  for (const profile of LOW_RESOURCE_ENCODER_PROFILES) {
+    try {
+      await runBinary(
+        ffmpegBinary,
+        buildAdaptiveEncodeArgs(localFilePath, mp4Path, rendition, profile),
+        { timeoutMs },
+      )
+      return {
+        ...profile,
+        bitrateKbps: effectiveRenditionBitrate(rendition, profile),
+      }
+    } catch (error) {
+      lastError = error
+      if (!isEncoderResourceError(error)) throw error
+      await fs.promises.rm(mp4Path, { force: true }).catch(() => undefined)
+      console.warn(JSON.stringify({
+        tag: 'loop_encoder_retry',
+        rendition: rendition.name,
+        profile: profile.name,
+        errorCode: error?.code || 'ENCODER_RESOURCE_LIMIT',
+      }))
+    }
+  }
+
+  const error = lastError || new Error('Video encoder could not be started.')
+  error.code = 'ENCODER_RESOURCE_LIMIT'
+  throw error
+}
+
 async function writeMasterPlaylist(outputDirectory, renditions) {
   const lines = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-INDEPENDENT-SEGMENTS']
   renditions.forEach((rendition) => {
@@ -181,23 +242,28 @@ async function buildAdaptiveLoopVariants(localFilePath, options = {}) {
     const renditionDirectory = path.join(outputDirectory, rendition.name)
     const mp4Path = path.join(renditionDirectory, `${rendition.name}.mp4`)
     const manifestPath = path.join(renditionDirectory, 'index.m3u8')
+    let encodedBitrateKbps = rendition.bitrateKbps
     await fs.promises.mkdir(renditionDirectory, { recursive: true })
 
-    await runBinary(
-      ffmpegBinary,
-      [
-        '-y', '-i', localFilePath,
-        '-map', '0:v:0', '-map', '0:a:0?',
-        '-vf', buildScaleFilter(rendition.shortEdge), '-r', '30',
-        '-c:v', 'libx264', '-profile:v', 'main', '-level:v', '4.0',
-        '-preset', 'veryfast', '-b:v', `${rendition.bitrateKbps}k`,
-        '-maxrate', `${rendition.bitrateKbps}k`, '-bufsize', `${rendition.bitrateKbps * 2}k`,
-        '-g', '60', '-keyint_min', '60', '-sc_threshold', '0',
-        '-c:a', 'aac', '-b:a', '96k', '-ac', '2', '-ar', '48000',
-        '-movflags', '+faststart', mp4Path,
-      ],
-      { timeoutMs },
-    )
+    try {
+      const encoderProfile = await encodeRenditionWithFallback(
+        ffmpegBinary,
+        localFilePath,
+        mp4Path,
+        rendition,
+        timeoutMs,
+      )
+      encodedBitrateKbps = encoderProfile.bitrateKbps
+    } catch (error) {
+      await fs.promises.rm(renditionDirectory, { recursive: true, force: true }).catch(() => undefined)
+      if (!isEncoderResourceError(error) || renditions.length === 0) throw error
+      console.warn(JSON.stringify({
+        tag: 'loop_rendition_downgrade',
+        skippedRendition: rendition.name,
+        availableRenditions: renditions.map((item) => item.name),
+      }))
+      break
+    }
 
     await runBinary(
       ffmpegBinary,
@@ -215,6 +281,7 @@ async function buildAdaptiveLoopVariants(localFilePath, options = {}) {
     const outputMetadata = await probeVideoMetadata(mp4Path)
     renditions.push({
       ...rendition,
+      bitrateKbps: encodedBitrateKbps,
       width: outputMetadata.width,
       height: outputMetadata.height,
       mp4Path,
@@ -418,10 +485,14 @@ async function buildLoopVideoVariants(localFilePath, options = {}) {
 
 module.exports = {
   ADAPTIVE_RENDITIONS,
+  LOW_RESOURCE_ENCODER_PROFILES,
   resolveFfmpegBinary,
   runBinary,
   probeVideoMetadata,
   selectAdaptiveRenditions,
+  buildAdaptiveEncodeArgs,
+  effectiveRenditionBitrate,
+  isEncoderResourceError,
   buildAdaptiveLoopVariants,
   buildLoopVideoVariants,
 }
