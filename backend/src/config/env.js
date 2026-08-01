@@ -150,6 +150,7 @@ const envSchema = z.object({
   LOOP_WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   LOOP_WORKER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
   LOOP_RAW_BACKFILL_LIMIT: z.coerce.number().int().min(0).max(20).default(0),
+  LOOP_BACKFILL_LEADER_LEASE_MS: z.coerce.number().int().positive().default(5 * 60 * 1000),
   LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS: z.coerce.number().int().positive().default(2 * 60 * 1000),
   LOOP_BACKFILL_MAX_SOURCE_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
 })
@@ -269,6 +270,7 @@ const env = {
   loopWorkerJobTimeoutMs: rawEnv.LOOP_WORKER_JOB_TIMEOUT_MS,
   loopWorkerMaxAttempts: rawEnv.LOOP_WORKER_MAX_ATTEMPTS,
   loopRawBackfillLimit: rawEnv.LOOP_RAW_BACKFILL_LIMIT,
+  loopBackfillLeaderLeaseMs: rawEnv.LOOP_BACKFILL_LEADER_LEASE_MS,
   loopBackfillDownloadTimeoutMs: rawEnv.LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS,
   loopBackfillMaxSourceBytes: rawEnv.LOOP_BACKFILL_MAX_SOURCE_BYTES,
   jwt: {

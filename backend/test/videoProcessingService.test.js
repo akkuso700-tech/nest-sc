@@ -3,9 +3,14 @@ const assert = require('node:assert/strict')
 const path = require('path')
 const { Post } = require('../src/models/Post')
 const { VideoProcessingJob } = require('../src/models/VideoProcessingJob')
+const { WorkerLease } = require('../src/models/WorkerLease')
 const {
   selectAdaptiveRenditions,
   resolveFfmpegBinary,
+  LOW_RESOURCE_ENCODER_PROFILES,
+  buildAdaptiveEncodeArgs,
+  effectiveRenditionBitrate,
+  isEncoderResourceError,
 } = require('../src/services/videoProcessingService')
 const {
   assertPathInsideUploads,
@@ -66,4 +71,46 @@ test('local nested adaptive files receive URL-safe media paths', () => {
 
 test('a packaged FFmpeg binary is available without server-global installation', () => {
   assert.match(resolveFfmpegBinary(), /ffmpeg(?:\.exe)?$/i)
+})
+
+test('failed encoder jobs can be recovered only a bounded number of times', () => {
+  assert.equal(VideoProcessingJob.schema.path('recoveryCount').defaultValue, 0)
+  assert.equal(VideoProcessingJob.schema.path('recoveryCount').options.min, 0)
+})
+
+test('adaptive encoder profiles are single-threaded and include a superfast retry', () => {
+  assert.deepEqual(
+    LOW_RESOURCE_ENCODER_PROFILES.map((profile) => profile.preset),
+    ['veryfast', 'superfast'],
+  )
+  const args = buildAdaptiveEncodeArgs(
+    'input.mp4',
+    'output.mp4',
+    { name: '720p', shortEdge: 720, bitrateKbps: 2400 },
+    LOW_RESOURCE_ENCODER_PROFILES[0],
+  )
+  assert.ok(args.includes('-filter_threads'))
+  assert.ok(args.includes('-filter_complex_threads'))
+  assert.equal(args[args.indexOf('-threads') + 1], '1')
+  assert.match(args[args.indexOf('-x264-params') + 1], /threads=1/)
+})
+
+test('encoder resource errors are eligible for low-resource fallback', () => {
+  assert.equal(isEncoderResourceError(new Error('Error while opening encoder for output stream')), true)
+  assert.equal(isEncoderResourceError(new Error('disk is full')), false)
+})
+
+test('fallback profile reports its reduced effective bitrate in HLS metadata', () => {
+  assert.equal(
+    effectiveRenditionBitrate(
+      { bitrateKbps: 2400 },
+      LOW_RESOURCE_ENCODER_PROFILES[1],
+    ),
+    2040,
+  )
+})
+
+test('worker lease model provides a unique named lease with expiry', () => {
+  assert.equal(WorkerLease.schema.path('_id').instance, 'String')
+  assert.equal(WorkerLease.schema.path('expiresAt').instance, 'Date')
 })

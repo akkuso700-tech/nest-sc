@@ -22,6 +22,7 @@ const videoProcessingJobSchema = new mongoose.Schema(
     },
     progress: { type: Number, min: 0, max: 100, default: 0 },
     attempts: { type: Number, min: 0, default: 0 },
+    recoveryCount: { type: Number, min: 0, default: 0 },
     maxAttempts: { type: Number, min: 1, default: 3 },
     nextRunAt: { type: Date, default: Date.now, index: true },
     leaseExpiresAt: { type: Date, default: null, index: true },

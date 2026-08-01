@@ -8,6 +8,7 @@ const {
 const { materializeLoopJobSource } = require('../services/loopVideoSourceService')
 const {
   buildWorkerId,
+  acquireWorkerLease,
   claimNextLoopVideoJob,
   enqueueRawLoopBackfill,
   recoverStalledRemoteLoopJobs,
@@ -112,11 +113,19 @@ async function runWorker(options = {}) {
   }
 
   if (env.loopRawBackfillLimit > 0) {
-    const queuedBackfillJobs = await enqueueRawLoopBackfill({ limit: env.loopRawBackfillLimit })
+    const isBackfillLeader = await acquireWorkerLease(
+      'loop-raw-backfill',
+      workerId,
+      env.loopBackfillLeaderLeaseMs,
+    )
+    const queuedBackfillJobs = isBackfillLeader
+      ? await enqueueRawLoopBackfill({ limit: env.loopRawBackfillLimit })
+      : []
     console.info(JSON.stringify({
       tag: 'loop_backfill',
       requested: env.loopRawBackfillLimit,
       queued: queuedBackfillJobs.length,
+      leader: isBackfillLeader,
     }))
   }
 
