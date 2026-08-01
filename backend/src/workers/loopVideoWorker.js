@@ -10,6 +10,7 @@ const {
   buildWorkerId,
   claimNextLoopVideoJob,
   enqueueRawLoopBackfill,
+  recoverStalledRemoteLoopJobs,
   updateJobProgress,
   completeJob,
   failOrRetryJob,
@@ -29,16 +30,40 @@ async function removePath(filePath, options = {}) {
 async function processJob(job) {
   let adaptiveResult = null
   let sourceMaterial = null
+  let currentProgress = 0
+  let heartbeatBusy = false
+  const heartbeatEveryMs = Math.max(5_000, Math.min(30_000, Math.floor(env.loopWorkerLeaseMs / 3)))
+  const heartbeat = setInterval(async () => {
+    if (heartbeatBusy) return
+    heartbeatBusy = true
+    try {
+      await updateJobProgress(job._id, currentProgress)
+    } catch (error) {
+      console.error(JSON.stringify({
+        tag: 'loop_worker_heartbeat',
+        jobId: job.id,
+        errorMessage: error?.message || 'Job heartbeat failed.',
+      }))
+    } finally {
+      heartbeatBusy = false
+    }
+  }, heartbeatEveryMs)
+  heartbeat.unref?.()
   try {
     sourceMaterial = await materializeLoopJobSource(job)
     const sourcePath = sourceMaterial.sourcePath
-    await updateJobProgress(job._id, 2)
+    currentProgress = 2
+    await updateJobProgress(job._id, currentProgress)
     adaptiveResult = await buildAdaptiveLoopVariants(sourcePath, {
       timeoutMs: env.loopWorkerJobTimeoutMs,
-      onProgress: (progress) => updateJobProgress(job._id, progress),
+      onProgress: (progress) => {
+        currentProgress = progress
+        return updateJobProgress(job._id, progress)
+      },
     })
     const published = await publishAdaptiveLoopOutputs(adaptiveResult)
-    await updateJobProgress(job._id, 95)
+    currentProgress = 95
+    await updateJobProgress(job._id, currentProgress)
     await completeJob(job, published)
     await removePath(sourcePath)
     if (isRemoteOutput(published)) {
@@ -61,6 +86,8 @@ async function processJob(job) {
       errorCode: error?.code || 'VIDEO_PROCESSING_FAILED',
       errorMessage: error?.message || 'Video processing failed.',
     }))
+  } finally {
+    clearInterval(heartbeat)
   }
 }
 
@@ -73,6 +100,16 @@ async function runWorker(options = {}) {
   if (manageDatabase) await connectDatabase()
   const workerId = buildWorkerId()
   console.info(`Loop video worker started (${workerId}, mode=${manageDatabase ? 'external' : 'embedded'}).`)
+
+  if (env.loopWorkerStartupGraceMs > 0) {
+    console.info(JSON.stringify({ tag: 'loop_worker_startup_grace', delayMs: env.loopWorkerStartupGraceMs }))
+    await wait(env.loopWorkerStartupGraceMs)
+  }
+
+  const recoveredJobs = await recoverStalledRemoteLoopJobs()
+  if (recoveredJobs.length) {
+    console.info(JSON.stringify({ tag: 'loop_worker_recovery', recovered: recoveredJobs.length }))
+  }
 
   if (env.loopRawBackfillLimit > 0) {
     const queuedBackfillJobs = await enqueueRawLoopBackfill({ limit: env.loopRawBackfillLimit })

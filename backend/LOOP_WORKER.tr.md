@@ -40,7 +40,9 @@ Worker sayisini baslangicta bir tutun. Her worker ayni anda bir FFmpeg isi alir;
 - `LOOP_WORKER_MODE=embedded`
 - `LOOP_MAX_DURATION_SECONDS=90`
 - `LOOP_WORKER_POLL_MS=2000`
+- `LOOP_WORKER_STARTUP_GRACE_MS=0`
 - `LOOP_WORKER_LEASE_MS=1200000`
+- `LOOP_WORKER_STALE_MS=300000`
 - `LOOP_WORKER_JOB_TIMEOUT_MS=900000`
 - `LOOP_WORKER_MAX_ATTEMPTS=3`
 - `LOOP_RAW_BACKFILL_LIMIT=0`
@@ -61,3 +63,8 @@ kabul edilir; boyut ve indirme suresi ayrica sinirlanir.
 Paylasimli hosting icin once `LOOP_RAW_BACKFILL_LIMIT=1` kullanin. Runtime
 logunda `loop_backfill` ve ardindan basarili `loop_worker` kaydi gorulmeden
 limiti artirmayin. Varsayilan `0` degeri otomatik backfill'i kapali tutar.
+
+Rolling deployment kullanan ortamlarda `LOOP_WORKER_STARTUP_GRACE_MS`, yeni
+instance'in kuyruk almadan once bekleyecegi sureyi belirler. Worker calisirken
+kira kaydini duzenli yeniler. Yenilemesi `LOOP_WORKER_STALE_MS` boyunca duran
+uzak-kaynakli isler bir sonraki saglikli worker tarafindan guvenle devralinir.
