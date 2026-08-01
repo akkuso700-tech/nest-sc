@@ -111,6 +111,53 @@ async function enqueueRawLoopBackfill(options = {}) {
   return queued
 }
 
+async function recoverStalledRemoteLoopJobs(options = {}) {
+  const limit = Math.max(1, Math.min(20, Number(options.limit || 5)))
+  const staleMs = Math.max(30_000, Number(options.staleMs || env.loopWorkerStaleMs))
+  const staleBefore = new Date(Date.now() - staleMs)
+  const candidates = await VideoProcessingJob.find({
+    status: 'processing',
+    sourceUrl: { $nin: ['', null] },
+    updatedAt: { $lte: staleBefore },
+  })
+    .select('_id post mediaIndex')
+    .sort({ updatedAt: 1 })
+    .limit(limit)
+    .lean()
+
+  const recovered = []
+  for (const job of candidates) {
+    const result = await VideoProcessingJob.updateOne(
+      { _id: job._id, status: 'processing', updatedAt: { $lte: staleBefore } },
+      {
+        $set: {
+          status: 'retry',
+          nextRunAt: new Date(),
+          leaseExpiresAt: null,
+          workerId: '',
+          errorCode: 'WORKER_INTERRUPTED',
+          errorMessage: 'The previous worker stopped before completing the job.',
+        },
+      },
+    )
+    if (!result.modifiedCount) continue
+
+    await Post.updateOne(
+      { _id: job.post },
+      {
+        $set: {
+          [`media.${job.mediaIndex}.processing`]: 'queued',
+          [`media.${job.mediaIndex}.processingProgress`]: 0,
+          [`media.${job.mediaIndex}.processingError`]: '',
+        },
+      },
+    )
+    recovered.push(job)
+  }
+
+  return recovered
+}
+
 async function claimNextLoopVideoJob(workerId = buildWorkerId()) {
   const now = new Date()
   const leaseExpiresAt = new Date(now.getTime() + env.loopWorkerLeaseMs)
@@ -255,6 +302,7 @@ module.exports = {
   buildWorkerId,
   enqueueLoopVideo,
   enqueueRawLoopBackfill,
+  recoverStalledRemoteLoopJobs,
   claimNextLoopVideoJob,
   updateJobProgress,
   completeJob,
