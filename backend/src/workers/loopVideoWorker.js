@@ -11,7 +11,7 @@ const {
   acquireWorkerLease,
   claimNextLoopVideoJob,
   enqueueRawLoopBackfill,
-  recoverStalledRemoteLoopJobs,
+  recoverStalledLoopJobs,
   updateJobProgress,
   completeJob,
   failOrRetryJob,
@@ -149,10 +149,22 @@ async function runWorker(options = {}) {
     await wait(env.loopWorkerStartupGraceMs)
   }
 
-  const recoveredJobs = await recoverStalledRemoteLoopJobs()
-  if (recoveredJobs.length) {
-    console.info(JSON.stringify({ tag: 'loop_worker_recovery', recovered: recoveredJobs.length }))
+  let nextRecoveryAt = 0
+
+  async function recoverInterruptedJobs() {
+    const recoveredJobs = await recoverStalledLoopJobs()
+    const retried = recoveredJobs.filter((job) => job.recoveryStatus === 'retry').length
+    const failed = recoveredJobs.filter((job) => job.recoveryStatus === 'failed').length
+    console.info(JSON.stringify({
+      tag: 'loop_worker_recovery',
+      recovered: recoveredJobs.length,
+      retried,
+      failed,
+    }))
+    nextRecoveryAt = Date.now() + Math.max(30_000, Math.min(env.loopWorkerStaleMs, 5 * 60_000))
   }
+
+  await recoverInterruptedJobs()
 
   if (env.loopRawBackfillLimit > 0) {
     const isBackfillLeader = await acquireWorkerLease(
@@ -172,11 +184,22 @@ async function runWorker(options = {}) {
   }
 
   while (!stopping) {
+    if (Date.now() >= nextRecoveryAt) {
+      await recoverInterruptedJobs()
+    }
     const job = await claimNextLoopVideoJob(workerId)
     if (!job) {
       await wait(env.loopWorkerPollMs)
       continue
     }
+    console.info(JSON.stringify({
+      tag: 'loop_worker_claimed',
+      jobId: job.id,
+      postId: job.post,
+      attempt: job.attempts,
+      priority: job.priority,
+      workerId,
+    }))
     await processJob(job)
   }
 
