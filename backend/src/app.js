@@ -463,9 +463,12 @@ function createApp() {
     }
 
     res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate')
-    return res.sendFile(path.join(runtimeFrontendDistDir, 'index.html'), (error) => {
-      if (!error) return
-      if (error.code === 'ENOENT' && !res.headersSent) {
+    return fs.readFile(path.join(runtimeFrontendDistDir, 'index.html'), 'utf8', (error, html) => {
+      if (!error) {
+        res.status(200).type('html').send(html)
+        return
+      }
+      if (!res.headersSent) {
         res.set('Cache-Control', 'no-store')
         res.set('Retry-After', '2')
         res.status(503).type('html').send(frontendIndexHtml)
