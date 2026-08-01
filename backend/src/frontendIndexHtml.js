@@ -1,58 +1,22 @@
 const frontendIndexHtml = `<!doctype html>
-<html lang="en">
+<html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (() => {
-        const savedTheme = window.localStorage.getItem('Nest Social')
-        const theme =
-          savedTheme === 'dark' || savedTheme === 'light'
-            ? savedTheme
-            : window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
-        document.documentElement.classList.toggle('dark', theme === 'dark')
-        document.documentElement.style.colorScheme = theme
-      })()
-    </script>
-    <script>
-      (() => {
-        const gtagId = 'G-K71B9ENCSS'
-        const bootstrapGtag = () => {
-          if (window.__nestGtagLoaded) return
-          window.__nestGtagLoaded = true
-          window.dataLayer = window.dataLayer || []
-          window.gtag = function gtag() {
-            window.dataLayer.push(arguments)
-          }
-          window.gtag('js', new Date())
-          window.gtag('config', gtagId)
-
-          const script = document.createElement('script')
-          script.async = true
-          script.src = 'https://www.googletagmanager.com/gtag/js?id=' + gtagId
-          document.head.appendChild(script)
-        }
-
-        if ('requestIdleCallback' in window) {
-          window.requestIdleCallback(bootstrapGtag, { timeout: 3000 })
-        } else {
-          window.setTimeout(bootstrapGtag, 1500)
-        }
-      })()
-    </script>
+    <meta http-equiv="refresh" content="2" />
     <title>Nest Social</title>
-    <script type="module" crossorigin src="/assets/index-DkBtfPU3.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-Dw2cE7zH.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-C34bX_wd.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-B4xG22Wt.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-router-BJpiVjfQ.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BBCW3Wro.css">
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #070b1c; color: #dbeafe; }
+      main { text-align: center; padding: 24px; }
+      p { color: #94a3b8; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <main>
+      <strong>Nest Social hazırlanıyor…</strong>
+      <p>Sayfa birkaç saniye içinde otomatik olarak yenilenecek.</p>
+    </main>
   </body>
 </html>
 `

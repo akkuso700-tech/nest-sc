@@ -168,23 +168,6 @@ function createApp() {
   const app = express()
   const frontendDistDir = resolveFrontendDistDir()
 
-  app.use((req, res, next) => {
-    const requestPath = String(req.originalUrl || req.url || '').split('?')[0]
-    const isLocalizedSpaPath = /^\/(?:tr|en|de|es)(?:\/|$)/.test(requestPath)
-    const isCrawlerPreviewPath = /^\/(?:tr|en|de|es)\/(?:posts|tag)\//.test(requestPath)
-
-    if (
-      ['GET', 'HEAD'].includes(req.method) &&
-      isLocalizedSpaPath &&
-      !(isCrawlerPreviewPath && shouldServeCrawlerPreview(req.headers?.['user-agent']))
-    ) {
-      res.set('X-Nest-Demo-Build', '6e4244b-spa-fallback')
-      return res.status(200).type('html').send(frontendIndexHtml)
-    }
-
-    return next()
-  })
-
   if (env.trustProxy) {
     app.set('trust proxy', 1)
   }
@@ -474,9 +457,12 @@ function createApp() {
     const runtimeFrontendDistDir = frontendDistDir || resolveFrontendDistDir()
 
     if (!runtimeFrontendDistDir) {
-      return res.status(200).type('html').send(frontendIndexHtml)
+      res.set('Cache-Control', 'no-store')
+      res.set('Retry-After', '2')
+      return res.status(503).type('html').send(frontendIndexHtml)
     }
 
+    res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate')
     return res.sendFile(path.join(runtimeFrontendDistDir, 'index.html'))
   }
 
