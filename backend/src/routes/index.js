@@ -11,6 +11,7 @@ const { searchRouter } = require('./search.routes')
 const { storiesRouter } = require('./stories.routes')
 const { groupsRouter } = require('./groups.routes')
 const { performanceRouter } = require('./performance.routes')
+const { videoUploadsRouter } = require('./videoUploads.routes')
 const { getHealth } = require('../controllers/healthController')
 
 const apiRouter = express.Router()
@@ -28,5 +29,6 @@ apiRouter.use('/search', searchRouter)
 apiRouter.use('/stories', storiesRouter)
 apiRouter.use('/groups', groupsRouter)
 apiRouter.use('/performance', performanceRouter)
+apiRouter.use('/video-uploads', videoUploadsRouter)
 
 module.exports = { apiRouter }

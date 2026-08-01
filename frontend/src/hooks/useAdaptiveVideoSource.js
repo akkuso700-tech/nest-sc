@@ -52,7 +52,7 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
       fallbackTimer = null
     }
 
-    const useFallback = () => {
+    const switchToFallback = () => {
       clearFallbackTimer()
       hls?.destroy()
       hls = null
@@ -77,15 +77,15 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
         hls.loadSource(hlsUrl)
         hls.attachMedia(video)
         fallbackTimer = window.setTimeout(() => {
-          if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) useFallback()
+          if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) switchToFallback()
         }, 8000)
         video.addEventListener('loadeddata', clearFallbackTimer, { once: true })
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data?.fatal) return
-          useFallback()
+          switchToFallback()
         })
       })
-      .catch(useFallback)
+      .catch(switchToFallback)
 
     return () => {
       cancelled = true

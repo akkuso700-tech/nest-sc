@@ -192,13 +192,16 @@ export async function apiRequest(path, options = {}, config = {}) {
   const { skipRefreshRetry = false } = config
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
   const response = await fetchWithApiFallback(path, {
+    ...options,
     credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
+      ...(isFormDataBody && options.body?.get?.('contentType')
+        ? { 'X-Content-Type': String(options.body.get('contentType')) }
+        : {}),
     },
-    ...options,
   })
 
   const payload = await parseResponse(response)

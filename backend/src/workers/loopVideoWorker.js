@@ -7,6 +7,10 @@ const {
 } = require('../services/loopVideoPublishingService')
 const { materializeLoopJobSource } = require('../services/loopVideoSourceService')
 const {
+  deleteS3Object,
+  cleanupExpiredDirectVideoUploads,
+} = require('../services/directVideoUploadService')
+const {
   buildWorkerId,
   acquireWorkerLease,
   claimNextLoopVideoJob,
@@ -89,6 +93,9 @@ async function processJob(job) {
     stageStartedAt = Date.now()
     await completeJob(job, published)
     await removePath(sourcePath)
+    if (sourceMaterial.sourceObjectKey) {
+      await deleteS3Object(sourceMaterial.sourceObjectKey)
+    }
     if (isRemoteOutput(published)) {
       await removePath(adaptiveResult.outputDirectory, { recursive: true })
     }
@@ -110,6 +117,9 @@ async function processJob(job) {
     }
     if (error?.permanent && adaptiveResult?.outputDirectory) {
       await removePath(adaptiveResult.outputDirectory, { recursive: true })
+    }
+    if (error?.permanent && sourceMaterial?.sourceObjectKey) {
+      await deleteS3Object(sourceMaterial.sourceObjectKey).catch(() => undefined)
     }
     console.error(JSON.stringify({
       tag: 'loop_worker_timing',
@@ -151,6 +161,7 @@ async function runWorker(options = {}) {
   }
 
   let nextRecoveryAt = 0
+  let nextUploadCleanupAt = 0
 
   async function recoverInterruptedJobs() {
     const recoveredJobs = await recoverStalledLoopJobs()
@@ -193,6 +204,13 @@ async function runWorker(options = {}) {
   while (!stopping) {
     if (Date.now() >= nextRecoveryAt) {
       await recoverInterruptedJobs()
+    }
+    if (Date.now() >= nextUploadCleanupAt) {
+      const cleanedUploads = await cleanupExpiredDirectVideoUploads()
+      if (cleanedUploads) {
+        console.info(JSON.stringify({ tag: 'direct_video_upload_cleanup', cleaned: cleanedUploads }))
+      }
+      nextUploadCleanupAt = Date.now() + 5 * 60_000
     }
     const job = await claimNextLoopVideoJob(workerId)
     if (!job) {

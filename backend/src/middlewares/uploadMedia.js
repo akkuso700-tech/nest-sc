@@ -40,6 +40,18 @@ function createStorage(targetDirectory) {
 }
 
 function mediaFileFilter(req, file, callback) {
+  const declaredContentType = String(req.body?.contentType || req.headers['x-content-type'] || '')
+    .trim()
+    .toLowerCase()
+  if (
+    env.directVideoUploadsEnabled &&
+    declaredContentType === 'loop' &&
+    String(file.mimetype || '').startsWith('video/')
+  ) {
+    callback(new AppError('Loop videos must use direct object-storage upload.', 409))
+    return
+  }
+
   if (
     file.mimetype.startsWith('image/') ||
     file.mimetype.startsWith('video/')
