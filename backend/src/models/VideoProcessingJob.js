@@ -9,7 +9,8 @@ const videoProcessingJobSchema = new mongoose.Schema(
       index: true,
     },
     mediaIndex: { type: Number, min: 0, default: 0 },
-    sourcePath: { type: String, required: true, trim: true },
+    sourcePath: { type: String, default: '', trim: true },
+    sourceUrl: { type: String, default: '', trim: true },
     originalName: { type: String, default: 'loop-video' },
     mimeType: { type: String, default: 'video/mp4' },
     workerSlot: { type: String, default: 'loop-video', required: true },
@@ -32,6 +33,12 @@ const videoProcessingJobSchema = new mongoose.Schema(
   },
   { timestamps: true },
 )
+
+videoProcessingJobSchema.pre('validate', function validateSource() {
+  if (!this.sourcePath && !this.sourceUrl) {
+    this.invalidate('sourcePath', 'A source path or source URL is required.')
+  }
+})
 
 videoProcessingJobSchema.index({ status: 1, nextRunAt: 1, leaseExpiresAt: 1, createdAt: 1 })
 videoProcessingJobSchema.index({ post: 1, mediaIndex: 1 }, { unique: true })

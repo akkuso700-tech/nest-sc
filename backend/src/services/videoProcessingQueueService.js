@@ -7,12 +7,13 @@ function buildWorkerId() {
   return `${os.hostname()}:${process.pid}`
 }
 
-async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath, originalName, mimeType }) {
+async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath = '', sourceUrl = '', originalName, mimeType }) {
   return VideoProcessingJob.findOneAndUpdate(
     { post: postId, mediaIndex },
     {
       $setOnInsert: {
         sourcePath,
+        sourceUrl,
         originalName: originalName || 'loop-video',
         mimeType: mimeType || 'video/mp4',
         workerSlot: 'loop-video',
@@ -25,6 +26,89 @@ async function enqueueLoopVideo({ postId, mediaIndex = 0, sourcePath, originalNa
     },
     { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
   )
+}
+
+function originalNameFromUrl(sourceUrl) {
+  try {
+    return decodeURIComponent(new URL(sourceUrl).pathname.split('/').pop() || 'loop-video.mp4')
+  } catch {
+    return 'loop-video.mp4'
+  }
+}
+
+async function enqueueRawLoopBackfill(options = {}) {
+  const limit = Math.max(0, Math.min(20, Number(options.limit ?? env.loopRawBackfillLimit) || 0))
+  if (!limit) return []
+
+  const candidates = await Post.find({
+    contentType: 'loop',
+    archivedAt: null,
+    $or: [
+      { 'publication.status': 'published' },
+      { 'publication.status': { $exists: false } },
+    ],
+    'moderation.visibility': { $nin: ['hidden', 'removed'] },
+    media: {
+      $elemMatch: {
+        type: 'video',
+        processing: { $in: ['raw', null] },
+        hlsUrl: { $in: ['', null] },
+        url: { $regex: '^https?://' },
+      },
+    },
+  })
+    .select('_id media')
+    .sort({ createdAt: -1 })
+    .limit(Math.max(limit * 4, limit))
+    .lean()
+
+  const queued = []
+  for (const post of candidates) {
+    if (queued.length >= limit) break
+    const mediaIndex = (post.media || []).findIndex(
+      (item) =>
+        item?.type === 'video' &&
+        `${item?.processing || 'raw'}` === 'raw' &&
+        !item?.hlsUrl &&
+        /^https?:\/\//i.test(String(item?.url || '')),
+    )
+    if (mediaIndex < 0) continue
+
+    const existingJob = await VideoProcessingJob.exists({ post: post._id, mediaIndex })
+    if (existingJob) continue
+
+    const media = post.media[mediaIndex]
+    let job
+    try {
+      job = await enqueueLoopVideo({
+        postId: post._id,
+        mediaIndex,
+        sourceUrl: media.url,
+        originalName: originalNameFromUrl(media.url),
+        mimeType: 'video/mp4',
+      })
+    } catch (error) {
+      if (error?.code === 11000) continue
+      throw error
+    }
+
+    await Post.updateOne(
+      {
+        _id: post._id,
+        [`media.${mediaIndex}.processing`]: { $in: ['raw', null] },
+      },
+      {
+        $set: {
+          [`media.${mediaIndex}.processing`]: 'queued',
+          [`media.${mediaIndex}.processingProgress`]: 0,
+          [`media.${mediaIndex}.processingError`]: '',
+        },
+      },
+    )
+    queued.push(job)
+  }
+
+  return queued
 }
 
 async function claimNextLoopVideoJob(workerId = buildWorkerId()) {
@@ -170,6 +254,7 @@ async function failOrRetryJob(job, error) {
 module.exports = {
   buildWorkerId,
   enqueueLoopVideo,
+  enqueueRawLoopBackfill,
   claimNextLoopVideoJob,
   updateJobProgress,
   completeJob,

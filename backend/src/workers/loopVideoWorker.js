@@ -3,12 +3,13 @@ const { env } = require('../config/env')
 const { connectDatabase, disconnectDatabase } = require('../config/database')
 const { buildAdaptiveLoopVariants } = require('../services/videoProcessingService')
 const {
-  assertPathInsideUploads,
   publishAdaptiveLoopOutputs,
 } = require('../services/loopVideoPublishingService')
+const { materializeLoopJobSource } = require('../services/loopVideoSourceService')
 const {
   buildWorkerId,
   claimNextLoopVideoJob,
+  enqueueRawLoopBackfill,
   updateJobProgress,
   completeJob,
   failOrRetryJob,
@@ -27,9 +28,10 @@ async function removePath(filePath, options = {}) {
 
 async function processJob(job) {
   let adaptiveResult = null
+  let sourceMaterial = null
   try {
-    const sourcePath = assertPathInsideUploads(job.sourcePath)
-    await fs.promises.access(sourcePath, fs.constants.R_OK)
+    sourceMaterial = await materializeLoopJobSource(job)
+    const sourcePath = sourceMaterial.sourcePath
     await updateJobProgress(job._id, 2)
     adaptiveResult = await buildAdaptiveLoopVariants(sourcePath, {
       timeoutMs: env.loopWorkerJobTimeoutMs,
@@ -45,6 +47,9 @@ async function processJob(job) {
     console.info(JSON.stringify({ tag: 'loop_worker', jobId: job.id, postId: job.post, ok: true }))
   } catch (error) {
     await failOrRetryJob(job, error)
+    if (sourceMaterial?.temporary) {
+      await removePath(sourceMaterial.sourcePath)
+    }
     if (error?.permanent && adaptiveResult?.outputDirectory) {
       await removePath(adaptiveResult.outputDirectory, { recursive: true })
     }
@@ -68,6 +73,15 @@ async function runWorker(options = {}) {
   if (manageDatabase) await connectDatabase()
   const workerId = buildWorkerId()
   console.info(`Loop video worker started (${workerId}, mode=${manageDatabase ? 'external' : 'embedded'}).`)
+
+  if (env.loopRawBackfillLimit > 0) {
+    const queuedBackfillJobs = await enqueueRawLoopBackfill({ limit: env.loopRawBackfillLimit })
+    console.info(JSON.stringify({
+      tag: 'loop_backfill',
+      requested: env.loopRawBackfillLimit,
+      queued: queuedBackfillJobs.length,
+    }))
+  }
 
   while (!stopping) {
     const job = await claimNextLoopVideoJob(workerId)
