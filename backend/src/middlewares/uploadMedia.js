@@ -277,8 +277,27 @@ async function buildMediaItems(files = [], options = {}) {
     const generatedPathsForCleanup = []
 
     if (shouldBuildLoopVariants && deferLoopProcessing) {
+      let durableSourceUrl = ''
+
+      if (shouldUseRemoteStorage) {
+        const remoteUploadStartMs = nowMs()
+        const folder = path.basename(path.dirname(file.path || 'posts'))
+        const uploadedSource = await uploadLocalFileToRemoteStorage(
+          {
+            ...file,
+            mimetype: file.safeMimeType,
+          },
+          { folder, uploadClass: 'loop-video' },
+        )
+        durableSourceUrl = uploadedSource.url
+        incrementTrace('remoteUploadMs', nowMs() - remoteUploadStartMs)
+        const remoteCleanupStartMs = nowMs()
+        await removeUploadedFiles([file])
+        incrementTrace('remoteCleanupMs', nowMs() - remoteCleanupStartMs)
+      }
+
       mediaItems.push({
-        url: fallbackUrl,
+        url: durableSourceUrl || fallbackUrl,
         hlsUrl: '',
         posterUrl: '',
         type: 'video',
@@ -287,7 +306,8 @@ async function buildMediaItems(files = [], options = {}) {
         processingProgress: 0,
         processingError: '',
         _processingSource: {
-          path: file.path,
+          path: durableSourceUrl ? '' : file.path,
+          sourceUrl: durableSourceUrl,
           originalName: file.originalname || path.basename(file.path),
           mimeType: file.safeMimeType,
         },
