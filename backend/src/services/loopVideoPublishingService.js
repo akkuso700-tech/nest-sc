@@ -28,6 +28,7 @@ function mimeTypeForPath(filePath) {
   const extension = path.extname(filePath).toLowerCase()
   if (extension === '.m3u8') return 'application/vnd.apple.mpegurl'
   if (extension === '.m4s' || extension === '.mp4') return 'video/mp4'
+  if (extension === '.ts') return 'video/mp2t'
   if (extension === '.webp') return 'image/webp'
   return 'application/octet-stream'
 }
@@ -69,7 +70,7 @@ async function mapWithConcurrency(items, concurrency, mapper) {
 async function publishRemoteRendition(rendition) {
   const files = await fs.promises.readdir(rendition.directory)
   const assetFiles = files
-    .filter((name) => name === 'init.mp4' || name.endsWith('.m4s'))
+    .filter((name) => name.endsWith('.ts'))
     .sort()
   const uploadedAssets = new Map()
 
@@ -123,7 +124,9 @@ async function writeRemoteMaster(outputDirectory, renditions) {
       rendition.url,
     )
   })
-  const filePath = path.join(outputDirectory, 'master-remote.m3u8')
+  // The distinct name lets clients avoid legacy fMP4 manifests that some
+  // shared-hosting HTTP stacks serve unreliably while preserving MP4 fallback.
+  const filePath = path.join(outputDirectory, 'master-ts-remote.m3u8')
   await fs.promises.writeFile(filePath, `${lines.join('\n')}\n`, 'utf8')
   return filePath
 }

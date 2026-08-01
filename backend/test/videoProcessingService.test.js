@@ -9,6 +9,7 @@ const {
   resolveFfmpegBinary,
   LOW_RESOURCE_ENCODER_PROFILES,
   buildAdaptiveEncodeArgs,
+  buildHlsPackageArgs,
   effectiveRenditionBitrate,
   isEncoderResourceError,
 } = require('../src/services/videoProcessingService')
@@ -114,6 +115,14 @@ test('fallback profile reports its reduced effective bitrate in HLS metadata', (
     ),
     2040,
   )
+})
+
+test('HLS packaging uses Hostinger-compatible MPEG-TS segments', () => {
+  const args = buildHlsPackageArgs('input.mp4')
+  assert.equal(args[args.indexOf('-hls_segment_type') + 1], 'mpegts')
+  assert.equal(args[args.indexOf('-hls_segment_filename') + 1], 'segment-%05d.ts')
+  assert.equal(args.includes('fmp4'), false)
+  assert.equal(args.some((value) => String(value).endsWith('.m4s')), false)
 })
 
 test('worker lease model provides a unique named lease with expiry', () => {
