@@ -1114,7 +1114,7 @@ function HomePage() {
   }, [feedState.posts])
   const firstFeedPostId = getPostIdentifier(feedState.posts[0])
 
-  async function handleCreatePost(payload, options = {}) {
+  async function handleCreatePost(payload) {
     setIsPublishing(true)
 
     try {
@@ -1127,7 +1127,7 @@ function HomePage() {
       }
 
       const contentType = resolveContentType()
-      const response = contentType === 'story' ? await createStory(payload) : await createPost(payload, options)
+      const response = contentType === 'story' ? await createStory(payload) : await createPost(payload)
       const isScheduled = Boolean(response?.meta?.scheduled)
 
       if (contentType === 'story' && response?.story) {

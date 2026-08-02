@@ -288,7 +288,6 @@ async function uploadBufferToS3({
 
   return {
     url: resolveS3PublicUrl(objectKey),
-    objectKey,
     bytes: buffer.length,
     durationSeconds: 0,
   }
@@ -553,12 +552,7 @@ async function uploadProfileDataImage(dataUri, { username = 'user', kind = 'avat
 
 module.exports = {
   dataImagePattern,
-  buildS3ObjectKey,
   isRemoteStorageEnabled,
-  isS3StorageEnabled,
-  resolveS3Client,
-  resolveS3PublicUrl,
-  uploadBufferToRemoteStorage,
   uploadLocalFileToRemoteStorage,
   uploadProfileDataImage,
 }

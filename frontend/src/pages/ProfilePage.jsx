@@ -809,11 +809,11 @@ function ProfilePage() {
     )
   }
 
-  async function handleCreateProfilePost(payload, options = {}) {
+  async function handleCreateProfilePost(payload) {
     setIsPublishing(true)
 
     try {
-      const response = await createPost(payload, options)
+      const response = await createPost(payload)
       if (!response?.meta?.scheduled && response?.post) {
         setProfileState((currentState) => ({
           ...currentState,

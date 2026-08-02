@@ -21,7 +21,6 @@ async function enqueueLoopVideo({
   mediaIndex = 0,
   sourcePath = '',
   sourceUrl = '',
-  sourceObjectKey = '',
   originalName,
   mimeType,
   priority = LOOP_JOB_PRIORITIES.USER_UPLOAD,
@@ -32,7 +31,6 @@ async function enqueueLoopVideo({
       $setOnInsert: {
         sourcePath,
         sourceUrl,
-        sourceObjectKey,
         originalName: originalName || 'loop-video',
         mimeType: mimeType || 'video/mp4',
         workerSlot: LOOP_WORKER_SLOT,
@@ -437,7 +435,6 @@ async function completeJob(job, mediaResult) {
         [`${mediaPath}.processingProgress`]: 100,
         [`${mediaPath}.processingError`]: '',
         [`${mediaPath}.renditions`]: mediaResult.renditions || [],
-        [`${mediaPath}.storageKeys`]: mediaResult.storageKeys || [],
       },
     },
   )
