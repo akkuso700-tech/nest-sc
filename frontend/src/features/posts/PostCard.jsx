@@ -578,7 +578,11 @@ function PostCard({
     videoRef: loopVideoRef,
     hlsUrl: loopHlsUrl,
     fallbackUrl: loopFallbackUrl,
-    enabled: Boolean(loopVideoItem && !isLoopProcessing),
+    enabled: Boolean(
+      loopVideoItem &&
+      !isLoopProcessing &&
+      (!isLoopVariant || isLoopInViewport || ['active', 'next'].includes(loopPreloadMode)),
+    ),
   })
   const loopPosterUrl = resolveMediaUrl(loopVideoItem?.posterUrl || '')
 

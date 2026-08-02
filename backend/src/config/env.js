@@ -154,6 +154,12 @@ const envSchema = z.object({
   LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS: z.coerce.number().int().positive().default(2 * 60 * 1000),
   LOOP_BACKFILL_MAX_SOURCE_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
   LOOP_UPLOAD_CONCURRENCY: z.coerce.number().int().min(1).max(6).default(3),
+  LOOP_DIRECT_UPLOAD_ENABLED: z.string().optional(),
+  LOOP_DIRECT_UPLOAD_URL: optionalTrimmedString(10),
+  LOOP_DIRECT_UPLOAD_SECRET: optionalTrimmedString(32),
+  LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(600),
+  LOOP_DIRECT_UPLOAD_CHUNK_BYTES: z.coerce.number().int().min(1024 * 1024).max(16 * 1024 * 1024).default(8 * 1024 * 1024),
+  LOOP_HOSTINGER_MEDIA_ROOT: optionalTrimmedString(2),
 })
 
 const parsedEnv = envSchema.safeParse(envSource)
@@ -195,6 +201,21 @@ if (
   console.error({
     HOSTINGER_UPLOAD_URL: ['Required when STORAGE_PROVIDER=hostinger.'],
     HOSTINGER_UPLOAD_TOKEN: ['Required when STORAGE_PROVIDER=hostinger.'],
+  })
+  process.exit(1)
+}
+
+if (
+  parseBoolean(rawEnv.LOOP_DIRECT_UPLOAD_ENABLED, false) &&
+  (!(rawEnv.LOOP_DIRECT_UPLOAD_URL || rawEnv.HOSTINGER_UPLOAD_URL) ||
+    !rawEnv.LOOP_DIRECT_UPLOAD_SECRET ||
+    !rawEnv.HOSTINGER_PUBLIC_BASE_URL)
+) {
+  console.error('Invalid environment variables:')
+  console.error({
+    LOOP_DIRECT_UPLOAD_URL: ['LOOP_DIRECT_UPLOAD_URL or HOSTINGER_UPLOAD_URL is required when direct upload is enabled.'],
+    LOOP_DIRECT_UPLOAD_SECRET: ['A separate secret of at least 32 characters is required when direct upload is enabled.'],
+    HOSTINGER_PUBLIC_BASE_URL: ['Required when direct upload is enabled.'],
   })
   process.exit(1)
 }
@@ -275,6 +296,12 @@ const env = {
   loopBackfillDownloadTimeoutMs: rawEnv.LOOP_BACKFILL_DOWNLOAD_TIMEOUT_MS,
   loopBackfillMaxSourceBytes: rawEnv.LOOP_BACKFILL_MAX_SOURCE_BYTES,
   loopUploadConcurrency: rawEnv.LOOP_UPLOAD_CONCURRENCY,
+  loopDirectUploadEnabled: parseBoolean(rawEnv.LOOP_DIRECT_UPLOAD_ENABLED, false),
+  loopDirectUploadUrl: rawEnv.LOOP_DIRECT_UPLOAD_URL || rawEnv.HOSTINGER_UPLOAD_URL || undefined,
+  loopDirectUploadSecret: rawEnv.LOOP_DIRECT_UPLOAD_SECRET || undefined,
+  loopDirectUploadTicketTtlSeconds: rawEnv.LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS,
+  loopDirectUploadChunkBytes: rawEnv.LOOP_DIRECT_UPLOAD_CHUNK_BYTES,
+  loopHostingerMediaRoot: rawEnv.LOOP_HOSTINGER_MEDIA_ROOT || undefined,
   jwt: {
     accessSecret: rawEnv.JWT_ACCESS_SECRET,
     refreshSecret: rawEnv.JWT_REFRESH_SECRET,

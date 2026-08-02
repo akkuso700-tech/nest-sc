@@ -31,6 +31,7 @@ const { normalizeUserMedia } = require('../utils/mediaUrls')
 const { sanitizeTitle, slugifyTitle } = require('../utils/postSeo')
 const { env } = require('../config/env')
 const { enqueueLoopVideo } = require('../services/videoProcessingQueueService')
+const { verifyLoopUploadSubmission } = require('../services/loopDirectUploadService')
 
 const TREND_CACHE_TTL_MS = 45 * 1000
 const LOOP_COMPLETION_THRESHOLD = 0.95
@@ -591,6 +592,10 @@ const createPostBodySchema = z.object({
   contentType: z.enum(['post', 'loop']).optional().default('post'),
   publishMode: z.enum(['publish', 'schedule']).optional().default('publish'),
   scheduledFor: z.string().datetime().optional(),
+  loopUpload: z.object({
+    ticket: z.string().min(40),
+    sourceUrl: z.string().url(),
+  }).optional(),
 })
 
 const createCommentBodySchema = z
@@ -607,6 +612,18 @@ async function parsePostInput(req) {
   }
 
   const title = sanitizeTitle(result.data.title || '')
+  const hasDirectLoopUpload = Boolean(result.data.loopUpload)
+
+  if (hasDirectLoopUpload && result.data.contentType !== 'loop') {
+    throw new AppError('Direct video upload can only be used for Loop posts.', 400)
+  }
+  if (hasDirectLoopUpload && (req.files || []).length) {
+    throw new AppError('Choose either direct upload or multipart media, not both.', 400)
+  }
+
+  const directLoopUpload = hasDirectLoopUpload
+    ? verifyLoopUploadSubmission(result.data.loopUpload, req.user?._id)
+    : null
   const builtMedia = await buildMediaItems(req.files || [], {
     contentType: result.data.contentType,
     trace: req.uploadPerfTrace || null,
@@ -621,6 +638,26 @@ async function parsePostInput(req) {
     }
     return publicMedia
   })
+
+  if (directLoopUpload) {
+    media.push({
+      url: directLoopUpload.sourceUrl,
+      hlsUrl: '',
+      posterUrl: '',
+      type: 'video',
+      durationSeconds: 0,
+      processing: 'queued',
+      processingProgress: 0,
+      processingError: '',
+    })
+    processingJobs.push({
+      mediaIndex: media.length - 1,
+      path: '',
+      sourceUrl: directLoopUpload.sourceUrl,
+      originalName: directLoopUpload.fileName,
+      mimeType: directLoopUpload.mimeType,
+    })
+  }
 
   if (!result.data.text.trim() && !media.length) {
     throw new AppError('Post text or media is required.', 400)

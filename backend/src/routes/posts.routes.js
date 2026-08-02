@@ -5,6 +5,7 @@ const {
   authenticateOptional,
 } = require('../middlewares/authenticate')
 const { createUploadMiddleware } = require('../middlewares/uploadMedia')
+const { createLoopUploadTicket } = require('../controllers/loopUploadsController')
 const {
   createPost,
   getFeed,
@@ -45,6 +46,7 @@ const uploadCommentMedia = createUploadMiddleware('comments', 1)
 
 postsRouter.get('/feed', authenticateOptional, validateRequest(feedSchema), getFeed)
 postsRouter.get('/trends', authenticateOptional, validateRequest(trendsSchema), getTrendingTopics)
+postsRouter.post('/loop-upload-ticket', authenticate, createLoopUploadTicket)
 postsRouter.post(
   '/comments/:commentId/like',
   authenticate,

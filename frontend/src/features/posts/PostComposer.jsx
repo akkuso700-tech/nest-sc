@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 import { getFullName } from '../../utils/social.js'
 import { resolveMediaUrl } from '../../utils/media.js'
-import { getTrendingTopics } from '../../services/postsService.js'
+import { getTrendingTopics, uploadLoopVideoDirect } from '../../services/postsService.js'
 import { searchUsers } from '../../services/usersService.js'
 import { getConversations } from '../../services/messagesService.js'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
@@ -267,6 +267,7 @@ function PostComposer({
   const [showDismissMenu, setShowDismissMenu] = useState(false)
   const [showPlanner, setShowPlanner] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState('')
+  const [directUploadProgress, setDirectUploadProgress] = useState(null)
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
   const [storyMusicTitle, setStoryMusicTitle] = useState('')
@@ -292,6 +293,8 @@ function PostComposer({
   const isGroupComposer = Boolean(`${groupName || ''}`.trim())
   const resolvedGroupCoverUrl = resolveMediaUrl(groupCoverImageUrl || '')
   const handledMobileMediaIntentRef = useRef('')
+  const isDirectUploading = Number.isFinite(directUploadProgress)
+  const isComposerBusy = isSubmitting || isOptimizingMedia || isDirectUploading
 
   useEffect(() => {
     syncTextareaHeight(textareaRef.current, getTextareaMaxHeight(isMobileFullscreen))
@@ -974,7 +977,7 @@ function PostComposer({
     event.preventDefault()
     const submitStartMs = Date.now()
 
-    if (isOptimizingMedia) {
+    if (isOptimizingMedia || isDirectUploading) {
       return
     }
 
@@ -1025,7 +1028,25 @@ function PostComposer({
         ...(isStoryComposer && storyMeta ? { storyMeta } : {}),
       }
 
-      if (selectedFiles.length) {
+      const directLoopFile = contentType === 'loop' && selectedFiles.length === 1 && selectedFiles[0].type.startsWith('video/')
+        ? selectedFiles[0]
+        : null
+      let directLoopUpload = null
+
+      if (directLoopFile) {
+        setDirectUploadProgress(0)
+        try {
+          directLoopUpload = await uploadLoopVideoDirect(directLoopFile, {
+            onProgress: setDirectUploadProgress,
+          })
+        } finally {
+          setDirectUploadProgress(null)
+        }
+      }
+
+      if (directLoopUpload) {
+        payload.loopUpload = directLoopUpload
+      } else if (selectedFiles.length) {
         const formData = new FormData()
         formData.set('title', title.trim())
         formData.set('text', draft.trim())
@@ -1460,6 +1481,12 @@ function PostComposer({
               </div>
             ) : null}
 
+            {isDirectUploading ? (
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200">
+                Video doğrudan medya sunucusuna yükleniyor: %{Math.max(0, Math.min(100, directUploadProgress || 0))}
+              </div>
+            ) : null}
+
             {submitSuccess ? (
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
                 {submitSuccess}
@@ -1544,7 +1571,7 @@ function PostComposer({
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
-                disabled={isSubmitting || isOptimizingMedia}
+                disabled={isComposerBusy}
                 className="grid size-10 place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label={t('composer.addPhoto', { defaultValue: 'Add photo' })}
               >
@@ -1553,7 +1580,7 @@ function PostComposer({
               <button
                 type="button"
                 onClick={() => videoInputRef.current?.click()}
-                disabled={isSubmitting || isOptimizingMedia}
+                disabled={isComposerBusy}
                 className="grid size-10 place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label={t('composer.addVideo', { defaultValue: 'Add video' })}
               >
@@ -1661,7 +1688,7 @@ function PostComposer({
                     <button
                       type="button"
                       onClick={(event) => handleSubmit(event, 'schedule')}
-                      disabled={isSubmitting || isOptimizingMedia || (!title.trim() && !draft.trim() && !selectedFiles.length)}
+                      disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                       className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                     >
                       {isSubmitting
@@ -1675,7 +1702,7 @@ function PostComposer({
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || isOptimizingMedia || (!title.trim() && !draft.trim() && !selectedFiles.length)}
+                  disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                   className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                 >
                   {isSubmitting
@@ -1991,6 +2018,12 @@ function PostComposer({
                 </div>
               ) : null}
 
+              {isDirectUploading ? (
+                <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200">
+                  Video doğrudan medya sunucusuna yükleniyor: %{Math.max(0, Math.min(100, directUploadProgress || 0))}
+                </div>
+              ) : null}
+
               {submitSuccess ? (
                 <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
                   {submitSuccess}
@@ -2022,7 +2055,7 @@ function PostComposer({
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      disabled={isSubmitting || isOptimizingMedia}
+                      disabled={isComposerBusy}
                       className="grid size-11 cursor-pointer place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={t('composer.addPhoto', { defaultValue: 'Add photo' })}
                     >
@@ -2031,7 +2064,7 @@ function PostComposer({
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      disabled={isSubmitting || isOptimizingMedia}
+                      disabled={isComposerBusy}
                       className="grid size-11 cursor-pointer place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={t('composer.addVideo', { defaultValue: 'Add video' })}
                     >
@@ -2194,7 +2227,7 @@ function PostComposer({
                           <button
                             type="button"
                             onClick={(event) => handleSubmit(event, 'schedule')}
-                            disabled={isSubmitting || isOptimizingMedia || (!title.trim() && !draft.trim() && !selectedFiles.length)}
+                            disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                             className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                           >
                             {isSubmitting
@@ -2208,7 +2241,7 @@ function PostComposer({
 
                     <button
                       type="submit"
-                      disabled={isSubmitting || isOptimizingMedia || (!title.trim() && !draft.trim() && !selectedFiles.length)}
+                      disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                       className="rounded-lg cursor-pointer bg-primary px-10 py-2 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                     >
                       {isSubmitting
