@@ -49,7 +49,6 @@ const postSchema = new mongoose.Schema(
         },
         processingProgress: { type: Number, min: 0, max: 100, default: 0 },
         processingError: { type: String, default: '' },
-        storageKeys: [{ type: String, trim: true }],
         renditions: [
           {
             name: { type: String, default: '' },

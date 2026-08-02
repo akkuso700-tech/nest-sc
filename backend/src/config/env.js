@@ -104,7 +104,6 @@ const envSchema = z.object({
     .default('mongodb://127.0.0.1:27017/my-social-1'),
   STORAGE_PROVIDER: z.enum(['local', 's3', 'hostinger']).default('local'),
   S3_BUCKET: optionalTrimmedString(3),
-  S3_SOURCE_BUCKET: optionalTrimmedString(3),
   S3_REGION: optionalTrimmedString(2),
   S3_ENDPOINT: optionalTrimmedString(8),
   S3_PUBLIC_BASE_URL: optionalTrimmedString(8),
@@ -113,10 +112,6 @@ const envSchema = z.object({
   S3_PREFIX: optionalTrimmedString(2),
   S3_OBJECT_ACL: optionalTrimmedString(3),
   S3_FORCE_PATH_STYLE: z.string().optional(),
-  DIRECT_VIDEO_UPLOADS_ENABLED: z.string().optional(),
-  DIRECT_VIDEO_UPLOAD_PART_SIZE_BYTES: z.coerce.number().int().min(5 * 1024 * 1024).max(25 * 1024 * 1024).default(8 * 1024 * 1024),
-  DIRECT_VIDEO_UPLOAD_URL_TTL_SECONDS: z.coerce.number().int().min(300).max(3600).default(900),
-  DIRECT_VIDEO_UPLOAD_SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(72).default(24),
   HOSTINGER_UPLOAD_URL: optionalTrimmedString(10),
   HOSTINGER_UPLOAD_TOKEN: optionalTrimmedString(12),
   HOSTINGER_PUBLIC_BASE_URL: optionalTrimmedString(10),
@@ -193,16 +188,6 @@ if (
 }
 
 if (
-  rawEnv.STORAGE_PROVIDER === 's3' &&
-  parseBoolean(rawEnv.DIRECT_VIDEO_UPLOADS_ENABLED, false) &&
-  !rawEnv.S3_SOURCE_BUCKET
-) {
-  console.error('Invalid environment variables:')
-  console.error({ S3_SOURCE_BUCKET: ['Required when direct video uploads are enabled.'] })
-  process.exit(1)
-}
-
-if (
   rawEnv.STORAGE_PROVIDER === 'hostinger' &&
   (!rawEnv.HOSTINGER_UPLOAD_URL || !rawEnv.HOSTINGER_UPLOAD_TOKEN)
 ) {
@@ -237,7 +222,6 @@ const env = {
   mongoUri: rawEnv.MONGODB_URI,
   storageProvider: rawEnv.STORAGE_PROVIDER,
   s3Bucket: rawEnv.S3_BUCKET || undefined,
-  s3SourceBucket: rawEnv.S3_SOURCE_BUCKET || undefined,
   s3Region: rawEnv.S3_REGION || 'us-east-1',
   s3Endpoint: rawEnv.S3_ENDPOINT || undefined,
   s3PublicBaseUrl: rawEnv.S3_PUBLIC_BASE_URL || undefined,
@@ -246,11 +230,6 @@ const env = {
   s3Prefix: rawEnv.S3_PREFIX || 'nest-social',
   s3ObjectAcl: rawEnv.S3_OBJECT_ACL || undefined,
   s3ForcePathStyle: parseBoolean(rawEnv.S3_FORCE_PATH_STYLE, false),
-  directVideoUploadsEnabled:
-    rawEnv.STORAGE_PROVIDER === 's3' && parseBoolean(rawEnv.DIRECT_VIDEO_UPLOADS_ENABLED, false),
-  directVideoUploadPartSizeBytes: rawEnv.DIRECT_VIDEO_UPLOAD_PART_SIZE_BYTES,
-  directVideoUploadUrlTtlSeconds: rawEnv.DIRECT_VIDEO_UPLOAD_URL_TTL_SECONDS,
-  directVideoUploadSessionTtlHours: rawEnv.DIRECT_VIDEO_UPLOAD_SESSION_TTL_HOURS,
   hostingerUploadUrl: rawEnv.HOSTINGER_UPLOAD_URL || undefined,
   hostingerUploadToken: rawEnv.HOSTINGER_UPLOAD_TOKEN || undefined,
   hostingerPublicBaseUrl: rawEnv.HOSTINGER_PUBLIC_BASE_URL || undefined,
