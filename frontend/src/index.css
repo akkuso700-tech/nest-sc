@@ -317,3 +317,13 @@ a {
     transform: translateY(0) scale(1);
   }
 }
+
+@keyframes upload-indeterminate {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(260%);
+  }
+}

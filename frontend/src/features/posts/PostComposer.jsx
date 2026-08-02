@@ -8,6 +8,7 @@ import { getConversations } from '../../services/messagesService.js'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
 import { compressImageToFile, formatBytes } from '../../utils/imageUpload.js'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery.js'
+import { useUploadManager } from '../uploads/UploadManagerContext.jsx'
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -225,7 +226,6 @@ function measureSuggestionAnchor(textarea, value, caretPosition) {
 function PostComposer({
   user,
   onSubmit,
-  isSubmitting = false,
   defaultExpanded = false,
   hideCollapsed = false,
   initialMediaIntent = '',
@@ -237,6 +237,7 @@ function PostComposer({
   groupCoverImageUrl = '',
 }) {
   const { t } = useTranslation()
+  const { enqueueUpload } = useUploadManager()
   const composerRef = useRef(null)
   const plannerRef = useRef(null)
   const privacyMenuRef = useRef(null)
@@ -267,7 +268,6 @@ function PostComposer({
   const [showDismissMenu, setShowDismissMenu] = useState(false)
   const [showPlanner, setShowPlanner] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState('')
-  const [directUploadProgress, setDirectUploadProgress] = useState(null)
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
   const [storyMusicTitle, setStoryMusicTitle] = useState('')
@@ -293,8 +293,7 @@ function PostComposer({
   const isGroupComposer = Boolean(`${groupName || ''}`.trim())
   const resolvedGroupCoverUrl = resolveMediaUrl(groupCoverImageUrl || '')
   const handledMobileMediaIntentRef = useRef('')
-  const isDirectUploading = Number.isFinite(directUploadProgress)
-  const isComposerBusy = isSubmitting || isOptimizingMedia || isDirectUploading
+  const isComposerBusy = isOptimizingMedia
 
   useEffect(() => {
     syncTextareaHeight(textareaRef.current, getTextareaMaxHeight(isMobileFullscreen))
@@ -975,9 +974,8 @@ function PostComposer({
 
   async function handleSubmit(event, mode = 'publish') {
     event.preventDefault()
-    const submitStartMs = Date.now()
 
-    if (isOptimizingMedia || isDirectUploading) {
+    if (isOptimizingMedia) {
       return
     }
 
@@ -1011,92 +1009,129 @@ function PostComposer({
       return
     }
 
-    try {
-      const contentType = isStoryComposer
-        ? 'story'
-        : allowLoopOption && publishToLoop
-          ? 'loop'
-          : 'post'
-
-      let payload = {
-        title: title.trim(),
-        text: draft.trim(),
-        privacy,
-        contentType,
-        publishMode: isScheduled ? 'schedule' : 'publish',
-        scheduledFor: scheduledFor || undefined,
-        ...(isStoryComposer && storyMeta ? { storyMeta } : {}),
-      }
-
-      const directLoopFile = contentType === 'loop' && selectedFiles.length === 1 && selectedFiles[0].type.startsWith('video/')
-        ? selectedFiles[0]
-        : null
-      let directLoopUpload = null
-
-      if (directLoopFile) {
-        setDirectUploadProgress(0)
-        try {
-          directLoopUpload = await uploadLoopVideoDirect(directLoopFile, {
-            onProgress: setDirectUploadProgress,
-          })
-        } finally {
-          setDirectUploadProgress(null)
-        }
-      }
-
-      if (directLoopUpload) {
-        payload.loopUpload = directLoopUpload
-      } else if (selectedFiles.length) {
-        const formData = new FormData()
-        formData.set('title', title.trim())
-        formData.set('text', draft.trim())
-        formData.set('privacy', privacy)
-        formData.set('contentType', contentType)
-        formData.set('publishMode', isScheduled ? 'schedule' : 'publish')
-        if (scheduledFor) {
-          formData.set('scheduledFor', scheduledFor)
-        }
-        if (isStoryComposer && storyMeta) {
-          formData.set('storyMeta', JSON.stringify(storyMeta))
-        }
-        selectedFiles.forEach((file) => {
-          formData.append('media', file)
-        })
-        payload = formData
-      }
-
-      const response = await onSubmit(payload)
-      const submitDurationMs = Date.now() - submitStartMs
-      const successMessage =
-        response?.message ||
-        (isScheduled
-          ? t('home.postScheduled', { defaultValue: 'Post scheduled.' })
-          : isStoryComposer
-            ? t('home.storyPublished', { defaultValue: 'Story published.' })
-            : t('home.postPublished', { defaultValue: 'Post published.' }))
-
-      resetComposer()
-      setSubmitSuccess(successMessage)
-      logUploadPerf({
-        flow: 'create_post',
-        ok: true,
-        mode,
-        contentType,
-        mediaCount: selectedFiles.length,
-        durationMs: submitDurationMs,
-        mediaBytes: selectedFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0),
-      })
-    } catch (error) {
-      setSubmitError(error.message || t('home.postPublishFailed', { defaultValue: 'Post action could not be completed.' }))
-      logUploadPerf({
-        flow: 'create_post',
-        ok: false,
-        mode,
-        mediaCount: selectedFiles.length,
-        durationMs: Date.now() - submitStartMs,
-        errorMessage: error.message || 'Post action could not be completed.',
-      })
+    const contentType = isStoryComposer
+      ? 'story'
+      : allowLoopOption && publishToLoop
+        ? 'loop'
+        : 'post'
+    const files = [...selectedFiles]
+    const mediaCount = files.length
+    const mediaBytes = files.reduce((sum, file) => sum + Number(file?.size || 0), 0)
+    const snapshot = {
+      title: title.trim(),
+      text: draft.trim(),
+      privacy,
+      contentType,
+      publishMode: isScheduled ? 'schedule' : 'publish',
+      scheduledFor: scheduledFor || undefined,
+      storyMeta: isStoryComposer && storyMeta ? storyMeta : null,
     }
+    const directLoopFile = contentType === 'loop' && files.length === 1 && files[0].type.startsWith('video/')
+      ? files[0]
+      : null
+    const uploadTitle = isScheduled
+      ? t('uploadTray.schedulingPost', { defaultValue: 'Paylaşım planlanıyor' })
+      : contentType === 'loop'
+        ? t('uploadTray.loopTitle', { defaultValue: 'Loop videosu yükleniyor' })
+        : contentType === 'story'
+          ? t('uploadTray.storyTitle', { defaultValue: 'Hikâye yükleniyor' })
+          : mediaCount
+            ? t('uploadTray.contentTitle', { defaultValue: 'İçerik yükleniyor' })
+            : t('uploadTray.publishingPost', { defaultValue: 'Paylaşım yayınlanıyor' })
+
+    enqueueUpload({
+      title: uploadTitle,
+      kind: directLoopFile ? 'video' : 'content',
+      cancellable: Boolean(directLoopFile),
+      initialProgress: directLoopFile ? 0 : null,
+      initialPhase: directLoopFile
+        ? t('uploadTray.preparingVideo', { defaultValue: 'Video hazırlanıyor' })
+        : t('uploadTray.uploadingContent', { defaultValue: 'İçerik gönderiliyor' }),
+      successPhase: isScheduled
+        ? t('home.postScheduled', { defaultValue: 'Gönderi planlandı.' })
+        : contentType === 'story'
+          ? t('home.storyPublished', { defaultValue: 'Hikâye paylaşıldı.' })
+          : t('home.postPublished', { defaultValue: 'Gönderi paylaşıldı.' }),
+      failedPhase: t('home.postPublishFailed', { defaultValue: 'Paylaşım tamamlanamadı.' }),
+      cancelledPhase: t('uploadTray.cancelled', { defaultValue: 'Yükleme iptal edildi' }),
+      async run({ signal, setPhase, setProgress }) {
+        const submitStartMs = Date.now()
+
+        try {
+          let payload = {
+            title: snapshot.title,
+            text: snapshot.text,
+            privacy: snapshot.privacy,
+            contentType: snapshot.contentType,
+            publishMode: snapshot.publishMode,
+            scheduledFor: snapshot.scheduledFor,
+            ...(snapshot.storyMeta ? { storyMeta: snapshot.storyMeta } : {}),
+          }
+          let directLoopUpload = null
+
+          if (directLoopFile) {
+            directLoopUpload = await uploadLoopVideoDirect(directLoopFile, {
+              signal,
+              onProgress(progress) {
+                setPhase(t('uploadTray.uploadingVideo', { defaultValue: 'Video medya sunucusuna yükleniyor' }))
+                setProgress(progress)
+              },
+            })
+          }
+
+          if (directLoopUpload) {
+            payload.loopUpload = directLoopUpload
+          } else if (files.length) {
+            const formData = new FormData()
+            formData.set('title', snapshot.title)
+            formData.set('text', snapshot.text)
+            formData.set('privacy', snapshot.privacy)
+            formData.set('contentType', snapshot.contentType)
+            formData.set('publishMode', snapshot.publishMode)
+            if (snapshot.scheduledFor) {
+              formData.set('scheduledFor', snapshot.scheduledFor)
+            }
+            if (snapshot.storyMeta) {
+              formData.set('storyMeta', JSON.stringify(snapshot.storyMeta))
+            }
+            files.forEach((file) => formData.append('media', file))
+            payload = formData
+          }
+
+          setPhase(
+            isScheduled
+              ? t('uploadTray.scheduling', { defaultValue: 'Paylaşım planlanıyor' })
+              : t('uploadTray.publishing', { defaultValue: 'Paylaşım yayınlanıyor' }),
+          )
+          const response = await onSubmit(payload, { background: true })
+
+          logUploadPerf({
+            flow: 'create_post',
+            ok: true,
+            mode,
+            contentType,
+            mediaCount,
+            durationMs: Date.now() - submitStartMs,
+            mediaBytes,
+          })
+          return response
+        } catch (error) {
+          logUploadPerf({
+            flow: 'create_post',
+            ok: false,
+            mode,
+            contentType,
+            mediaCount,
+            durationMs: Date.now() - submitStartMs,
+            mediaBytes,
+            errorMessage: error.message || 'Post action could not be completed.',
+          })
+          throw error
+        }
+      },
+    })
+
+    resetComposer()
   }
 
   const fullName = getFullName(user)
@@ -1481,12 +1516,6 @@ function PostComposer({
               </div>
             ) : null}
 
-            {isDirectUploading ? (
-              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200">
-                Video doğrudan medya sunucusuna yükleniyor: %{Math.max(0, Math.min(100, directUploadProgress || 0))}
-              </div>
-            ) : null}
-
             {submitSuccess ? (
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
                 {submitSuccess}
@@ -1691,9 +1720,7 @@ function PostComposer({
                       disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                       className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                     >
-                      {isSubmitting
-                        ? t('composer.scheduling', { defaultValue: 'Scheduling...' })
-                        : t('common.schedule', { defaultValue: 'Schedule' })}
+                      {t('common.schedule', { defaultValue: 'Schedule' })}
                     </button>
                   </div>
                 ) : null}
@@ -1705,9 +1732,7 @@ function PostComposer({
                   disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                   className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                 >
-                  {isSubmitting
-                    ? t('composer.sharing', { defaultValue: 'Sharing...' })
-                    : t('common.share', { defaultValue: 'Share' })}
+                  {t('common.share', { defaultValue: 'Share' })}
               </button>
             </div>
           </div>
@@ -2018,12 +2043,6 @@ function PostComposer({
                 </div>
               ) : null}
 
-              {isDirectUploading ? (
-                <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200">
-                  Video doğrudan medya sunucusuna yükleniyor: %{Math.max(0, Math.min(100, directUploadProgress || 0))}
-                </div>
-              ) : null}
-
               {submitSuccess ? (
                 <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
                   {submitSuccess}
@@ -2230,9 +2249,7 @@ function PostComposer({
                             disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                             className="mt-4 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                           >
-                            {isSubmitting
-                              ? t('composer.scheduling', { defaultValue: 'Scheduling...' })
-                              : t('common.schedule', { defaultValue: 'Schedule' })}
+                            {t('common.schedule', { defaultValue: 'Schedule' })}
                           </button>
                         </div>
                       ) : null}
@@ -2244,9 +2261,7 @@ function PostComposer({
                       disabled={isComposerBusy || (!title.trim() && !draft.trim() && !selectedFiles.length)}
                       className="rounded-lg cursor-pointer bg-primary px-10 py-2 text-sm font-semibold text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
                     >
-                      {isSubmitting
-                        ? t('composer.sharing', { defaultValue: 'Sharing...' })
-                        : t('common.share', { defaultValue: 'Share' })}
+                      {t('common.share', { defaultValue: 'Share' })}
                     </button>
                   </div>
                 </div>

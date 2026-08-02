@@ -26,12 +26,14 @@ async function bootstrapApp() {
     { default: App },
     { AuthProvider },
     { ThemeProvider },
+    { UploadManagerProvider },
   ] = await Promise.all([
     import('react-router-dom'),
     import('react-helmet-async'),
     import('./App.jsx'),
     import('./store/AuthContext.jsx'),
     import('./store/ThemeContext.jsx'),
+    import('./features/uploads/UploadManagerContext.jsx'),
     import('./i18n/index.js'),
   ])
 
@@ -40,9 +42,11 @@ async function bootstrapApp() {
       <HelmetProvider>
         <ThemeProvider>
           <AuthProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
+            <UploadManagerProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </UploadManagerProvider>
           </AuthProvider>
         </ThemeProvider>
       </HelmetProvider>
