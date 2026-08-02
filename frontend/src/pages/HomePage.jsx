@@ -1114,7 +1114,7 @@ function HomePage() {
   }, [feedState.posts])
   const firstFeedPostId = getPostIdentifier(feedState.posts[0])
 
-  async function handleCreatePost(payload) {
+  async function handleCreatePost(payload, options = {}) {
     setIsPublishing(true)
 
     try {
@@ -1167,22 +1167,26 @@ function HomePage() {
       }))
       }
 
-      setToast({
-        message:
-          contentType === 'story'
-            ? t('home.storyPublished', { defaultValue: 'Hikaye paylasildi.' })
-            : isScheduled
-              ? t('home.postScheduled', { defaultValue: 'Gonderi planlandi.' })
-              : t('home.postPublished', { defaultValue: 'Gonderi paylasildi.' }),
-        tone: 'success',
-      })
+      if (!options.background) {
+        setToast({
+          message:
+            contentType === 'story'
+              ? t('home.storyPublished', { defaultValue: 'Hikaye paylasildi.' })
+              : isScheduled
+                ? t('home.postScheduled', { defaultValue: 'Gonderi planlandi.' })
+                : t('home.postPublished', { defaultValue: 'Gonderi paylasildi.' }),
+          tone: 'success',
+        })
+      }
 
       return response
     } catch (error) {
-      setToast({
-        message: error.message || t('home.postPublishFailed', { defaultValue: 'Gonderi islemi tamamlanamadi.' }),
-        tone: 'error',
-      })
+      if (!options.background) {
+        setToast({
+          message: error.message || t('home.postPublishFailed', { defaultValue: 'Gonderi islemi tamamlanamadi.' }),
+          tone: 'error',
+        })
+      }
       throw error
     } finally {
       setIsPublishing(false)

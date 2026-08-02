@@ -809,7 +809,7 @@ function ProfilePage() {
     )
   }
 
-  async function handleCreateProfilePost(payload) {
+  async function handleCreateProfilePost(payload, options = {}) {
     setIsPublishing(true)
 
     try {
@@ -833,18 +833,22 @@ function ProfilePage() {
         }))
         setActiveTab(isLoopPost(response.post) ? 'loops' : 'posts')
       }
-      setToast({
-        message: response?.meta?.scheduled
-          ? t('home.postScheduled', { defaultValue: 'Gönderi planlandı.' })
-          : t('home.postPublished', { defaultValue: 'Gönderi paylaşıldı.' }),
-        tone: 'success',
-      })
+      if (!options.background) {
+        setToast({
+          message: response?.meta?.scheduled
+            ? t('home.postScheduled', { defaultValue: 'Gönderi planlandı.' })
+            : t('home.postPublished', { defaultValue: 'Gönderi paylaşıldı.' }),
+          tone: 'success',
+        })
+      }
       return response
     } catch (error) {
-      setToast({
-        message: error.message || t('home.postPublishFailed', { defaultValue: 'Gönderi yayınlanamadı.' }),
-        tone: 'error',
-      })
+      if (!options.background) {
+        setToast({
+          message: error.message || t('home.postPublishFailed', { defaultValue: 'Gönderi yayınlanamadı.' }),
+          tone: 'error',
+        })
+      }
       throw error
     } finally {
       setIsPublishing(false)
