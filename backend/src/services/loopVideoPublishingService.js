@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const { env } = require('../config/env')
 const {
   isRemoteStorageEnabled,
@@ -131,7 +132,54 @@ async function writeRemoteMaster(outputDirectory, renditions) {
   return filePath
 }
 
+function mountedMediaUrl(relativePath) {
+  const baseUrl = String(env.hostingerPublicBaseUrl || '').replace(/\/+$/, '')
+  return `${baseUrl}/media/${relativePath.split(path.sep).map(encodeURIComponent).join('/')}`
+}
+
+async function publishToMountedMediaRoot(result) {
+  const mediaRoot = path.resolve(env.loopHostingerMediaRoot)
+  const loopsRoot = path.join(mediaRoot, 'loops')
+  const packageId = crypto.randomUUID()
+  const stagingDirectory = path.join(loopsRoot, `.publishing-${packageId}`)
+  const targetDirectory = path.join(loopsRoot, packageId)
+
+  await fs.promises.mkdir(loopsRoot, { recursive: true })
+  try {
+    await fs.promises.cp(result.outputDirectory, stagingDirectory, { recursive: true, errorOnExist: true })
+    await fs.promises.rename(stagingDirectory, targetDirectory)
+  } catch (error) {
+    await fs.promises.rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined)
+    throw error
+  }
+
+  const relativeRoot = path.join('loops', packageId)
+  const fallbackRelativePath = path.join(
+    relativeRoot,
+    path.relative(result.outputDirectory, result.fallbackMp4Path),
+  )
+  return {
+    url: mountedMediaUrl(fallbackRelativePath),
+    hlsUrl: mountedMediaUrl(path.join(relativeRoot, 'master.m3u8')),
+    posterUrl: mountedMediaUrl(path.join(relativeRoot, 'poster.webp')),
+    durationSeconds: result.durationSeconds,
+    width: result.width,
+    height: result.height,
+    renditions: result.renditions.map((rendition) => ({
+      name: rendition.name,
+      width: rendition.width,
+      height: rendition.height,
+      bitrateKbps: rendition.bitrateKbps,
+      url: mountedMediaUrl(path.join(relativeRoot, rendition.name, 'index.m3u8')),
+    })),
+  }
+}
+
 async function publishAdaptiveLoopOutputs(result) {
+  if (env.loopHostingerMediaRoot && env.hostingerPublicBaseUrl) {
+    return publishToMountedMediaRoot(result)
+  }
+
   if (!isRemoteStorageEnabled()) {
     return {
       url: buildLocalMediaUrl(result.fallbackMp4Path),
@@ -176,5 +224,6 @@ module.exports = {
   assertPathInsideUploads,
   buildLocalMediaUrl,
   mapWithConcurrency,
+  publishToMountedMediaRoot,
   publishAdaptiveLoopOutputs,
 }

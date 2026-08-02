@@ -71,6 +71,25 @@ function safeVideoExtension(parsedUrl, mimeType = '') {
   return '.mp4'
 }
 
+async function resolveMountedDirectUploadSource(sourceUrl, mediaRoot = env.loopHostingerMediaRoot) {
+  if (!mediaRoot) return ''
+  const parsedUrl = assertTrustedLoopSourceUrl(sourceUrl)
+  const match = parsedUrl.pathname.match(/^\/media\/ingest\/([0-9a-f-]{36}\.(?:mp4|m4v|mov|webm))$/i)
+  if (!match) return ''
+
+  const resolvedRoot = path.resolve(mediaRoot)
+  const sourcePath = path.resolve(resolvedRoot, 'ingest', match[1])
+  const relativePath = path.relative(resolvedRoot, sourcePath)
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) return ''
+
+  try {
+    await fs.promises.access(sourcePath, fs.constants.R_OK)
+    return sourcePath
+  } catch {
+    return ''
+  }
+}
+
 function rebaseLegacyLoopSourcePath(sourcePath) {
   const normalizedPath = String(sourcePath || '').replace(/\\/g, '/')
   const uploadsMarker = '/uploads/'
@@ -209,6 +228,11 @@ async function materializeLoopJobSource(job, options = {}) {
     throw error
   }
 
+  const mountedSourcePath = await resolveMountedDirectUploadSource(job.sourceUrl)
+  if (mountedSourcePath) {
+    return { sourcePath: mountedSourcePath, temporary: false }
+  }
+
   const sourcePath = await downloadRemoteLoopSource(job.sourceUrl, {
     ...options,
     jobId: job._id || job.id,
@@ -221,5 +245,6 @@ module.exports = {
   assertTrustedLoopSourceUrl,
   downloadRemoteLoopSource,
   rebaseLegacyLoopSourcePath,
+  resolveMountedDirectUploadSource,
   materializeLoopJobSource,
 }

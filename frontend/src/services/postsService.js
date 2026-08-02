@@ -1,5 +1,105 @@
 import { apiRequest } from '../lib/apiClient.js'
 
+async function readDirectUploadResponse(response, fallbackMessage) {
+  let payload = null
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+  if (!response.ok) {
+    const error = new Error(payload?.message || fallbackMessage)
+    error.status = response.status
+    error.offset = Number(payload?.offset)
+    throw error
+  }
+  return payload
+}
+
+async function fetchUploadAction(endpoint, action, options = {}) {
+  const separator = endpoint.includes('?') ? '&' : '?'
+  return fetch(`${endpoint}${separator}action=${encodeURIComponent(action)}`, options)
+}
+
+async function resolveRemoteOffset(endpoint, ticket) {
+  const response = await fetchUploadAction(endpoint, 'status', {
+    method: 'POST',
+    headers: { 'X-Upload-Ticket': ticket },
+  })
+  const payload = await readDirectUploadResponse(response, 'Video upload status could not be read.')
+  return payload
+}
+
+export async function uploadLoopVideoDirect(file, options = {}) {
+  let session
+  try {
+    session = await apiRequest('/posts/loop-upload-ticket', {
+      method: 'POST',
+      body: JSON.stringify({
+        fileName: file.name,
+        mimeType: file.type || 'video/mp4',
+        bytes: file.size,
+      }),
+    })
+  } catch (error) {
+    if (error?.status === 503) return null
+    throw error
+  }
+
+  const { endpoint, ticket, sourceUrl } = session
+  const chunkBytes = Math.max(1024 * 1024, Number(session.chunkBytes) || 8 * 1024 * 1024)
+  let remoteState = await resolveRemoteOffset(endpoint, ticket)
+  let offset = Math.max(0, Math.min(file.size, Number(remoteState.offset) || 0))
+
+  while (!remoteState.complete && offset < file.size) {
+    let uploaded = false
+    let lastError = null
+
+    for (let attempt = 0; attempt < 3 && !uploaded; attempt += 1) {
+      try {
+        const chunk = file.slice(offset, Math.min(file.size, offset + chunkBytes))
+        const response = await fetchUploadAction(endpoint, 'chunk', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Upload-Ticket': ticket,
+            'Upload-Offset': String(offset),
+          },
+          body: chunk,
+          signal: options.signal,
+        })
+        const result = await readDirectUploadResponse(response, 'Video chunk could not be uploaded.')
+        offset = Number(result.offset)
+        remoteState = result
+        uploaded = true
+        options.onProgress?.(Math.min(100, Math.round((offset / file.size) * 100)))
+      } catch (error) {
+        lastError = error
+        if (options.signal?.aborted) throw error
+        try {
+          remoteState = await resolveRemoteOffset(endpoint, ticket)
+          offset = Math.max(0, Math.min(file.size, Number(remoteState.offset) || 0))
+          if (remoteState.complete || offset >= file.size) uploaded = true
+        } catch {
+          // Retry the same chunk; the status call on the next attempt will reconcile the offset.
+        }
+      }
+    }
+    if (!uploaded) throw lastError || new Error('Video upload could not be completed.')
+  }
+
+  const completeResponse = await fetchUploadAction(endpoint, 'complete', {
+    method: 'POST',
+    headers: { 'X-Upload-Ticket': ticket },
+  })
+  const completed = await readDirectUploadResponse(completeResponse, 'Video upload could not be finalized.')
+  options.onProgress?.(100)
+  return {
+    ticket,
+    sourceUrl: completed.url || sourceUrl,
+  }
+}
+
 export function getFeed(params = {}) {
   const searchParams = new URLSearchParams()
 

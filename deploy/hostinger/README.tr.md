@@ -23,6 +23,7 @@ Her iki upload domaininde de:
 ## upload.php ayari
 
 - `$UPLOAD_TOKEN` zorunlu: API env'deki `HOSTINGER_UPLOAD_TOKEN` ile birebir ayni olmali.
+- `$LOOP_DIRECT_UPLOAD_SECRET` zorunlu: API env'deki `LOOP_DIRECT_UPLOAD_SECRET` ile birebir ayni, en az 32 karakterlik ayri bir secret olmali.
 - `$PUBLIC_BASE_URL` bos birakilabilir. Bos ise script otomatik olarak cagrilan hostu baz alir.
   - Ornek: `upload.nest-sc.com` cagrildiysa URL `https://upload.nest-sc.com/media/...` doner.
 
@@ -34,6 +35,11 @@ HOSTINGER_UPLOAD_URL=https://upload.nest-sc.com/upload.php
 HOSTINGER_UPLOAD_TOKEN=replace-with-live-upload-token
 HOSTINGER_PUBLIC_BASE_URL=https://upload.nest-sc.com
 HOSTINGER_UPLOAD_TIMEOUT_MS=15000
+LOOP_DIRECT_UPLOAD_ENABLED=true
+LOOP_DIRECT_UPLOAD_URL=https://upload.nest-sc.com/upload.php
+LOOP_DIRECT_UPLOAD_SECRET=replace-with-a-separate-32-character-minimum-secret
+LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS=600
+LOOP_DIRECT_UPLOAD_CHUNK_BYTES=8388608
 ```
 
 ## Backend env (demo)
@@ -44,7 +50,29 @@ HOSTINGER_UPLOAD_URL=https://upload-demo.nest-sc.com/upload.php
 HOSTINGER_UPLOAD_TOKEN=replace-with-demo-upload-token
 HOSTINGER_PUBLIC_BASE_URL=https://upload-demo.nest-sc.com
 HOSTINGER_UPLOAD_TIMEOUT_MS=15000
+LOOP_DIRECT_UPLOAD_ENABLED=true
+LOOP_DIRECT_UPLOAD_URL=https://upload-demo.nest-sc.com/upload.php
+LOOP_DIRECT_UPLOAD_SECRET=replace-with-a-separate-demo-32-character-secret
+LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS=600
+LOOP_DIRECT_UPLOAD_CHUNK_BYTES=8388608
 ```
+
+## VPS worker ayni medya diskini goruyorsa
+
+Worker `upload.nest-sc.com` medya klasorunu dogrudan gorebiliyorsa ek olarak:
+
+```env
+LOOP_WORKER_MODE=external
+LOOP_HOSTINGER_MEDIA_ROOT=/home/USER/domains/upload.nest-sc.com/public_html/media
+```
+
+Bu ayar acikken worker ham videoyu HTTP ile tekrar indirmez. HLS, poster ve MP4
+ciktilarini da `upload.php` uzerinden parca parca gondermek yerine ayni medya
+diskindeki gecici dizinden `media/loops` altina atomik olarak yayinlar. Yolun
+sunucudaki gercek mutlak medya dizini oldugunu mutlaka kontrol et.
+
+Parcali upload oturumlari web kokunun disindaki `.nest-upload-sessions`
+klasorunde tutulur. PHP kullanicisinin bu klasore yazma izni olmalidir.
 
 ## Hızlı test
 
