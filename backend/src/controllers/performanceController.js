@@ -1,3 +1,5 @@
+const crypto = require('crypto')
+const { ClientError } = require('../models/ClientError')
 const { WebVital } = require('../models/WebVital')
 
 const METRIC_THRESHOLDS = {
@@ -82,6 +84,27 @@ async function recordWebVitals(req, res) {
   res.status(202).json({ accepted: operations.length })
 }
 
+async function recordClientError(req, res) {
+  const payload = req.validated.body
+  const route = normalizeMetricRoute(payload.route)
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(`${payload.kind}|${payload.source}|${payload.message}`)
+    .digest('hex')
+
+  await ClientError.create({
+    fingerprint,
+    kind: payload.kind,
+    source: payload.source,
+    message: payload.message,
+    stack: payload.stack,
+    route,
+    userAgent: payload.userAgent,
+  })
+
+  res.status(202).json({ accepted: true })
+}
+
 async function getWebVitalsSummary(req, res) {
   const { days, route: requestedRoute } = req.validated.query
   const createdAfter = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -95,6 +118,11 @@ async function getWebVitalsSummary(req, res) {
     .select('name value rating route deviceClass createdAt')
     .sort({ createdAt: -1 })
     .limit(20000)
+    .lean()
+  const clientErrorSamples = await ClientError.find(query)
+    .select('fingerprint kind message route createdAt')
+    .sort({ createdAt: -1 })
+    .limit(5000)
     .lean()
 
   const metricGroups = new Map()
@@ -140,12 +168,33 @@ async function getWebVitalsSummary(req, res) {
     .sort((left, right) => right.samples - left.samples)
     .slice(0, 30)
 
+  const clientErrorGroups = new Map()
+  clientErrorSamples.forEach((sample) => {
+    const key = `${sample.fingerprint}|${sample.route}`
+    const current = clientErrorGroups.get(key) || {
+      kind: sample.kind,
+      message: sample.message,
+      route: sample.route,
+      count: 0,
+      lastSeenAt: sample.createdAt,
+    }
+    current.count += 1
+    clientErrorGroups.set(key, current)
+  })
+
   res.json({
     periodDays: days,
     totalSamples: samples.length,
     capped: samples.length === 20000,
     metrics,
     routes,
+    clientErrors: {
+      total: clientErrorSamples.length,
+      capped: clientErrorSamples.length === 5000,
+      groups: [...clientErrorGroups.values()]
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 30),
+    },
   })
 }
 
@@ -154,6 +203,7 @@ module.exports = {
   getWebVitalsSummary,
   normalizeMetricRoute,
   percentile75,
+  recordClientError,
   recordWebVitals,
   resolveRating,
 }

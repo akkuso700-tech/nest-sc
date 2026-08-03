@@ -73,13 +73,18 @@ function shouldUseEnvApiUrl(value) {
 
 const pinnedApiUrl = resolvePinnedApiUrlByHost()
 const defaultApiUrl = buildDefaultApiUrl()
-const envApiUrl = String(import.meta.env.VITE_API_URL || '').trim()
+const envApiUrl = String(import.meta.env?.VITE_API_URL || '').trim()
 const effectiveEnvApiUrl = shouldUseEnvApiUrl(envApiUrl) ? envApiUrl : ''
 const apiBaseUrl = (pinnedApiUrl || effectiveEnvApiUrl || defaultApiUrl).replace(/\/$/, '')
 const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/, '')
 const requestApiBaseCandidates = resolveApiBaseCandidates(apiBaseUrl, {
   lockToPrimary: Boolean(pinnedApiUrl),
 })
+const configuredRequestTimeoutMs = Number(import.meta.env?.VITE_API_TIMEOUT_MS)
+const API_REQUEST_TIMEOUT_MS = Number.isFinite(configuredRequestTimeoutMs)
+  ? Math.min(Math.max(configuredRequestTimeoutMs, 3000), 30000)
+  : 10000
+const API_RETRY_DELAY_MS = 250
 
 let refreshPromise = null
 
@@ -126,18 +131,83 @@ function resolveApiBaseCandidates(primaryBaseUrl, options = {}) {
   return candidates
 }
 
-async function fetchWithApiFallback(path, options) {
-  let lastError = null
+function isIdempotentMethod(method = 'GET') {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(String(method || 'GET').toUpperCase())
+}
 
-  for (const baseUrl of requestApiBaseCandidates) {
-    try {
-      const response = await fetch(`${baseUrl}${path}`, options)
-      return response
-    } catch (error) {
-      lastError = error
+function isRetryableStatus(status) {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function createTimedSignal(externalSignal, timeoutMs) {
+  const controller = new AbortController()
+  const handleExternalAbort = () => controller.abort(externalSignal?.reason)
+
+  if (externalSignal?.aborted) {
+    handleExternalAbort()
+  } else {
+    externalSignal?.addEventListener('abort', handleExternalAbort, { once: true })
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    const timeoutError = new Error('API request timed out.')
+    timeoutError.name = 'TimeoutError'
+    timeoutError.code = 'API_TIMEOUT'
+    controller.abort(timeoutError)
+  }, timeoutMs)
+
+  return {
+    signal: controller.signal,
+    cleanup() {
+      window.clearTimeout(timeoutId)
+      externalSignal?.removeEventListener('abort', handleExternalAbort)
+    },
+  }
+}
+
+async function fetchWithApiFallback(path, options = {}, config = {}) {
+  let lastError = null
+  let lastResponse = null
+  const method = String(options.method || 'GET').toUpperCase()
+  const retryEnabled = config.retry ?? isIdempotentMethod(method)
+  const maxAttempts = retryEnabled ? 2 : 1
+  const timeoutMs = Math.min(
+    Math.max(Number(config.timeoutMs) || API_REQUEST_TIMEOUT_MS, 100),
+    60000,
+  )
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    for (const baseUrl of requestApiBaseCandidates) {
+      const timedSignal = createTimedSignal(options.signal, timeoutMs)
+
+      try {
+        const response = await fetch(`${baseUrl}${path}`, {
+          ...options,
+          signal: timedSignal.signal,
+        })
+        lastResponse = response
+
+        if (!retryEnabled || !isRetryableStatus(response.status)) {
+          return response
+        }
+      } catch (error) {
+        lastError = timedSignal.signal.reason || error
+        if (options.signal?.aborted) throw lastError
+      } finally {
+        timedSignal.cleanup()
+      }
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await wait(API_RETRY_DELAY_MS * (attempt + 1))
     }
   }
 
+  if (lastResponse) return lastResponse
   throw lastError || new Error('API request failed.')
 }
 
@@ -162,13 +232,17 @@ async function parseResponse(response) {
 
 async function refreshSession() {
   if (!refreshPromise) {
-    refreshPromise = fetchWithApiFallback('/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
+    refreshPromise = fetchWithApiFallback(
+      '/auth/refresh',
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+        },
       },
-    }).then(async (response) => {
+      { retry: true },
+    ).then(async (response) => {
       const payload = await parseResponse(response)
 
       if (!response.ok) {
@@ -189,17 +263,21 @@ async function refreshSession() {
 }
 
 export async function apiRequest(path, options = {}, config = {}) {
-  const { skipRefreshRetry = false } = config
+  const { skipRefreshRetry = false, timeoutMs, retry } = config
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
-  const response = await fetchWithApiFallback(path, {
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...options.headers,
+  const response = await fetchWithApiFallback(
+    path,
+    {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...options.headers,
+      },
+      ...options,
     },
-    ...options,
-  })
+    { timeoutMs, retry },
+  )
 
   const payload = await parseResponse(response)
 
@@ -218,6 +296,13 @@ export async function apiRequest(path, options = {}, config = {}) {
   }
 
   return payload
+}
+
+export const _test = {
+  createTimedSignal,
+  fetchWithApiFallback,
+  isIdempotentMethod,
+  isRetryableStatus,
 }
 
 export { apiBaseUrl, apiOrigin, refreshSession }

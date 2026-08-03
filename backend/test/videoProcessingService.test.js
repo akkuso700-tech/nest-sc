@@ -24,6 +24,7 @@ const {
   claimNextLoopVideoJob,
   updateJobProgress,
   failOrRetryJob,
+  validateReadyLoopMediaResult,
 } = require('../src/services/videoProcessingQueueService')
 const { env } = require('../src/config/env')
 
@@ -80,6 +81,36 @@ test('local nested adaptive files receive URL-safe media paths', () => {
 
 test('a packaged FFmpeg binary is available without server-global installation', () => {
   assert.match(resolveFfmpegBinary(), /ffmpeg(?:\.exe)?$/i)
+})
+
+test('completed Loop output requires HLS, poster, metadata and renditions', () => {
+  const validResult = {
+    url: 'https://upload.nest-sc.com/media/loops/post/fallback.mp4',
+    hlsUrl: 'https://upload.nest-sc.com/media/loops/post/master.m3u8',
+    posterUrl: 'https://upload.nest-sc.com/media/loops/post/poster.webp',
+    durationSeconds: 12,
+    width: 720,
+    height: 1280,
+    renditions: [
+      {
+        name: '540p',
+        width: 540,
+        height: 960,
+        bitrateKbps: 1200,
+        url: 'https://upload.nest-sc.com/media/loops/post/540p/index.m3u8',
+      },
+    ],
+  }
+
+  assert.equal(validateReadyLoopMediaResult(validResult), validResult)
+  assert.throws(
+    () => validateReadyLoopMediaResult({ ...validResult, posterUrl: '' }),
+    (error) => error.code === 'INVALID_LOOP_OUTPUT' && error.permanent === true,
+  )
+  assert.throws(
+    () => validateReadyLoopMediaResult({ ...validResult, durationSeconds: 0 }),
+    /missing HLS, poster, metadata, or renditions/,
+  )
 })
 
 test('failed encoder jobs can be recovered only a bounded number of times', () => {

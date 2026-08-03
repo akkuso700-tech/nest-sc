@@ -419,7 +419,39 @@ async function updateJobProgress(jobId, progress) {
   ])
 }
 
+function validateReadyLoopMediaResult(mediaResult = {}) {
+  const requiredUrls = [mediaResult.url, mediaResult.hlsUrl, mediaResult.posterUrl]
+  const hasRequiredUrls = requiredUrls.every((value) => /^https?:\/\//i.test(String(value || '')) || String(value || '').startsWith('/'))
+  const hasValidMetadata =
+    Number(mediaResult.durationSeconds) > 0 &&
+    Number(mediaResult.width) > 0 &&
+    Number(mediaResult.height) > 0
+  const renditions = Array.isArray(mediaResult.renditions) ? mediaResult.renditions : []
+  const hasValidRenditions =
+    renditions.length > 0 &&
+    renditions.every(
+      (rendition) =>
+        Number(rendition?.width) > 0 &&
+        Number(rendition?.height) > 0 &&
+        Number(rendition?.bitrateKbps) > 0 &&
+        (/^https?:\/\//i.test(String(rendition?.url || '')) || String(rendition?.url || '').startsWith('/')),
+    )
+
+  if (!hasRequiredUrls || !hasValidMetadata || !hasValidRenditions) {
+    throw Object.assign(
+      new Error('Processed Loop media is missing HLS, poster, metadata, or renditions.'),
+      {
+        code: 'INVALID_LOOP_OUTPUT',
+        permanent: true,
+      },
+    )
+  }
+
+  return mediaResult
+}
+
 async function completeJob(job, mediaResult) {
+  validateReadyLoopMediaResult(mediaResult)
   const mediaPath = `media.${job.mediaIndex}`
   const updated = await Post.updateOne(
     { _id: job.post, [`${mediaPath}.type`]: 'video' },
@@ -505,6 +537,7 @@ module.exports = {
   requeueRelocatedLoopJobs,
   claimNextLoopVideoJob,
   updateJobProgress,
+  validateReadyLoopMediaResult,
   completeJob,
   failOrRetryJob,
 }

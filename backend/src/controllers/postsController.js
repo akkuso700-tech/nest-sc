@@ -2115,7 +2115,18 @@ const getFeed = asyncHandler(async (req, res) => {
 
   if (isLoopView) {
     filter.contentType = 'loop'
-    filter['media.type'] = 'video'
+    filter.media = {
+      $elemMatch: {
+        type: 'video',
+        processing: 'ready',
+        hlsUrl: { $nin: ['', null] },
+        posterUrl: { $nin: ['', null] },
+        durationSeconds: { $gt: 0 },
+        width: { $gt: 0 },
+        height: { $gt: 0 },
+        renditions: { $elemMatch: { url: { $nin: ['', null] } } },
+      },
+    }
   } else if (!authorId) {
     if (shouldIncludeLoopInExploreTopic) {
       appendAndFilter(filter, {

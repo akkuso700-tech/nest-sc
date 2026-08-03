@@ -151,6 +151,7 @@ async function runWorker(options = {}) {
   }
 
   let nextRecoveryAt = 0
+  let nextBackfillAt = 0
 
   async function recoverInterruptedJobs() {
     const recoveredJobs = await recoverStalledLoopJobs()
@@ -173,7 +174,9 @@ async function runWorker(options = {}) {
     requeued: relocatedJobs.length,
   }))
 
-  if (env.loopRawBackfillLimit > 0) {
+  async function replenishRawLoopBackfill() {
+    if (env.loopRawBackfillLimit <= 0 || Date.now() < nextBackfillAt) return
+
     const isBackfillLeader = await acquireWorkerLease(
       'loop-raw-backfill',
       workerId,
@@ -188,12 +191,16 @@ async function runWorker(options = {}) {
       queued: queuedBackfillJobs.length,
       leader: isBackfillLeader,
     }))
+    nextBackfillAt = Date.now() + 60_000
   }
+
+  await replenishRawLoopBackfill()
 
   while (!stopping) {
     if (Date.now() >= nextRecoveryAt) {
       await recoverInterruptedJobs()
     }
+    await replenishRawLoopBackfill()
     const job = await claimNextLoopVideoJob(workerId)
     if (!job) {
       await wait(env.loopWorkerPollMs)

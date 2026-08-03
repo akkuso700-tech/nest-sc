@@ -9,6 +9,8 @@
 **/dev-*.log
 **/preview-*.log
 **/python-frontend*.log
+frontend/playwright-report/
+frontend/test-results/
 
 # Dependencies / build
 **/node_modules/

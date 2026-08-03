@@ -9,6 +9,8 @@
     "postbuild": "npm run perf:budget",
     "perf:budget": "node scripts/check-performance-budget.mjs",
     "test": "node --test scripts/*.test.mjs",
+    "test:deployment": "node scripts/check-deployment.mjs",
+    "test:e2e": "playwright test",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -30,6 +32,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@playwright/test": "^1.55.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
