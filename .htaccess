@@ -1,0 +1,12 @@
+PassengerAppRoot /home/u492789683/domains/nest-sc.com/.builds/current/nodejs
+PassengerAppType node
+PassengerNodejs /opt/alt/alt-nodejs22/root/bin/node
+PassengerStartupFile src/server.js
+PassengerBaseURI /
+PassengerRestartDir /home/u492789683/domains/nest-sc.com/.builds/current/nodejs/tmp
+
+SetEnv NODE_OPTIONS "--require /home/u492789683/domains/nest-sc.com/.builds/config/preload-timestamp.js"
+SetEnv LSNODE_CONSOLE_LOG console.log
+
+RewriteEngine On
+RewriteRule ^\.builds(?:/|$) - [F,L]

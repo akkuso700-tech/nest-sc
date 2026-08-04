@@ -18,6 +18,7 @@ const { sanitizeRequest } = require('./middlewares/sanitizeRequest')
 const { notFound } = require('./middlewares/notFound')
 const { errorHandler } = require('./middlewares/errorHandler')
 const { AppError } = require('./utils/AppError')
+const { frontendIndexHtml } = require('./frontendIndexHtml')
 const {
   accessTokenCookieName,
   refreshTokenCookieName,
@@ -446,25 +447,56 @@ function createApp() {
     app.get('/:lang/tag/:tagSlug', handleCrawlerTagPreview)
     app.get('/:lang/posts/:postId', handleCrawlerPostPreview)
     app.get('/post/:postId', handleCrawlerPostPreview)
+  }
 
-    app.get(/.*/, (req, res, next) => {
-      const requestPath = String(req.path || '')
+  function serveSpaIndex(req, res, next) {
+    // Passenger may start while Hostinger is still swapping the current build.
+    // Resolve the frontend directory at request time instead of caching a null
+    // or stale directory from application startup.
+    const runtimeFrontendDistDir = resolveFrontendDistDir()
 
-      if (
-        requestPath.startsWith('/api/') ||
-        requestPath.startsWith('/uploads/') ||
-        requestPath.startsWith('/media/')
-      ) {
-        return next()
+    if (!runtimeFrontendDistDir) {
+      res.set('Cache-Control', 'no-store')
+      res.set('Retry-After', '2')
+      return res.status(503).type('html').send(frontendIndexHtml)
+    }
+
+    res.set('Cache-Control', 'no-cache, max-age=0, must-revalidate')
+    return fs.readFile(path.join(runtimeFrontendDistDir, 'index.html'), 'utf8', (error, html) => {
+      if (!error) {
+        res.status(200).type('html').send(html)
+        return
       }
 
-      if (requestPath.includes('.')) {
-        return next()
+      if (!res.headersSent) {
+        res.set('Cache-Control', 'no-store')
+        res.set('Retry-After', '2')
+        res.status(503).type('html').send(frontendIndexHtml)
+        return
       }
 
-      return res.sendFile(path.join(frontendDistDir, 'index.html'))
+      next(error)
     })
   }
+
+  // Localized client-side routes must always return the SPA shell.
+  app.get(/^\/(?:tr|en|de|es)(?:\/.*)?$/, serveSpaIndex)
+
+  // Also support non-localized client-side routes while preserving API/media 404s.
+  app.get(/.*/, (req, res, next) => {
+    const requestPath = String(req.path || '')
+
+    if (
+      requestPath.startsWith('/api/') ||
+      requestPath.startsWith('/uploads/') ||
+      requestPath.startsWith('/media/') ||
+      requestPath.includes('.')
+    ) {
+      return next()
+    }
+
+    return serveSpaIndex(req, res, next)
+  })
 
   app.use(notFound)
   app.use(errorHandler)

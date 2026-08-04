@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "hostinger:build": "node scripts/verifyFrontendBundle.js",
+    "hostinger:build": "npm --prefix ../frontend install --include=dev --no-audit --no-fund && npm --prefix ../frontend run build",
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js",
     "start:api": "node src/server.js",
