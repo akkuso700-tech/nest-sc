@@ -136,6 +136,22 @@ function MoreIcon() {
   )
 }
 
+function ChevronDownIcon({ className = 'size-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
+function CheckIcon({ className = 'size-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
 function ProfilePanel({ title, action, children, className = '' }) {
   return (
     <section className={`rounded-lg border border-border bg-card shadow-sm ${className}`}>
@@ -359,6 +375,35 @@ function ProfilePage() {
   })
   const avatarInputRef = useRef(null)
   const coverInputRef = useRef(null)
+  const [mediaMenuOpen, setMediaMenuOpen] = useState(false)
+  const [repliesMenuOpen, setRepliesMenuOpen] = useState(false)
+  const mediaMenuRef = useRef(null)
+  const repliesMenuRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (mediaMenuRef.current && !mediaMenuRef.current.contains(event.target)) {
+        setMediaMenuOpen(false)
+      }
+      if (repliesMenuRef.current && !repliesMenuRef.current.contains(event.target)) {
+        setRepliesMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setMediaMenuOpen(false)
+        setRepliesMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   useEffect(() => {
     if (!toast.message) {
@@ -486,18 +531,50 @@ function ProfilePage() {
   const resolvedCoverUrl = resolveMediaUrl(profileUser?.coverUrl || '')
   const resolvedAvatarUrl = resolveMediaUrl(profileUser?.avatarUrl || '')
 
-  const tabs = useMemo(
+  const mediaGroupTabs = useMemo(
     () => [
       { key: 'posts', label: t('common.posts') },
       { key: 'media', label: t('profile.media') },
-      { key: 'likes', label: t('profile.likes') },
       { key: 'loops', label: t('nav.loop') },
+    ],
+    [t],
+  )
+
+  const repliesGroupTabs = useMemo(
+    () => [
       { key: 'replies', label: t('profile.replies') },
+      ...(isOwnProfile ? [{ key: 'likes', label: t('profile.likes') }] : []),
       ...(isOwnProfile ? [{ key: 'saved', label: t('profile.saved') }] : []),
     ],
     [isOwnProfile, t],
   )
+
+  const tabs = useMemo(
+    () => [...mediaGroupTabs, ...repliesGroupTabs],
+    [mediaGroupTabs, repliesGroupTabs],
+  )
   const availableTabKeys = useMemo(() => new Set(tabs.map((tab) => tab.key)), [tabs])
+
+  const isMediaGroupActive = useMemo(
+    () => ['posts', 'media', 'loops'].includes(activeTab),
+    [activeTab],
+  )
+  const isRepliesGroupActive = useMemo(
+    () => ['replies', 'likes', 'saved'].includes(activeTab),
+    [activeTab],
+  )
+
+  const activeMediaTab = useMemo(
+    () => mediaGroupTabs.find((tab) => tab.key === activeTab),
+    [mediaGroupTabs, activeTab],
+  )
+  const activeRepliesTab = useMemo(
+    () => repliesGroupTabs.find((tab) => tab.key === activeTab),
+    [repliesGroupTabs, activeTab],
+  )
+
+  const mediaButtonLabel = activeMediaTab ? activeMediaTab.label : t('profile.media')
+  const repliesButtonLabel = activeRepliesTab ? activeRepliesTab.label : t('profile.replies')
 
   const normalizeContentType = (post) =>
     `${post?.contentType || post?.type || post?.publication?.contentType || ''}`
@@ -787,6 +864,9 @@ function ProfilePage() {
     }
 
     if (activeTab === 'likes') {
+      if (!isOwnProfile) {
+        return <EmptyTabState message={t('profile.emptyPosts')} />
+      }
       return likedPosts.length ? (
         likedPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
       ) : (
@@ -800,6 +880,10 @@ function ProfilePage() {
       ) : (
         <EmptyTabState message={t('profile.emptyReplies')} />
       )
+    }
+
+    if (!isOwnProfile) {
+      return <EmptyTabState message={t('profile.emptyPosts')} />
     }
 
     return savedPosts.length ? (
@@ -939,8 +1023,8 @@ function ProfilePage() {
 
           {profileUser ? (
             <>
-              <section className="overflow-hidden bg-card shadow-sm md:mt-2 md:rounded-lg md:border md:border-border">
-                <div className="relative h-32 bg-[linear-gradient(135deg,#dbeafe_0%,#bfdbfe_48%,#fde68a_100%)] sm:h-48 md:h-60">
+              <section className="relative z-20 bg-card shadow-sm md:mt-2 md:rounded-lg md:border md:border-border">
+                <div className="relative h-32 overflow-hidden bg-[linear-gradient(135deg,#dbeafe_0%,#bfdbfe_48%,#fde68a_100%)] sm:h-48 md:h-60 md:rounded-t-lg">
                   {profileUser.coverUrl ? (
                     <button
                       type="button"
@@ -1436,28 +1520,128 @@ function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="mt-1  pt-1">
-                    <div className="no-scrollbar flex overflow-x-auto border-t border-border-soft pt-2">
-                      {tabs.map((tab) => (
-                        <p
-                          key={tab.key}
+                  <div className="relative z-30 mt-1 pt-1">
+                    <div className="flex items-center gap-2 border-t border-border-soft pt-2">
+                      {/* Medya Pop-up Tab */}
+                      <div ref={mediaMenuRef} className="relative">
+                        <button
                           type="button"
-                          onClick={() => setActiveTab(tab.key)}
-                          className={`shrink-0 cursor-pointer px-4 py-2 text-sm font-semibold transition ${
-                            activeTab === tab.key
-                              ? 'border-b-3 border-primary text-primary hover:bg-secondary '
-                              : ' text-muted hover:bg-secondary hover:text-text'
+                          onClick={() => {
+                            setMediaMenuOpen((prev) => !prev)
+                            setRepliesMenuOpen(false)
+                          }}
+                          className={`flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-semibold transition cursor-pointer select-none ${
+                            isMediaGroupActive
+                              ? 'border-b-3 border-primary text-primary hover:bg-secondary'
+                              : 'text-muted hover:bg-secondary hover:text-text'
                           }`}
                         >
-                          {tab.label}
-                        </p>
-                      ))}
+                          <span>{mediaButtonLabel}</span>
+                          <ChevronDownIcon
+                            className={`size-3.5 transition-transform duration-200 ${
+                              mediaMenuOpen ? 'rotate-180 text-primary' : 'text-muted'
+                            }`}
+                          />
+                        </button>
+
+                        {mediaMenuOpen && (
+                          <div className="dropdown-pop absolute left-0 top-[calc(100%+6px)] z-50 min-w-[200px] rounded-xl border border-border bg-card p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.22)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 duration-150">
+                            {mediaGroupTabs.map((tab) => {
+                              const isSelected = activeTab === tab.key
+                              return (
+                                <button
+                                  key={tab.key}
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab(tab.key)
+                                    setMediaMenuOpen(false)
+                                  }}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-primary/10 text-primary font-semibold'
+                                      : 'text-text hover:bg-secondary hover:text-text'
+                                  }`}
+                                >
+                                  <span>{tab.label}</span>
+                                  {isSelected && <CheckIcon className="size-4 text-primary" />}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Yanıtlar Tab */}
+                      {isOwnProfile ? (
+                        <div ref={repliesMenuRef} className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRepliesMenuOpen((prev) => !prev)
+                              setMediaMenuOpen(false)
+                            }}
+                            className={`flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-semibold transition cursor-pointer select-none ${
+                              isRepliesGroupActive
+                                ? 'border-b-3 border-primary text-primary hover:bg-secondary'
+                                : 'text-muted hover:bg-secondary hover:text-text'
+                            }`}
+                          >
+                            <span>{repliesButtonLabel}</span>
+                            <ChevronDownIcon
+                              className={`size-3.5 transition-transform duration-200 ${
+                                repliesMenuOpen ? 'rotate-180 text-primary' : 'text-muted'
+                              }`}
+                            />
+                          </button>
+
+                          {repliesMenuOpen && (
+                            <div className="dropdown-pop absolute left-0 top-[calc(100%+6px)] z-50 min-w-[200px] rounded-xl border border-border bg-card p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.22)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 duration-150">
+                              {repliesGroupTabs.map((tab) => {
+                                const isSelected = activeTab === tab.key
+                                return (
+                                  <button
+                                    key={tab.key}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveTab(tab.key)
+                                      setRepliesMenuOpen(false)
+                                    }}
+                                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-primary/10 text-primary font-semibold'
+                                        : 'text-text hover:bg-secondary hover:text-text'
+                                    }`}
+                                  >
+                                    <span>{tab.label}</span>
+                                    {isSelected && <CheckIcon className="size-4 text-primary" />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('replies')
+                            setMediaMenuOpen(false)
+                          }}
+                          className={`flex items-center rounded-t-lg px-4 py-2 text-sm font-semibold transition cursor-pointer select-none ${
+                            activeTab === 'replies'
+                              ? 'border-b-3 border-primary text-primary hover:bg-secondary'
+                              : 'text-muted hover:bg-secondary hover:text-text'
+                          }`}
+                        >
+                          <span>{t('profile.replies')}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
               </section>
 
-              <div className="grid items-start gap-4 xl:grid-cols-[250px_minmax(0,1fr)_310px]">
+              <div className="relative z-10 grid items-start gap-4 xl:grid-cols-[250px_minmax(0,1fr)_310px]">
                 <aside className="hidden space-y-4 xl:block">
                   <ProfilePanel title={t('profile.aboutTitle', { defaultValue: 'Hakkında' })}>
                     <p className="text-sm leading-6 text-muted">
