@@ -331,7 +331,7 @@ function ProfilePage() {
   const [searchParams] = useSearchParams()
   const { t } = useTranslation()
   const { isAuthenticated, status, user, setUser } = useAuth()
-  const [activeTab, setActiveTab] = useState('posts')
+  const [activeTab, setActiveTab] = useState('media')
   const [profileState, setProfileState] = useState({
     profile: null,
     isLoading: true,
