@@ -25,6 +25,19 @@ const recordWebVitalsSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const recordClientErrorSchema = z.object({
+  body: z.object({
+    kind: z.string().trim().min(1).max(40),
+    source: z.string().trim().max(180).optional().default(''),
+    message: z.string().trim().min(1).max(500),
+    stack: z.string().max(4000).optional().default(''),
+    route: z.string().trim().startsWith('/').max(180).optional().default('/'),
+    userAgent: z.string().trim().max(500).optional().default(''),
+  }),
+  params: z.object({}).default({}),
+  query: z.object({}).default({}),
+})
+
 const webVitalsSummarySchema = z.object({
   body: z.object({}).default({}),
   params: z.object({}).default({}),
@@ -35,6 +48,7 @@ const webVitalsSummarySchema = z.object({
 })
 
 module.exports = {
+  recordClientErrorSchema,
   recordWebVitalsSchema,
   webVitalsSummarySchema,
 }
