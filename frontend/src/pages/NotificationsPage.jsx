@@ -137,11 +137,14 @@ function NotificationsPage() {
         }
 
         setNotificationsState((currentState) => ({
-          ...currentState,
-          items: payload.notifications || [],
-          isLoading: false,
-          error: '',
-        }))
+  ...currentState,
+  items: (payload.notifications || []).filter(n => {
+    const k = n.entityKind || n.type;
+    return k !== 'message';
+  }),
+  isLoading: false,
+  error: '',
+}))
       } catch (error) {
         if (cancelled) {
           return
@@ -171,10 +174,13 @@ function NotificationsPage() {
     const socket = connectSocketClient()
 
     function handleNotificationNew(notification) {
+      if (notification.type === 'message' || (notification.entityKind || '') === 'message') {
+        return;
+      }
       setNotificationsState((currentState) => ({
         ...currentState,
         items: [notification, ...currentState.items],
-      }))
+      }));
     }
 
     function handleNotificationRead(notification) {

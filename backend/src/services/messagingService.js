@@ -3,8 +3,7 @@ const { AppError } = require('../utils/AppError')
 const { User } = require('../models/User')
 const { Conversation } = require('../models/Conversation')
 const { Message } = require('../models/Message')
-const { Notification } = require('../models/Notification')
-const { normalizeMediaList, normalizeUserMedia } = require('../utils/mediaUrls')
+const { normalizeMediaList } = require('../utils/mediaUrls')
 
 function buildConversationKey(firstUserId, secondUserId) {
   return [firstUserId.toString(), secondUserId.toString()].sort().join(':')
@@ -117,37 +116,6 @@ async function createMessageAndNotify({
   conversation.lastMessageAt = message.createdAt
   await conversation.save()
 
-  const notification = await Notification.create({
-    user: recipientId,
-    actor: sender._id,
-    type: 'message',
-    entityKind: 'message',
-    entityId: message._id,
-    title: 'New message',
-    body: `${sender.firstName} sent you a new message.`,
-  })
-  const populatedNotification = await Notification.findById(notification._id).populate(
-    'actor',
-    'firstName lastName username avatarUrl lastLoginAt verification',
-  )
-  const serializedNotification = populatedNotification
-    ? {
-        ...(populatedNotification.toObject
-          ? populatedNotification.toObject()
-          : populatedNotification),
-        actor: normalizeUserMedia(populatedNotification.actor),
-        targetPostId: null,
-        targetCommentId: null,
-        targetConversationId: message.conversation?.toString?.() || null,
-      }
-    : {
-        ...(notification.toObject ? notification.toObject() : notification),
-        actor: normalizeUserMedia(sender),
-        targetPostId: null,
-        targetCommentId: null,
-        targetConversationId: message.conversation?.toString?.() || null,
-      }
-
   const serializedMessage = serializeMessage(message)
 
   if (io) {
@@ -156,13 +124,11 @@ async function createMessageAndNotify({
 
     io.to(recipientRoom).emit('new_message', serializedMessage)
     io.to(senderRoom).emit('new_message', serializedMessage)
-    io.to(recipientRoom).emit('notification:new', serializedNotification)
   }
 
   return {
     conversation,
     message,
-    notification: serializedNotification,
     serializedMessage,
   }
 }

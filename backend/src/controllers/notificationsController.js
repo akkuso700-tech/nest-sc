@@ -69,7 +69,7 @@ async function decorateNotifications(items = []) {
 }
 
 const listNotifications = asyncHandler(async (req, res) => {
-  const filter = { user: req.user._id }
+  const filter = { user: req.user._id, type: { $ne: 'message' } }
 
   if (req.validated.query.unreadOnly) {
     filter.readAt = null
@@ -128,6 +128,7 @@ const markAllNotificationsRead = asyncHandler(async (req, res) => {
   await Notification.updateMany(
     {
       user: req.user._id,
+      type: { $ne: 'message' },
       readAt: null,
     },
     { readAt },

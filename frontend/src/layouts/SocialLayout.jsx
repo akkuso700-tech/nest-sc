@@ -1303,7 +1303,9 @@ function SocialLayout({
         setIsNotificationDropdownLoading(true)
       }
       const payload = await getNotifications({ limit: 100 })
-      const notifications = payload.notifications || []
+      const notifications = (payload.notifications || []).filter(
+        (item) => item.type !== 'message' && (item.entityKind || '') !== 'message',
+      )
       setNotificationUnreadCount(notifications.filter((item) => !item.readAt).length)
       setNotificationPreviewItems(notifications.slice(0, 4))
     } catch {
