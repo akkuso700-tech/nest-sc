@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import SocialLayout from '../layouts/SocialLayout.jsx'
@@ -525,7 +525,7 @@ export default function ManagedGroupPage() {
                         placeholder="Yonetici ara"
                         className="w-full bg-transparent outline-none placeholder:text-soft"
                       />
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`size-4 transition ${isManagerMenuOpen ? 'rotate-180' : ''}`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`size-4 transition-transform duration-200 ${isManagerMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true">
                         <path d="m6 9 6 6 6-6" />
                       </svg>
                     </div>
@@ -600,7 +600,7 @@ export default function ManagedGroupPage() {
                         placeholder="Moderator ara"
                         className="w-full bg-transparent outline-none placeholder:text-soft"
                       />
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`size-4 transition ${isModeratorMenuOpen ? 'rotate-180' : ''}`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`size-4 transition-transform duration-200 ${isModeratorMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true">
                         <path d="m6 9 6 6 6-6" />
                       </svg>
                     </div>

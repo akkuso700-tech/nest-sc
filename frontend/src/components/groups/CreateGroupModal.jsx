@@ -75,11 +75,20 @@ function CreateGroupModal({ open, onClose, user, onCreate }) {
           <button
             type="button"
             onClick={onClose}
-            className="grid size-9 place-items-center rounded-full border border-border text-muted transition hover:bg-secondary hover:text-text"
+            className="grid size-9 place-items-center rounded-full border border-border text-muted transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-secondary hover:text-text"
             aria-label={t('common.close')}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4">
-              <path d="m6 6 12 12M18 6 6 18" />
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-4"
+              aria-hidden="true"
+            >
+              <path d="m18 6-12 12M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -117,8 +126,11 @@ function CreateGroupModal({ open, onClose, user, onCreate }) {
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.8"
-                  className={`size-4 transition ${privacyMenuOpen ? 'rotate-180' : ''}`}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`size-4 transition-transform duration-200 ${privacyMenuOpen ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
                 >
                   <path d="m6 9 6 6 6-6" />
                 </svg>

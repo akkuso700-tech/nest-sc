@@ -7,6 +7,7 @@ import UserAvatar from '../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
 import {
+  deleteNotification,
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -15,7 +16,27 @@ import {
   connectSocketClient,
   disconnectSocketClient,
 } from '../services/socketClient.js'
-import { formatRelativeTime, getFullName } from '../utils/social.js'
+import { formatNotificationContent, formatRelativeTime, getFullName } from '../utils/social.js'
+
+function DotsIcon({ className = 'size-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
+      <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className = 'size-3.5' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
 
 function normalizeId(value) {
   if (!value) {
@@ -105,6 +126,25 @@ function NotificationsPage() {
     unreadOnly: false,
   })
   const [isMarkingAll, setIsMarkingAll] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
+
+  useEffect(() => {
+    if (!openMenuId) {
+      return undefined
+    }
+
+    function handleClickOutside(event) {
+      if (!event.target.closest('[data-notification-menu]')) {
+        setOpenMenuId(null)
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [openMenuId])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -257,16 +297,23 @@ function NotificationsPage() {
     }
   }
 
-  async function handleOpenNotification(notification) {
-    if (!notification) {
-      return
-    }
+  async function handleDeleteNotification(notificationId) {
+    setDeletingId(notificationId)
+    try {
+      await deleteNotification(notificationId)
 
-    if (!notification.readAt) {
-      await handleMarkRead(notification._id)
+      setNotificationsState((currentState) => ({
+        ...currentState,
+        items: currentState.items.filter((item) => item._id !== notificationId),
+      }))
+    } catch (error) {
+      setNotificationsState((currentState) => ({
+        ...currentState,
+        error: error.message || t('notificationsPage.errors.delete'),
+      }))
+    } finally {
+      setDeletingId(null)
     }
-
-    navigate(buildNotificationRoute(notification, lang))
   }
 
   return (
@@ -276,7 +323,12 @@ function NotificationsPage() {
         description={t('notificationsPage.seoDescription')}
       />
 
-      <SocialLayout pageTitle={t('pages.notifications')} activeKey="notifications">
+      <SocialLayout
+        pageTitle={t('pages.notifications')}
+        activeKey="notifications"
+        showDesktopPageHeader={false}
+        initialSidebarOpen={false}
+      >
         <section className="rounded-lg border border-border bg-card p-0 shadow-sm md:p-6">
           <div className="flex flex-row justify-between gap-4 p-3 md:items-center">
             <div>
@@ -340,6 +392,7 @@ function NotificationsPage() {
             {notificationsState.items.map((notification) => {
               const actor = notification.actor || {}
               const isUnread = !notification.readAt
+              const content = formatNotificationContent(notification, t)
 
               return (
                 <article
@@ -369,13 +422,13 @@ function NotificationsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-base font-semibold">
-                            {notification.title || t('notificationsPage.fallbackTitle')}
+                            {content.title}
                           </p>
                           <span className={isUnread ? 'text-xs text-muted' : 'text-xs text-soft'}>
                             {formatRelativeTime(notification.createdAt)}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-muted">{notification.body}</p>
+                        <p className="mt-1 text-sm text-muted">{content.body}</p>
                         <p className={`mt-2 text-xs ${isUnread ? 'text-muted' : 'text-soft'}`}>
                           {actor.username
                             ? <span className="flex items-center gap-1">@{actor.username} - {getFullName(actor)} <VerifiedBadge user={actor} size="xs" /></span>
@@ -384,22 +437,59 @@ function NotificationsPage() {
                       </div>
                     </button>
 
-                    {isUnread ? (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleMarkRead(notification._id)
-                        }}
-                        className="rounded-lg bg-card px-3 py-2 text-xs font-regular text-text transition hover:bg-secondary"
-                      >
-                        {t('notificationsPage.actions.markRead')}
-                      </button>
-                    ) : (
-                      <span className="rounded-lg border border-border px-3 py-2 text-xs text-muted">
-                        {t('notificationsPage.readLabel')}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isUnread ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleMarkRead(notification._id)
+                          }}
+                          className="rounded-lg bg-card px-3 py-2 text-xs font-regular text-text transition hover:bg-secondary"
+                        >
+                          {t('notificationsPage.actions.markRead')}
+                        </button>
+                      ) : (
+                        <span className="rounded-lg border border-border px-3 py-2 text-xs text-muted">
+                          {t('notificationsPage.readLabel')}
+                        </span>
+                      )}
+
+                      <div className="relative" data-notification-menu>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setOpenMenuId(openMenuId === notification._id ? null : notification._id)
+                          }}
+                          className="grid size-8 place-items-center rounded-lg border border-border bg-card text-text transition hover:bg-secondary focus:outline-none"
+                          aria-label={t('notificationsPage.actions.moreOptions')}
+                          title={t('notificationsPage.actions.moreOptions')}
+                        >
+                          <DotsIcon className="size-4" />
+                        </button>
+
+                        {openMenuId === notification._id ? (
+                          <div className="absolute right-0 top-[calc(100%+6px)] z-30 min-w-32 rounded-xl border border-border bg-card p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.18)]">
+                            <button
+                              type="button"
+                              disabled={deletingId === notification._id}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setOpenMenuId(null)
+                                handleDeleteNotification(notification._id)
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-rose-600 transition hover:bg-secondary disabled:opacity-50"
+                            >
+                              <TrashIcon className="size-3.5" />
+                              {deletingId === notification._id
+                                ? t('notificationsPage.actions.deleting')
+                                : t('notificationsPage.actions.delete')}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
                 </article>
               )

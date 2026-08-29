@@ -4,8 +4,12 @@ export function getConversations(limit = 30) {
   return apiRequest(`/messages/conversations?limit=${limit}`)
 }
 
-export function getConversationMessages(conversationId, limit = 50) {
-  return apiRequest(`/messages/conversations/${conversationId}?limit=${limit}`)
+export function getConversationMessages(conversationId, limit = 50, before = null) {
+  let url = `/messages/conversations/${conversationId}?limit=${limit}`
+  if (before) {
+    url += `&before=${encodeURIComponent(before)}`
+  }
+  return apiRequest(url)
 }
 
 export function sendMessage(payload) {

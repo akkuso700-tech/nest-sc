@@ -37,6 +37,7 @@ import {
   PhotoIcon,
   PlayIcon,
   PlusIcon,
+  ReplyIcon,
   SearchIcon,
   SendIcon,
   TrashIcon,
@@ -287,21 +288,41 @@ function MessageBubble({
   isMenuOpen,
   isEditing,
   editingText,
+  isHighlighted,
+  activePeer,
+  user,
   onEditChange,
   onEditCancel,
   onEditSave,
   onOpenMenu,
   onCopy,
+  onReply,
   onDelete,
   onStartEdit,
   onReport,
   onOpenMedia,
+  onScrollToMessage,
   t,
 }) {
   const showSeen = isMine && Boolean(message.readAt)
+  const messageId = message._id || message.id
+
+  const replySenderName = useMemo(() => {
+    if (!message.replyTo) return ''
+    const replySenderId = message.replyTo.sender?._id || message.replyTo.sender
+    if (replySenderId && replySenderId?.toString() === user?.id?.toString()) {
+      return t('common.you', { defaultValue: 'Siz' })
+    }
+    return getFullName(activePeer) || t('common.unknownUser')
+  }, [message.replyTo, activePeer, user, t])
 
   return (
-    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+    <div
+      id={`msg-${messageId}`}
+      className={`flex transition-all duration-500 rounded-2xl p-1 ${
+        isHighlighted ? 'bg-primary/20 ring-2 ring-primary/40' : ''
+      } ${isMine ? 'justify-end' : 'justify-start'}`}
+    >
       <div className={`flex max-w-[min(88%,620px)] items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
         <div
           className={`rounded-lg px-4 py-3 shadow-sm transition ${
@@ -310,6 +331,23 @@ function MessageBubble({
               : 'border border-border bg-card text-text'
           }`}
         >
+          {message.replyTo ? (
+            <button
+              type="button"
+              onClick={() => onScrollToMessage(message.replyTo.id || message.replyTo._id)}
+              className={`mb-2.5 block w-full rounded-md border-l-3 border-primary px-2.5 py-1.5 text-left transition ${
+                isMine
+                  ? 'bg-black/15 text-inverse/90 hover:bg-black/25'
+                  : 'bg-secondary/80 text-text/90 hover:bg-secondary'
+              }`}
+            >
+              <p className="text-[11px] font-semibold opacity-90">{replySenderName}</p>
+              <p className="truncate text-xs opacity-80">
+                {message.replyTo.text || (message.replyTo.media?.length ? `[${t('messages.mediaPreview')}]` : '')}
+              </p>
+            </button>
+          ) : null}
+
           {isEditing ? (
             <div className="space-y-3">
               <textarea
@@ -381,6 +419,15 @@ function MessageBubble({
               }`}>
                 <button
                   type="button"
+                  onClick={onReply}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                >
+                  <ReplyIcon />
+                  <span>{t('messages.reply')}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={onCopy}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
                 >
@@ -445,6 +492,10 @@ function MessagesPage() {
   const [conversationsState, setConversationsState] = useState({ items: [], isLoading: true, error: '' })
   const [activeConversationId, setActiveConversationId] = useState('')
   const [messagesState, setMessagesState] = useState({ items: [], isLoading: false, error: '' })
+  const [replyingToMessage, setReplyingToMessage] = useState(null)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false)
+  const [highlightedMessageId, setHighlightedMessageId] = useState('')
   const [messageDraft, setMessageDraft] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isOptimizingMedia, setIsOptimizingMedia] = useState(false)
@@ -622,6 +673,8 @@ function MessagesPage() {
   useEffect(() => {
     if (!activeConversationId || !isAuthenticated) {
       setMessagesState({ items: [], isLoading: false, error: '' })
+      setHasMoreMessages(false)
+      setReplyingToMessage(null)
       return
     }
 
@@ -629,15 +682,17 @@ function MessagesPage() {
 
     async function loadMessages() {
       setMessagesState((currentState) => ({ ...currentState, isLoading: true, error: '' }))
+      setReplyingToMessage(null)
 
       try {
-        const payload = await getConversationMessages(activeConversationId)
+        const payload = await getConversationMessages(activeConversationId, 50)
 
         if (cancelled) {
           return
         }
 
         setMessagesState({ items: payload.messages, isLoading: false, error: '' })
+        setHasMoreMessages(Boolean(payload.hasMore))
         await markConversationRead(activeConversationId)
       } catch (error) {
         if (cancelled) {
@@ -649,6 +704,7 @@ function MessagesPage() {
           isLoading: false,
           error: error.message || t('messages.errors.messagesLoadFailed'),
         })
+        setHasMoreMessages(false)
       }
     }
 
@@ -658,6 +714,69 @@ function MessagesPage() {
       cancelled = true
     }
   }, [activeConversationId, isAuthenticated, t])
+
+  async function handleLoadOlderMessages() {
+    if (isLoadingOlderMessages || !hasMoreMessages || !messagesState.items.length || !activeConversationId) {
+      return
+    }
+
+    const oldestMessage = messagesState.items[0]
+    const oldestId = oldestMessage._id || oldestMessage.id
+
+    const viewport = messagesViewportRef.current
+    const prevScrollHeight = viewport ? viewport.scrollHeight : 0
+    const prevScrollTop = viewport ? viewport.scrollTop : 0
+
+    setIsLoadingOlderMessages(true)
+
+    try {
+      const payload = await getConversationMessages(activeConversationId, 50, oldestId)
+
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: [...payload.messages, ...currentState.items],
+      }))
+      setHasMoreMessages(Boolean(payload.hasMore))
+
+      if (viewport) {
+        window.requestAnimationFrame(() => {
+          const newScrollHeight = viewport.scrollHeight
+          viewport.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop
+        })
+      }
+    } catch {
+      // Best-effort
+    } finally {
+      setIsLoadingOlderMessages(false)
+    }
+  }
+
+  function handleMessagesScroll(event) {
+    const { scrollTop } = event.currentTarget
+    if (scrollTop < 80 && hasMoreMessages && !isLoadingOlderMessages) {
+      handleLoadOlderMessages()
+    }
+  }
+
+  function handleStartReply(message) {
+    setReplyingToMessage(message)
+    setOpenMessageMenuId('')
+    textareaRef.current?.focus()
+  }
+
+  function handleCancelReply() {
+    setReplyingToMessage(null)
+  }
+
+  function handleScrollToMessage(targetMessageId) {
+    if (!targetMessageId) return
+    const el = document.getElementById(`msg-${targetMessageId}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMessageId(targetMessageId)
+      setTimeout(() => setHighlightedMessageId(''), 2000)
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -788,6 +907,8 @@ function MessagesPage() {
     setOpenMessageMenuId('')
     setEditingMessageId('')
     setEditingMessageText('')
+    setReplyingToMessage(null)
+    setHighlightedMessageId('')
   }, [activeConversationId])
 
   useEffect(() => {
@@ -1237,13 +1358,18 @@ function MessagesPage() {
     setIsSending(true)
     setSendError('')
 
+    const replyToId = replyingToMessage ? (replyingToMessage._id || replyingToMessage.id) : null
+
     try {
-      let payloadBody = { recipientId: activePeer._id, text: trimmedMessage, media: [] }
+      let payloadBody = { recipientId: activePeer._id, text: trimmedMessage, media: [], replyToId }
 
       if (messageFiles.length) {
         const formData = new FormData()
         formData.set('recipientId', activePeer._id)
         formData.set('text', trimmedMessage)
+        if (replyToId) {
+          formData.set('replyToId', replyToId)
+        }
         messageFiles.forEach((file) => {
           formData.append('media', file)
         })
@@ -1264,6 +1390,7 @@ function MessagesPage() {
             recipient: payload.recipient,
             text: payload.text,
             media: payload.media || [],
+            replyTo: payload.replyTo || null,
             createdAt: payload.createdAt,
             readAt: payload.readAt || null,
           },
@@ -1271,6 +1398,7 @@ function MessagesPage() {
       }))
 
       setMessageDraft('')
+      setReplyingToMessage(null)
       replaceMessageFiles([])
       upsertConversationAfterSend(payload)
       setIsSending(false)
@@ -1800,9 +1928,25 @@ function MessagesPage() {
 
                 <div
                   ref={messagesViewportRef}
+                  onScroll={handleMessagesScroll}
                   className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 ${isMobileViewport ? 'pb-4' : ''}`}
                   style={mobileMessagesViewportStyle}
                 >
+                  {hasMoreMessages ? (
+                    <div className="flex justify-center pb-3">
+                      <button
+                        type="button"
+                        onClick={handleLoadOlderMessages}
+                        disabled={isLoadingOlderMessages}
+                        className="rounded-full border border-border bg-secondary px-4 py-1.5 text-xs font-medium text-muted transition hover:bg-card hover:text-text disabled:opacity-50"
+                      >
+                        {isLoadingOlderMessages
+                          ? t('messages.loadingOlderMessages')
+                          : t('messages.loadOlderMessages')}
+                      </button>
+                    </div>
+                  ) : null}
+
                   {messagesState.error ? (
                     <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/30">
                       {messagesState.error}
@@ -1855,6 +1999,9 @@ function MessagesPage() {
                           isMenuOpen={openMessageMenuId === (message._id || message.id)}
                           isEditing={editingMessageId === (message._id || message.id)}
                           editingText={editingMessageText}
+                          isHighlighted={highlightedMessageId === (message._id || message.id)}
+                          activePeer={activePeer}
+                          user={user}
                           onEditChange={setEditingMessageText}
                           onEditCancel={handleCancelEditMessage}
                           onEditSave={() => handleSaveEditedMessage(message)}
@@ -1866,9 +2013,11 @@ function MessagesPage() {
                             )
                           }
                           onCopy={() => handleCopyMessage(message)}
+                          onReply={() => handleStartReply(message)}
                           onDelete={() => handleDeleteMessage(message)}
                           onStartEdit={() => handleStartEditMessage(message)}
                           onReport={setReportTarget}
+                          onScrollToMessage={handleScrollToMessage}
                           t={t}
                           onOpenMedia={(items, index) =>
                             setLightboxMedia({
@@ -1891,6 +2040,38 @@ function MessagesPage() {
                   }`}
                   style={mobileComposerStyle}
                 >
+                  {replyingToMessage ? (
+                    <div className={`${isMobileViewport ? 'mx-1 mb-2 mt-1' : 'mb-2'} flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="text-primary font-semibold shrink-0">
+                          <ReplyIcon className="size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-text truncate block">
+                            {t('messages.replyingTo', {
+                              name:
+                                (replyingToMessage.sender === user?.id || replyingToMessage.sender?._id === user?.id)
+                                  ? t('common.you', { defaultValue: 'Siz' })
+                                  : getFullName(activePeer),
+                            })}
+                          </span>
+                          <p className="truncate text-muted text-[11px]">
+                            {replyingToMessage.text || (replyingToMessage.media?.length ? `[${t('messages.mediaPreview')}]` : '')}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCancelReply}
+                        className="grid size-6 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text shrink-0"
+                        aria-label={t('messages.cancelReply')}
+                        title={t('messages.cancelReply')}
+                      >
+                        <CloseIcon />
+                      </button>
+                    </div>
+                  ) : null}
+
                   {sendError ? (
                     <div className={`${isMobileViewport ? 'mx-1 mb-2 mt-2' : 'mb-3'} rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/30`}>
                       {sendError}
@@ -2034,18 +2215,18 @@ function MessagesPage() {
                           isOptimizingMedia ||
                           (!messageDraft.trim() && !messageFiles.length)
                         }
-                        className={`grid place-items-center rounded-full transition ${
+                        className={`grid place-items-center rounded-full transition-all duration-200 ${
                           !activePeer ||
                           isSending ||
                           isOptimizingMedia ||
                           (!messageDraft.trim() && !messageFiles.length)
-                            ? 'cursor-not-allowed bg-secondary-hover text-soft'
-                            : 'bg-primary text-inverse hover:scale-[1.02] hover:bg-primary-hover'
-                        } ${isMobileViewport ? 'size-8 mb-1' : 'size-10 mb-1'}`}
+                            ? 'cursor-not-allowed bg-secondary-hover text-soft opacity-60'
+                            : 'bg-primary text-inverse shadow-md shadow-primary/25 hover:scale-105 active:scale-95 hover:bg-primary-hover'
+                        } ${isMobileViewport ? 'size-9 mb-1' : 'size-10 mb-1'}`}
                         aria-label={t('messages.sendMessage')}
                         title={t('messages.sendMessage')}
                       >
-                        <SendIcon />
+                        <SendIcon className={isMobileViewport ? 'size-4.5' : 'size-5'} />
                       </button>
                     </div>
                   </div>

@@ -11,6 +11,22 @@ function buildConversationKey(firstUserId, secondUserId) {
 }
 
 function serializeMessage(message) {
+  let replyToSerialized = null
+  if (message.replyTo) {
+    if (typeof message.replyTo === 'object' && message.replyTo._id) {
+      replyToSerialized = {
+        id: message.replyTo._id,
+        sender: message.replyTo.sender,
+        text: message.replyTo.text || '',
+        media: normalizeMediaList(message.replyTo.media || []),
+      }
+    } else {
+      replyToSerialized = {
+        id: message.replyTo,
+      }
+    }
+  }
+
   return {
     id: message._id,
     conversationId: message.conversation,
@@ -18,6 +34,7 @@ function serializeMessage(message) {
     recipient: message.recipient,
     text: message.text,
     media: normalizeMediaList(message.media || []),
+    replyTo: replyToSerialized,
     createdAt: message.createdAt,
     deliveredAt: message.deliveredAt,
     readAt: message.readAt,
@@ -83,6 +100,7 @@ async function createMessageAndNotify({
   recipientId,
   text,
   media = [],
+  replyToId = null,
   io = null,
 }) {
   await ensureRecipient(recipientId, sender._id)
@@ -109,6 +127,7 @@ async function createMessageAndNotify({
     recipient: recipientId,
     text,
     media,
+    replyTo: replyToId || null,
     deliveredAt: new Date(),
   })
 
@@ -116,6 +135,11 @@ async function createMessageAndNotify({
   conversation.lastMessagePreview = buildMessagePreview(text, media)
   conversation.lastMessageAt = message.createdAt
   await conversation.save()
+
+  const populatedMessage = await Message.findById(message._id).populate({
+    path: 'replyTo',
+    select: 'sender text media',
+  })
 
   const notification = await Notification.create({
     user: recipientId,
@@ -148,7 +172,7 @@ async function createMessageAndNotify({
         targetConversationId: message.conversation?.toString?.() || null,
       }
 
-  const serializedMessage = serializeMessage(message)
+  const serializedMessage = serializeMessage(populatedMessage || message)
 
   if (io) {
     const senderRoom = `user:${sender._id}`

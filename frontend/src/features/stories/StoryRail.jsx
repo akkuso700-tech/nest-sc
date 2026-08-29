@@ -30,7 +30,7 @@ function StoryRail({
           <button
             type="button"
             onClick={onCreateStory}
-            className="flex min-w-[78px] flex-col items-center gap-2 rounded-xl px-2 py-1 cursor-pointer transition hover:bg-secondary"
+            className="group flex min-w-[78px] flex-col items-center gap-2 rounded-xl px-2 py-1 cursor-pointer transition hover:bg-secondary"
           >
             <div className="relative">
               <UserAvatar
@@ -38,8 +38,19 @@ function StoryRail({
                 className="size-18 md:size-22 border-2 border-card text-xs font-semibold"
                 textClassName="text-xs font-semibold"
               />
-              <span className="absolute -bottom-1 -right-1 grid size-5 md:size-6 place-items-center rounded-full border border-card bg-primary text-[15px]  font-semibold text-inverse">
-                +
+              <span className="absolute -bottom-0.5 -right-0.5 grid size-5 md:size-6 place-items-center rounded-full border-2 border-card bg-primary text-inverse shadow-sm shadow-primary/25 transition-transform duration-200 group-hover:scale-110 group-active:scale-95">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-3 md:size-3.5"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
               </span>
             </div>
             <span className="max-w-[78px] truncate text-xs font-medium text-muted">{resolvedYourStoryLabel}</span>

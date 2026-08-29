@@ -1,201 +1,225 @@
-export function Icon({ path, className = 'size-6', strokeWidth = 1.8 }) {
+export function Icon({
+  children,
+  className = 'size-6',
+  strokeWidth = 1.8,
+  fill = 'none',
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill={fill}
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`${className} transition-transform duration-200`}
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  )
+}
+
+export function SearchIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={1.9}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </Icon>
+  )
+}
+
+export function BackIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={2}>
+      <path d="m15 18-6-6 6-6" />
+    </Icon>
+  )
+}
+
+export function PhotoIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={1.9}>
+      <rect width="18" height="18" x="3" y="3" rx="4.5" />
+      <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+      <path d="m21 15-5-5L5 21" />
+    </Icon>
+  )
+}
+
+export function VideoIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="m16 7 5-3v16l-5-3" />
+      <rect width="13" height="14" x="3" y="5" rx="3.5" />
+    </Icon>
+  )
+}
+
+export function SendIcon({ className = 'size-5' }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={strokeWidth}
+      strokeWidth="2.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`${className} transition-transform duration-200`}
+      aria-hidden="true"
+    >
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  )
+}
+
+export function MoreIcon({ className = 'size-5' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={`${className} transition-transform duration-200`}
+      aria-hidden="true"
+    >
+      <circle cx="5" cy="12" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="19" cy="12" r="1.75" />
+    </svg>
+  )
+}
+
+export function PlusIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={2.1}>
+      <path d="M12 5v14M5 12h14" />
+    </Icon>
+  )
+}
+
+export function CloseIcon({ className = 'size-3.5' }) {
+  return (
+    <Icon className={className} strokeWidth={2.2}>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </Icon>
+  )
+}
+
+export function CheckIcon({ double = false, className = 'size-3.5' }) {
+  return double ? (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
       aria-hidden="true"
     >
-      {path}
+      <path d="m2 12 5 5L18 6" />
+      <path d="m8 12 4.5 4.5L22 7" />
+    </svg>
+  ) : (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m4 12 5 5L20 6" />
     </svg>
   )
 }
 
-export function SearchIcon() {
+export function InfoIcon({ className = 'size-5' }) {
   return (
-    <Icon
-      path={
-        <>
-          <circle cx="11" cy="11" r="5.5" />
-          <path d="m16 16 4.2 4.2" />
-        </>
-      }
-    />
+    <Icon className={className} strokeWidth={1.9}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </Icon>
   )
 }
 
-export function BackIcon() {
-  return <Icon path={<path d="m15 18-6-6 6-6" />} />
-}
-
-export function PhotoIcon() {
+export function PencilIcon({ className = 'size-4' }) {
   return (
-    <Icon
-      path={
-        <>
-          <rect x="4" y="5" width="16" height="14" rx="3" />
-          <circle cx="9" cy="10" r="1.5" />
-          <path d="m20 15-4.5-4.5L8 18" />
-        </>
-      }
-    />
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </Icon>
   )
 }
 
-export function VideoIcon() {
+export function TrashIcon({ className = 'size-4' }) {
   return (
-    <Icon
-      path={
-        <>
-          <rect x="3.5" y="6" width="11" height="12" rx="2.5" />
-          <path d="m14.5 10 5-3v10l-5-3" />
-        </>
-      }
-    />
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </Icon>
   )
 }
 
-export function SendIcon() {
+export function CopyIcon({ className = 'size-4' }) {
   return (
-    <Icon
-      path={
-        <>
-          <path d="M21 3 10 14" />
-          <path d="m21 3-7 18-4-7-7-4 18-7Z" />
-        </>
-      }
-    />
-  )
-}
-
-export function MoreIcon() {
-  return (
-    <Icon
-      path={
-        <>
-          <circle cx="6" cy="12" r="1" />
-          <circle cx="12" cy="12" r="1" />
-          <circle cx="18" cy="12" r="1" />
-        </>
-      }
-    />
-  )
-}
-
-export function PlusIcon() {
-  return <Icon path={<path d="M12 5v14M5 12h14" />} />
-}
-
-export function CloseIcon() {
-  return <Icon className="size-3.5" path={<path d="m6 6 12 12M18 6 6 18" />} />
-}
-
-export function CheckIcon({ double = false }) {
-  return double ? (
-    <Icon
-      className="size-3.5"
-      path={
-        <>
-          <path d="m4.8 12.5 2.3 2.3 4.3-5.1" />
-          <path d="m10.8 12.5 2.3 2.3 5-6" />
-        </>
-      }
-    />
-  ) : (
-    <Icon className="size-3.5" path={<path d="m6 12.5 3 3.1 8-9" />} />
-  )
-}
-
-export function InfoIcon() {
-  return (
-    <Icon
-      path={
-        <>
-          <circle cx="12" cy="12" r="8.5" />
-          <path d="M12 10.5v5" />
-          <path d="M12 7.5h.01" />
-        </>
-      }
-    />
-  )
-}
-
-export function PencilIcon() {
-  return <Icon className="size-4" path={<path d="m4 20 4.2-1 9.4-9.4-3.2-3.2L5 15.8 4 20Z" />} />
-}
-
-export function TrashIcon() {
-  return (
-    <Icon
-      className="size-4"
-      path={
-        <>
-          <path d="M5 7.5h14" />
-          <path d="M9 7.5V5.8h6v1.7" />
-          <path d="m7 7.5 1 11h8l1-11" />
-        </>
-      }
-    />
-  )
-}
-
-export function CopyIcon() {
-  return (
-    <Icon
-      className="size-4"
-      path={
-        <>
-          <rect x="9" y="9" width="10" height="10" rx="2" />
-          <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
-        </>
-      }
-    />
+    <Icon className={className} strokeWidth={1.9}>
+      <rect width="14" height="14" x="8" y="8" rx="2.5" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </Icon>
   )
 }
 
 export function ChevronIcon({ direction = 'right', className = 'size-5' }) {
   return (
-    <Icon
+    <Icon className={className} strokeWidth={2}>
+      <path d={direction === 'right' ? 'm9 18 6-6-6-6' : 'm15 18-6-6 6-6'} />
+    </Icon>
+  )
+}
+
+export function PlayIcon({ className = 'size-5' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
       className={className}
-      path={<path d={direction === 'right' ? 'm9 6 6 6-6 6' : 'm15 6-6 6 6 6'} />}
-    />
+      aria-hidden="true"
+    >
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </svg>
   )
 }
 
-export function PlayIcon() {
-  return <Icon className="size-5" path={<path d="m10 8 6 4-6 4V8Z" />} />
-}
-
-export function MessageIcon() {
+export function MessageIcon({ className = 'size-5' }) {
   return (
-    <Icon
-      className="size-5"
-      path={
-        <>
-          <path d="M4 6.5h16v9H8l-4 3v-12Z" />
-          <path d="M7.5 10.5h9" />
-          <path d="M7.5 13.5h5.5" />
-        </>
-      }
-    />
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    </Icon>
   )
 }
 
-export function DownloadIcon() {
+export function DownloadIcon({ className = 'size-5' }) {
   return (
-    <Icon
-      className="size-5"
-      path={
-        <>
-          <path d="M12 4.5v10" />
-          <path d="m8.5 11 3.5 3.5 3.5-3.5" />
-          <path d="M5 18.5h14" />
-        </>
-      }
-    />
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" x2="12" y1="15" y2="3" />
+    </Icon>
   )
 }
+
+export function ReplyIcon({ className = 'size-4' }) {
+  return (
+    <Icon className={className} strokeWidth={1.9}>
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </Icon>
+  )
+}
+

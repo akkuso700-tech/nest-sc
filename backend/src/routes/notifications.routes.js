@@ -5,6 +5,7 @@ const {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 } = require('../controllers/notificationsController')
 const {
   listNotificationsSchema,
@@ -25,6 +26,11 @@ notificationsRouter.patch(
   '/:notificationId/read',
   validateRequest(notificationIdSchema),
   markNotificationRead,
+)
+notificationsRouter.delete(
+  '/:notificationId',
+  validateRequest(notificationIdSchema),
+  deleteNotification,
 )
 
 module.exports = { notificationsRouter }
