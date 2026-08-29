@@ -559,6 +559,11 @@ export const resources = {
         messageActions: 'Message actions',
         conversationActions: 'Conversation actions',
         copy: 'Copy',
+        reply: 'Reply',
+        replyingTo: 'Replying to {{name}}',
+        cancelReply: 'Cancel reply',
+        loadOlderMessages: 'Load older messages',
+        loadingOlderMessages: 'Loading older messages...',
         edit: 'Edit',
         delete: 'Delete',
         report: 'Report',
@@ -635,11 +640,65 @@ export const resources = {
           markRead: 'Mark read',
           markAllRead: 'Mark all as read',
           marking: 'Marking...',
+          delete: 'Delete',
+          deleting: 'Deleting...',
+          moreOptions: 'More options',
         },
         errors: {
           load: 'Notifications could not be loaded.',
           markRead: 'Notification could not be marked as read.',
           markAll: 'All notifications could not be marked as read.',
+          delete: 'Notification could not be deleted.',
+        },
+        types: {
+          message: {
+            title: 'New message',
+            body: '{{name}} sent you a new message.',
+          },
+          follow: {
+            title: 'New follower',
+            body: '{{name}} started following you.',
+          },
+          comment: {
+            title: 'New comment',
+            body: '{{name}} commented on your post.',
+          },
+          likePost: {
+            title: 'Post liked',
+            body: '{{name}} liked your post.',
+          },
+          likeComment: {
+            title: 'Comment liked',
+            body: '{{name}} liked your comment.',
+          },
+          sharePost: {
+            title: 'Post shared',
+            body: '{{name}} shared your post.',
+          },
+          shareComment: {
+            title: 'Comment shared',
+            body: '{{name}} shared your comment.',
+          },
+          mention: {
+            title: 'New mention',
+            body: '{{name}} mentioned you.',
+          },
+          adminApproved: {
+            title: 'Blue badge approved',
+            body: 'Your profile is now verified.',
+          },
+          adminRejected: {
+            title: 'Verification request updated',
+            body: 'Your badge request was evaluated.',
+          },
+          adminReview: {
+            title: 'Application under review',
+            body: 'Your blue badge application is being reviewed.',
+          },
+          adminRemoved: {
+            title: 'Verification removed',
+            body: 'Your blue badge was removed.',
+          },
         },
       },
       postDetail: {
@@ -1297,6 +1356,11 @@ export const resources = {
         messageActions: 'Mesaj işlemleri',
         conversationActions: 'Sohbet işlemleri',
         copy: 'Kopyala',
+        reply: 'Yanıtla',
+        replyingTo: '{{name}} kişisine yanıt veriliyor',
+        cancelReply: 'Yanıtı iptal et',
+        loadOlderMessages: 'Önceki mesajları yükle',
+        loadingOlderMessages: 'Önceki mesajlar yükleniyor...',
         edit: 'Düzenle',
         delete: 'Sil',
         report: 'Şikayet Et',
@@ -1373,11 +1437,65 @@ export const resources = {
           markRead: 'Okundu yap',
           markAllRead: 'Tümünü okundu yap',
           marking: 'İşleniyor...',
+          delete: 'Sil',
+          deleting: 'Siliniyor...',
+          moreOptions: 'Diğer seçenekler',
         },
         errors: {
           load: 'Bildirimler yüklenemedi.',
-          markRead: 'Bildirim okundu yapılamadi.',
-          markAll: 'Tum bildirimler okundu yapılamadı.',
+          markRead: 'Bildirim okundu yapılamadı.',
+          markAll: 'Tüm bildirimler okundu yapılamadı.',
+          delete: 'Bildirim silinemedi.',
+        },
+        types: {
+          message: {
+            title: 'Yeni mesaj',
+            body: '{{name}} sana yeni bir mesaj gönderdi.',
+          },
+          follow: {
+            title: 'Yeni takipçi',
+            body: '{{name}} seni takip etmeye başladı.',
+          },
+          comment: {
+            title: 'Yeni yorum',
+            body: '{{name}} gönderine yorum yaptı.',
+          },
+          likePost: {
+            title: 'Gönderi beğenildi',
+            body: '{{name}} gönderini beğendi.',
+          },
+          likeComment: {
+            title: 'Yorum beğenildi',
+            body: '{{name}} yorumunu beğendi.',
+          },
+          sharePost: {
+            title: 'Gönderi paylaşıldı',
+            body: '{{name}} gönderini paylaştı.',
+          },
+          shareComment: {
+            title: 'Yorum paylaşıldı',
+            body: '{{name}} yorumunu paylaştı.',
+          },
+          mention: {
+            title: 'Yeni etiketleme',
+            body: '{{name}} seni etiketledi.',
+          },
+          adminApproved: {
+            title: 'Mavi tık rozetiniz onaylandı',
+            body: 'Profiliniz artık onaylı profil olarak görünecek.',
+          },
+          adminRejected: {
+            title: 'Mavi tık başvurunuz sonuçlandı',
+            body: 'Rozet başvurunuz değerlendirildi.',
+          },
+          adminReview: {
+            title: 'Başvurunuz inceleniyor',
+            body: 'Mavi tık başvurunuz incelemeye alındı.',
+          },
+          adminRemoved: {
+            title: 'Profil doğrulaması kaldırıldı',
+            body: 'Mavi tık rozetiniz kaldırıldı.',
+          },
         },
       },
       postDetail: {
@@ -2039,6 +2157,11 @@ export const resources = {
         messageActions: 'Nachrichtenaktionen',
         conversationActions: 'Konversationsaktionen',
         copy: 'Kopieren',
+        reply: 'Antworten',
+        replyingTo: 'Antwort an {{name}}',
+        cancelReply: 'Antwort abbrechen',
+        loadOlderMessages: 'Ältere Nachrichten laden',
+        loadingOlderMessages: 'Ältere Nachrichten werden geladen...',
         edit: 'Bearbeiten',
         delete: 'Loschen',
         report: 'Melden',
@@ -2115,11 +2238,65 @@ export const resources = {
           markRead: 'Als gelesen markieren',
           markAllRead: 'Alle als gelesen markieren',
           marking: 'Wird markiert...',
+          delete: 'Löschen',
+          deleting: 'Wird gelöscht...',
+          moreOptions: 'Weitere Optionen',
         },
         errors: {
           load: 'Benachrichtigungen konnten nicht geladen werden.',
           markRead: 'Benachrichtigung konnte nicht als gelesen markiert werden.',
           markAll: 'Alle Benachrichtigungen konnten nicht als gelesen markiert werden.',
+          delete: 'Benachrichtigung konnte nicht gelöscht werden.',
+        },
+        types: {
+          message: {
+            title: 'Neue Nachricht',
+            body: '{{name}} hat dir eine neue Nachricht gesendet.',
+          },
+          follow: {
+            title: 'Neuer Follower',
+            body: '{{name}} folgt dir jetzt.',
+          },
+          comment: {
+            title: 'Neuer Kommentar',
+            body: '{{name}} hat deinen Beitrag kommentiert.',
+          },
+          likePost: {
+            title: 'Beitrag gefällt mir',
+            body: '{{name}} gefällt dein Beitrag.',
+          },
+          likeComment: {
+            title: 'Kommentar gefällt mir',
+            body: '{{name}} gefällt dein Kommentar.',
+          },
+          sharePost: {
+            title: 'Beitrag geteilt',
+            body: '{{name}} hat deinen Beitrag geteilt.',
+          },
+          shareComment: {
+            title: 'Kommentar geteilt',
+            body: '{{name}} hat deinen Kommentar geteilt.',
+          },
+          mention: {
+            title: 'Neue Erwähnung',
+            body: '{{name}} hat dich erwähnt.',
+          },
+          adminApproved: {
+            title: 'Blauer Haken bestätigt',
+            body: 'Dein Profil ist jetzt verifiziert.',
+          },
+          adminRejected: {
+            title: 'Verifizierungsanfrage bearbeitet',
+            body: 'Deine Anfrage wurde ausgewertet.',
+          },
+          adminReview: {
+            title: 'Anfrage wird geprüft',
+            body: 'Deine Anfrage wird derzeit überprüft.',
+          },
+          adminRemoved: {
+            title: 'Verifizierung entfernt',
+            body: 'Dein blauer Haken wurde entfernt.',
+          },
         },
       },
       postDetail: {
@@ -2783,6 +2960,11 @@ export const resources = {
         messageActions: 'Acciones del mensaje',
         conversationActions: 'Acciones de conversacion',
         copy: 'Copiar',
+        reply: 'Responder',
+        replyingTo: 'Respondiendo a {{name}}',
+        cancelReply: 'Cancelar respuesta',
+        loadOlderMessages: 'Cargar mensajes anteriores',
+        loadingOlderMessages: 'Cargando mensajes anteriores...',
         edit: 'Editar',
         delete: 'Eliminar',
         report: 'Reportar',
@@ -2859,11 +3041,65 @@ export const resources = {
           markRead: 'Marcar como leida',
           markAllRead: 'Marcar todo como leido',
           marking: 'Marcando...',
+          delete: 'Eliminar',
+          deleting: 'Eliminando...',
+          moreOptions: 'Más opciones',
         },
         errors: {
           load: 'No se pudieron cargar las notificaciones.',
           markRead: 'No se pudo marcar la notificacion como leida.',
           markAll: 'No se pudieron marcar todas las notificaciones como leidas.',
+          delete: 'No se pudo eliminar la notificacion.',
+        },
+        types: {
+          message: {
+            title: 'Nuevo mensaje',
+            body: '{{name}} te envió un nuevo mensaje.',
+          },
+          follow: {
+            title: 'Nuevo seguidor',
+            body: '{{name}} comenzó a seguirte.',
+          },
+          comment: {
+            title: 'Nuevo comentario',
+            body: '{{name}} comentó en tu publicación.',
+          },
+          likePost: {
+            title: 'Le gustó la publicación',
+            body: 'A {{name}} le gustó tu publicación.',
+          },
+          likeComment: {
+            title: 'Le gustó el comentario',
+            body: 'A {{name}} le gustó tu comentario.',
+          },
+          sharePost: {
+            title: 'Publicación compartida',
+            body: '{{name}} compartió tu publicación.',
+          },
+          shareComment: {
+            title: 'Comentario compartido',
+            body: '{{name}} compartió tu comentario.',
+          },
+          mention: {
+            title: 'Nueva mención',
+            body: '{{name}} te mencionó.',
+          },
+          adminApproved: {
+            title: 'Insignia azul aprobada',
+            body: 'Tu perfil ahora está verificado.',
+          },
+          adminRejected: {
+            title: 'Solicitud de verificación procesada',
+            body: 'Se evaluó tu solicitud de insignia.',
+          },
+          adminReview: {
+            title: 'Solicitud en revisión',
+            body: 'Tu solicitud está siendo revisada.',
+          },
+          adminRemoved: {
+            title: 'Verificación eliminada',
+            body: 'Se eliminó tu insignia azul.',
+          },
         },
       },
       postDetail: {

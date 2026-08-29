@@ -21,28 +21,68 @@ import { deleteComment as deleteStoryReplyComment } from '../../services/postsSe
 
 const IMAGE_STORY_DURATION_MS = 5000
 
-function HeartIcon({ filled = false }) {
+function HeartIcon({ filled = false, className = 'size-8' }) {
+  if (filled) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        stroke="none"
+        className={`${className} transition-transform duration-200`}
+        aria-hidden="true"
+      >
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+      </svg>
+    )
+  }
   return (
-    <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" className="size-8">
-      <path d="M12 20s-6.8-4.5-8.7-8.2A5.1 5.1 0 0 1 12 5.6a5.1 5.1 0 0 1 8.7 6.2C18.8 15.5 12 20 12 20Z" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`${className} transition-transform duration-200`}
+      aria-hidden="true"
+    >
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
     </svg>
   )
 }
 
-function SendIcon() {
+function SendIcon({ className = 'size-5.5' }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-5.5">
-      <path d="M4 12 20 4l-6 16-2.8-6.2L4 12Z" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`${className} transition-transform duration-200`}
+      aria-hidden="true"
+    >
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
     </svg>
   )
 }
 
-function ShareIcon() {
+function ShareIcon({ className = 'size-8' }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-8">
-      <path d="m15 6 4-1-1 4" />
-      <path d="M10 14 19 5" />
-      <path d="M19 13.5V18a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2H11" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`${className} transition-transform duration-200`}
+      aria-hidden="true"
+    >
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
     </svg>
   )
 }

@@ -146,8 +146,26 @@ const markAllNotificationsRead = asyncHandler(async (req, res) => {
   })
 })
 
+const deleteNotification = asyncHandler(async (req, res) => {
+  const notification = await Notification.findOneAndDelete({
+    _id: req.validated.params.notificationId,
+    user: req.user._id,
+  })
+
+  if (!notification) {
+    throw new AppError('Notification not found.', 404)
+  }
+
+  res.json({
+    message: 'Notification deleted successfully.',
+    notificationId: req.validated.params.notificationId,
+  })
+})
+
 module.exports = {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 }
+

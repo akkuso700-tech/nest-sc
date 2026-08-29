@@ -12,7 +12,7 @@ import {
 import { connectSocketClient, disconnectSocketClient } from '../services/socketClient.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useTheme } from '../store/ThemeContext.jsx'
-import { formatRelativeTime, getFullName } from '../utils/social.js'
+import { formatNotificationContent, formatRelativeTime, getFullName } from '../utils/social.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { normalizeSearchText } from '../utils/searchText.js'
 import UserAvatar from '../components/common/UserAvatar.jsx'
@@ -171,15 +171,15 @@ function buildSearchSuggestionEntries({ query, recentSearches, items, posts, lan
   ]
 }
 
-function getNavIcon(iconKey) {
+function getNavIcon(iconKey, filled = false) {
   const icons = {
-    home: <HomeIcon />,
-    loop: <LoopIcon />,
-    groups: <GroupsIcon />,
-    messages: <MessageIcon />,
-    notifications: <BellIcon />,
-    reports: <BookmarkIcon />,
-    profile: <UserIcon />,
+    home: <HomeIcon filled={filled} />,
+    loop: <LoopIcon filled={filled} />,
+    groups: <GroupsIcon filled={filled} />,
+    messages: <MessageIcon filled={filled} />,
+    notifications: <BellIcon filled={filled} />,
+    reports: <BookmarkIcon filled={filled} />,
+    profile: <UserIcon filled={filled} />,
     settings: <SettingsIcon />,
     hiddenProfile: <HiddenProfileIcon />,
     monetization: <MonetizationIcon />,
@@ -189,7 +189,7 @@ function getNavIcon(iconKey) {
     login: <LoginIcon />,
   }
 
-  return icons[iconKey] || <HomeIcon />
+  return icons[iconKey] || <HomeIcon filled={filled} />
 }
 
 function formatBadgeCount(count) {
@@ -207,7 +207,7 @@ function UnreadBadge({ count, className = '' }) {
 
   return (
     <span
-      className={`inline-flex min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 py-1 text-[10px] font-semibold leading-none text-white shadow-sm ${className}`}
+      className={`inline-flex min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 py-1 text-[10px] font-semibold leading-none text-white shadow-sm ring-2 ring-card ${className}`}
     >
       {formatBadgeCount(count)}
     </span>
@@ -221,23 +221,33 @@ function SidebarLink({ item, open, onNavigate, badgeCount = 0 }) {
       end={item.key === 'home'}
       onClick={onNavigate}
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-regular transition ${
+        `group flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all duration-200 ${
           isActive
-            ? 'bg-nav-active text-text font-semibold'
+            ? 'bg-nav-active text-primary font-semibold shadow-xs'
             : 'text-muted hover:bg-nav-hover hover:text-text'
         }`
       }
     >
-      <span className="relative grid size-10 shrink-0 place-items-center rounded-2xl text-text">
-        {getNavIcon(item.iconKey)}
-        {!open ? <UnreadBadge count={badgeCount} className="absolute -right-1 -top-1" /> : null}
-      </span>
-      {open ? (
+      {({ isActive }) => (
         <>
-          <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          <UnreadBadge count={badgeCount} />
+          <span
+            className={`relative grid size-10 shrink-0 place-items-center rounded-2xl transition-transform duration-200 group-hover:scale-105 group-active:scale-95 ${
+              isActive ? 'text-primary' : 'text-text'
+            }`}
+          >
+            {getNavIcon(item.iconKey, isActive)}
+            {!open ? <UnreadBadge count={badgeCount} className="absolute -right-1 -top-1" /> : null}
+          </span>
+          {open ? (
+            <>
+              <span className={`min-w-0 flex-1 truncate ${isActive ? 'text-primary font-semibold' : ''}`}>
+                {item.label}
+              </span>
+              <UnreadBadge count={badgeCount} />
+            </>
+          ) : null}
         </>
-      ) : null}
+      )}
     </NavLink>
   )
 }
@@ -924,56 +934,65 @@ function MobileBottomBar({
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-40 h-[60px] border-t border-border bg-[rgb(var(--color-card)/0.96)] px-2 py-2 backdrop-blur transition-transform duration-300 md:hidden ${
+      className={`fixed inset-x-0 bottom-0 z-40 h-[56px] max-h-[58px] border-t border-border bg-[rgb(var(--color-card)/0.96)] px-1.5 py-1 backdrop-blur-lg transition-transform duration-300 md:hidden ${
         visible ? 'translate-y-0' : 'translate-y-full'
       }`}
     >
       <div className="grid grid-cols-5 gap-1">
-        {items.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={() =>
-              `flex h-[44px] flex-col items-center justify-center gap-0.5 rounded-lg py-0 text-[10px] font-medium leading-none transition ${
-                isItemActive(item.key)
-                  ? 'bg-nav-active text-text shadow-sm'
-                  : 'text-muted hover:bg-nav-hover hover:text-text'
-              }`
-            }
-          >
-            <span className="relative grid size-7 place-items-center">
-              {item.icon}
-              <UnreadBadge count={item.badgeCount} className="absolute -right-2 -top-1" />
-            </span>
-            <span className="leading-none">{item.label}</span>
-          </NavLink>
-        ))}
+        {items.map((item) => {
+          const active = isItemActive(item.key)
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={() =>
+                `group flex h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl py-0.5 text-[10px] leading-none transition-all duration-200 ${
+                  active
+                    ? 'bg-nav-active text-primary font-semibold shadow-xs'
+                    : 'text-muted hover:bg-nav-hover hover:text-text'
+                }`
+              }
+            >
+              <span className={`relative grid size-6 place-items-center transition-transform duration-200 ${active ? 'scale-105 text-primary' : 'group-active:scale-95'}`}>
+                {item.key === 'home' && <HomeIcon filled={active} className="size-5" />}
+                {item.key === 'messages' && <MessageIcon filled={active} className="size-5" />}
+                {item.key === 'loop' && <LoopIcon filled={active} className="size-5" />}
+                {item.key === 'notifications' && <BellIcon filled={active} className="size-5" />}
+                {item.key === 'profile' && <UserIcon filled={active} className="size-5" />}
+                <UnreadBadge count={item.badgeCount} className="absolute -right-2 -top-1 ring-1.5 ring-card text-[9px] min-w-[16px] h-[16px] px-0.5" />
+              </span>
+              <span className={`leading-none tracking-tight ${active ? 'text-primary font-semibold' : ''}`}>
+                {item.label}
+              </span>
+            </NavLink>
+          )
+        })}
       </div>
       {!hideCreateButton ? (
-        <div ref={createMenuRef} className="absolute -top-14 right-4 z-[45]">
+        <div ref={createMenuRef} className="absolute -top-13 right-3.5 z-[45]">
           {showCreateMenu ? (
-            <div className="absolute bottom-[calc(100%+10px)] right-0 w-52 rounded-2xl border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.18)]">
+            <div className="absolute bottom-[calc(100%+10px)] right-0 w-52 rounded-2xl border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.18)] backdrop-blur-md">
               <p className="px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-soft">
                 {t('common.createMenu.title')}
               </p>
               <button
                 type="button"
                 onClick={() => handleCreateAction('post')}
-                className="flex w-full cursor-pointer items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-text transition hover:bg-secondary"
+                className="flex w-full cursor-pointer items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-text transition hover:bg-secondary active:scale-[0.98]"
               >
                 {t('common.createMenu.post')}
               </button>
               <button
                 type="button"
                 onClick={() => handleCreateAction('loopVideo')}
-                className="flex w-full cursor-pointer items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-text transition hover:bg-secondary"
+                className="flex w-full cursor-pointer items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-text transition hover:bg-secondary active:scale-[0.98]"
               >
                 {t('common.createMenu.loopVideo')}
               </button>
               <button
                 type="button"
                 onClick={() => handleCreateAction('story')}
-                className="flex w-full cursor-pointer items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-text transition hover:bg-secondary"
+                className="flex w-full cursor-pointer items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-text transition hover:bg-secondary active:scale-[0.98]"
               >
                 <span>{t('common.createMenu.story')}</span>
               </button>
@@ -982,11 +1001,13 @@ function MobileBottomBar({
           <button
             type="button"
             onClick={handleCreateClick}
-            className="grid size-12 place-items-center rounded-full bg-primary text-inverse shadow-xl transition hover:bg-primary-hover"
+            className={`grid size-11 place-items-center rounded-full bg-primary text-inverse shadow-xl shadow-primary/25 transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-primary-hover ${
+              showCreateMenu ? 'rotate-45' : ''
+            }`}
             aria-label={t('common.createMenu.openAria')}
             title={t('common.createMenu.openAria')}
           >
-            <PlusIcon />
+            <PlusIcon className="size-5.5" />
           </button>
         </div>
       ) : null}
@@ -1959,6 +1980,7 @@ function SocialLayout({
                       <>
                         {notificationPreviewItems.map((notification) => {
                           const actor = notification.actor || {}
+                          const content = formatNotificationContent(notification, t)
                           const previewMeta = notification.createdAt
                             ? formatRelativeTime(notification.createdAt)
                             : ''
@@ -1968,9 +1990,9 @@ function SocialLayout({
                               key={notification._id}
                               to={`/${lang}/notifications`}
                               user={actor}
-                              title={notification.title || 'Bildirim'}
+                              title={content.title}
                               meta={previewMeta}
-                              body={notification.body}
+                              body={content.body}
                               badgeCount={notification.readAt ? 0 : 1}
                               isActive={isUserRecentlyActive(actor)}
                               isHighlighted={!notification.readAt}

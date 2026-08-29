@@ -19,6 +19,7 @@ const { normalizeMediaList, normalizeUserMedia } = require('../utils/mediaUrls')
 const sendMessageBodySchema = z.object({
   recipientId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
   text: z.string().trim().max(5000).optional().default(''),
+  replyToId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/).optional().nullable(),
 })
 
 async function parseSendMessageInput(req) {
@@ -37,6 +38,7 @@ async function parseSendMessageInput(req) {
     recipientId: result.data.recipientId,
     text: result.data.text.trim(),
     media,
+    replyToId: result.data.replyToId || null,
   }
 }
 
@@ -45,13 +47,14 @@ const sendMessage = asyncHandler(async (req, res) => {
 
   try {
     const io = req.app.locals.io || null
-    const { recipientId, text, media } = await parseSendMessageInput(req)
+    const { recipientId, text, media, replyToId } = await parseSendMessageInput(req)
 
     const result = await createMessageAndNotify({
       sender: req.user,
       recipientId,
       text,
       media,
+      replyToId,
       io,
     })
 
@@ -124,21 +127,46 @@ const listConversations = asyncHandler(async (req, res) => {
 
 const listConversationMessages = asyncHandler(async (req, res) => {
   const { conversationId } = req.validated.params
-  const { limit } = req.validated.query
+  const { limit, before } = req.validated.query
 
   await assertConversationAccess(conversationId, req.user._id)
 
-  const messages = await Message.find({
+  const filter = {
     conversation: conversationId,
     deletedByUserIds: { $ne: req.user._id },
-  })
-    .select('conversation sender recipient text media createdAt deliveredAt readAt')
+  }
+
+  if (before) {
+    const mongoose = require('mongoose')
+    if (mongoose.isValidObjectId(before)) {
+      const beforeMessage = await Message.findById(before).select('createdAt').lean()
+      if (beforeMessage?.createdAt) {
+        filter.createdAt = { $lt: beforeMessage.createdAt }
+      }
+    } else {
+      const beforeDate = new Date(before)
+      if (!isNaN(beforeDate.getTime())) {
+        filter.createdAt = { $lt: beforeDate }
+      }
+    }
+  }
+
+  const rawMessages = await Message.find(filter)
+    .select('conversation sender recipient text media replyTo createdAt deliveredAt readAt')
     .sort({ createdAt: -1 })
-    .limit(limit)
+    .limit(limit + 1)
+    .populate({
+      path: 'replyTo',
+      select: 'sender text media createdAt',
+    })
     .lean()
+
+  const hasMore = rawMessages.length > limit
+  const messages = hasMore ? rawMessages.slice(0, limit) : rawMessages
 
   res.json({
     messages: messages.reverse().map((message) => serializeMessage(message)),
+    hasMore,
   })
 })
 

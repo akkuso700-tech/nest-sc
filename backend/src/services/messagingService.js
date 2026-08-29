@@ -3,13 +3,30 @@ const { AppError } = require('../utils/AppError')
 const { User } = require('../models/User')
 const { Conversation } = require('../models/Conversation')
 const { Message } = require('../models/Message')
-const { normalizeMediaList } = require('../utils/mediaUrls')
+const { normalizeMediaList, normalizeUserMedia } = require('../utils/mediaUrls')
+const { Notification } = require('../models/Notification')
 
 function buildConversationKey(firstUserId, secondUserId) {
   return [firstUserId.toString(), secondUserId.toString()].sort().join(':')
 }
 
 function serializeMessage(message) {
+  let replyToSerialized = null
+  if (message.replyTo) {
+    if (typeof message.replyTo === 'object' && message.replyTo._id) {
+      replyToSerialized = {
+        id: message.replyTo._id,
+        sender: message.replyTo.sender,
+        text: message.replyTo.text || '',
+        media: normalizeMediaList(message.replyTo.media || []),
+      }
+    } else {
+      replyToSerialized = {
+        id: message.replyTo,
+      }
+    }
+  }
+
   return {
     id: message._id,
     conversationId: message.conversation,
@@ -17,6 +34,7 @@ function serializeMessage(message) {
     recipient: message.recipient,
     text: message.text,
     media: normalizeMediaList(message.media || []),
+    replyTo: replyToSerialized,
     createdAt: message.createdAt,
     deliveredAt: message.deliveredAt,
     readAt: message.readAt,
@@ -82,6 +100,7 @@ async function createMessageAndNotify({
   recipientId,
   text,
   media = [],
+  replyToId = null,
   io = null,
 }) {
   await ensureRecipient(recipientId, sender._id)
@@ -108,6 +127,7 @@ async function createMessageAndNotify({
     recipient: recipientId,
     text,
     media,
+    replyTo: replyToId || null,
     deliveredAt: new Date(),
   })
 
@@ -116,7 +136,43 @@ async function createMessageAndNotify({
   conversation.lastMessageAt = message.createdAt
   await conversation.save()
 
-  const serializedMessage = serializeMessage(message)
+  const populatedMessage = await Message.findById(message._id).populate({
+    path: 'replyTo',
+    select: 'sender text media',
+  })
+
+  const notification = await Notification.create({
+    user: recipientId,
+    actor: sender._id,
+    type: 'message',
+    entityKind: 'message',
+    entityId: message._id,
+    title: 'New message',
+    body: `${sender.firstName} sent you a new message.`,
+  })
+  const populatedNotification = await Notification.findById(notification._id).populate(
+    'actor',
+    'firstName lastName username avatarUrl lastLoginAt verification',
+  )
+  const serializedNotification = populatedNotification
+    ? {
+        ...(populatedNotification.toObject
+          ? populatedNotification.toObject()
+          : populatedNotification),
+        actor: normalizeUserMedia(populatedNotification.actor),
+        targetPostId: null,
+        targetCommentId: null,
+        targetConversationId: message.conversation?.toString?.() || null,
+      }
+    : {
+        ...(notification.toObject ? notification.toObject() : notification),
+        actor: normalizeUserMedia(sender),
+        targetPostId: null,
+        targetCommentId: null,
+        targetConversationId: message.conversation?.toString?.() || null,
+      }
+
+  const serializedMessage = serializeMessage(populatedMessage || message)
 
   if (io) {
     const senderRoom = `user:${sender._id}`
@@ -124,11 +180,13 @@ async function createMessageAndNotify({
 
     io.to(recipientRoom).emit('new_message', serializedMessage)
     io.to(senderRoom).emit('new_message', serializedMessage)
+    io.to(recipientRoom).emit('notification:new', serializedNotification)
   }
 
   return {
     conversation,
     message,
+    notification: serializedNotification,
     serializedMessage,
   }
 }

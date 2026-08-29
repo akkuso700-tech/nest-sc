@@ -1601,19 +1601,19 @@ function PostComposer({
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={isComposerBusy}
-                className="grid size-10 place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                className="grid size-10 place-items-center rounded-full border border-border text-text transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label={t('composer.addPhoto', { defaultValue: 'Add photo' })}
               >
-                <PhotoIcon />
+                <PhotoIcon className="size-5" />
               </button>
               <button
                 type="button"
                 onClick={() => videoInputRef.current?.click()}
                 disabled={isComposerBusy}
-                className="grid size-10 place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                className="grid size-10 place-items-center rounded-full border border-border text-text transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label={t('composer.addVideo', { defaultValue: 'Add video' })}
               >
-                <VideoIcon />
+                <VideoIcon className="size-5" />
               </button>
               <span className="text-xs text-soft">
                 {isOptimizingMedia
@@ -2075,19 +2075,19 @@ function PostComposer({
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
                       disabled={isComposerBusy}
-                      className="grid size-11 cursor-pointer place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="grid size-11 cursor-pointer place-items-center rounded-full border border-border text-text transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={t('composer.addPhoto', { defaultValue: 'Add photo' })}
                     >
-                      <PhotoIcon />
+                      <PhotoIcon className="size-5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
                       disabled={isComposerBusy}
-                      className="grid size-11 cursor-pointer place-items-center rounded-full border border-border text-text transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="grid size-11 cursor-pointer place-items-center rounded-full border border-border text-text transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={t('composer.addVideo', { defaultValue: 'Add video' })}
                     >
-                      <VideoIcon />
+                      <VideoIcon className="size-5" />
                     </button>
                     <span className="text-xs text-soft">
                       {isOptimizingMedia

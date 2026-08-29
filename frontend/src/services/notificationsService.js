@@ -21,3 +21,10 @@ export function markAllNotificationsRead() {
     method: 'PATCH',
   })
 }
+
+export function deleteNotification(notificationId) {
+  return apiRequest(`/notifications/${notificationId}`, {
+    method: 'DELETE',
+  })
+}
+
