@@ -1,4 +1,5 @@
 import { apiOrigin } from '../lib/apiClient.js'
+import { pinnedUploadOrigin } from '../lib/domainConfig.js'
 
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '')
@@ -53,29 +54,7 @@ function resolveUploadsOrigin() {
 }
 
 function resolvePreferredUploadsOrigin(defaultOrigin) {
-  if (typeof window === 'undefined') {
-    return defaultOrigin
-  }
-
-  const protocol = window.location.protocol || 'https:'
-  const hostname = String(window.location.hostname || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^www\./, '')
-
-  if (!hostname) {
-    return defaultOrigin
-  }
-
-  if (hostname === 'demo.nest-sc.com') {
-    return `${protocol}//upload-demo.nest-sc.com`
-  }
-
-  if (hostname === 'nest-sc.com') {
-    return `${protocol}//upload.nest-sc.com`
-  }
-
-  return defaultOrigin
+  return pinnedUploadOrigin || defaultOrigin
 }
 
 function pushUniqueUrl(target, value) {

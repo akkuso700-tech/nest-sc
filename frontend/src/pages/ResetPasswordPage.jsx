@@ -5,7 +5,7 @@ import ActionToast from '../components/feedback/ActionToast.jsx'
 import AuthShell from '../components/auth/AuthShell.jsx'
 import { AuthEyeIcon } from '../components/auth/AuthIcons.jsx'
 import { authInputClassName } from '../components/auth/authStyles.js'
-import { apiRequest } from '../lib/apiClient.js'
+import { confirmPasswordReset } from '../services/authService.js'
 
 function ResetPasswordPage() {
   const { lang } = useParams()
@@ -51,17 +51,7 @@ function ResetPasswordPage() {
     setIsSubmitting(true)
 
     try {
-      const payload = await apiRequest(
-        '/auth/password-reset/confirm',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            token,
-            newPassword: formState.newPassword,
-          }),
-        },
-        { skipRefreshRetry: true },
-      )
+      const payload = await confirmPasswordReset(token, formState.newPassword)
 
       setToast({
         message: payload.message,

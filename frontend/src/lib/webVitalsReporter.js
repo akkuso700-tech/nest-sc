@@ -1,3 +1,5 @@
+import { pinnedEndpoint } from './domainConfig.js'
+
 const METRIC_NAMES = new Set(['LCP', 'CLS', 'INP', 'FCP', 'TTFB'])
 const DEFAULT_PRODUCTION_SAMPLE_RATE = 0.2
 
@@ -11,17 +13,12 @@ function resolveSampleRate() {
 }
 
 function resolveMetricsEndpoint() {
-  const hostname = window.location.hostname
-  const normalizedHost = hostname.replace(/^www\./, '')
+  const pinned = pinnedEndpoint('performance/web-vitals')
+  if (pinned) return pinned
 
+  const hostname = window.location.hostname
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5000/api/v1/performance/web-vitals'
-  }
-  if (normalizedHost === 'demo.nest-sc.com') {
-    return 'https://api-demo.nest-sc.com/api/v1/performance/web-vitals'
-  }
-  if (normalizedHost === 'nest-sc.com') {
-    return 'https://api.nest-sc.com/api/v1/performance/web-vitals'
   }
 
   return `${window.location.origin}/api/v1/performance/web-vitals`

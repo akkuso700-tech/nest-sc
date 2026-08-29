@@ -5,7 +5,12 @@ import Seo from '../components/seo/Seo.jsx'
 import AuthShell from '../components/auth/AuthShell.jsx'
 import { AuthChevronIcon, AuthEyeIcon } from '../components/auth/AuthIcons.jsx'
 import { authInputClassName } from '../components/auth/authStyles.js'
-import { apiRequest } from '../lib/apiClient.js'
+import {
+  getSignupContracts,
+  checkEmailAvailability,
+  requestSignUpCode,
+  verifySignUpCode,
+} from '../services/authService.js'
 import { useAuth } from '../store/AuthContext.jsx'
 
 const NAME_MAX_LENGTH = 15
@@ -189,9 +194,7 @@ function SignUpPage() {
       .toLowerCase()
       .slice(0, 5)
 
-    apiRequest(`/auth/signup-contracts?lang=${encodeURIComponent(requestedLanguage)}`, {}, {
-      skipRefreshRetry: true,
-    })
+    getSignupContracts(requestedLanguage)
       .then((payload) => {
         if (cancelled) {
           return
@@ -278,14 +281,7 @@ function SignUpPage() {
 
     const timeoutId = window.setTimeout(async () => {
       try {
-        const payload = await apiRequest(
-          '/auth/register/check-email',
-          {
-            method: 'POST',
-            body: JSON.stringify({ email: normalizedEmail }),
-          },
-          { skipRefreshRetry: true },
-        )
+        const payload = await checkEmailAvailability(normalizedEmail)
 
         setEmailState({
           isChecking: false,
@@ -443,16 +439,7 @@ function SignUpPage() {
       setIsSubmitting(true)
       setError('')
 
-      apiRequest(
-        '/auth/register/request-code',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            email: formState.email.trim().toLowerCase(),
-          }),
-        },
-        { skipRefreshRetry: true },
-      )
+      requestSignUpCode(formState.email.trim().toLowerCase())
         .then((payload) => {
           setStep(shouldBypassEmailVerification || payload?.skipVerification ? 3 : 2)
         })
@@ -475,17 +462,7 @@ function SignUpPage() {
       setIsSubmitting(true)
       setError('')
 
-      apiRequest(
-        '/auth/register/verify-code',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            email: formState.email.trim().toLowerCase(),
-            code: enteredVerificationCode,
-          }),
-        },
-        { skipRefreshRetry: true },
-      )
+      verifySignUpCode(formState.email.trim().toLowerCase(), enteredVerificationCode)
         .then(() => {
           setStep(3)
         })
