@@ -783,6 +783,7 @@ function MobileBottomBar({
   notificationUnreadCount = 0,
   onCreateClick = null,
   hideCreateButton = false,
+  forceDark = false,
 }) {
   const { lang } = useParams()
   const navigate = useNavigate()
@@ -934,7 +935,9 @@ function MobileBottomBar({
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-40 h-[56px] max-h-[58px] border-t border-border bg-[rgb(var(--color-card)/0.96)] px-1.5 py-1 backdrop-blur-lg transition-transform duration-300 md:hidden ${
+      className={`fixed inset-x-0 bottom-0 z-40 h-[56px] max-h-[58px] border-t border-border bg-[rgb(var(--color-card)/0.96)] text-text px-1.5 py-1 backdrop-blur-lg transition-transform duration-300 md:hidden ${
+        forceDark ? 'dark' : ''
+      } ${
         visible ? 'translate-y-0' : 'translate-y-full'
       }`}
     >
@@ -1146,6 +1149,7 @@ function SocialLayout({
   hideHeaderOnMobile = false,
   onMobileCreate = null,
   hideMobileCreateButton = false,
+  forceMobileBottomBarDark = false,
 }) {
   const { lang } = useParams()
   const location = useLocation()
@@ -2357,6 +2361,7 @@ function SocialLayout({
           notificationUnreadCount={notificationUnreadCount}
           onCreateClick={onMobileCreate}
           hideCreateButton={hideMobileCreateButton}
+          forceDark={activeKey === 'loop' || forceMobileBottomBarDark}
         />
       ) : null}
     </div>
