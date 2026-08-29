@@ -69,10 +69,12 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
 
         hls = new Hls({
           enableWorker: true,
-          startLevel: -1,
+          startLevel: 0, // Start loading lowest rendition first (360p) for instant first frame
           capLevelToPlayerSize: true,
-          backBufferLength: 30,
-          maxBufferLength: 20,
+          backBufferLength: 20,
+          maxBufferLength: 25,
+          maxMaxBufferLength: 50,
+          lowLatencyMode: false,
         })
         hls.loadSource(hlsUrl)
         hls.attachMedia(video)

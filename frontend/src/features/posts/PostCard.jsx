@@ -27,6 +27,7 @@ import { resolveMediaUrl } from '../../utils/media.js'
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
+import { prefetchHlsVideo } from '../../utils/hlsPreload.js'
 import {
   buildPostSharePayload,
   buildShareTargets,
@@ -421,6 +422,9 @@ function PostCard({
   const [loopPlaybackError, setLoopPlaybackError] = useState('')
   const [isFollowProcessing, setIsFollowProcessing] = useState(false)
   const [isLoopCaptionExpanded, setIsLoopCaptionExpanded] = useState(false)
+  const [heartBursts, setHeartBursts] = useState([])
+  const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(null)
+  const [isLoopManuallyPaused, setIsLoopManuallyPaused] = useState(false)
   const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
   const [toast, setToast] = useState({ message: '', tone: 'success' })
   const quickCommentTextareaRef = useRef(null)
@@ -434,6 +438,9 @@ function PostCard({
   const loopVideoRef = useRef(null)
   const loopMuteHintTimerRef = useRef(null)
   const loopPressTimerRef = useRef(null)
+  const loopTapTimerRef = useRef(null)
+  const loopLastTapTimeRef = useRef(0)
+  const playPauseIconTimerRef = useRef(null)
   const loopHoldActiveRef = useRef(false)
   const suppressLoopTapMuteRef = useRef(false)
   const loopReplayCountRef = useRef(0)
@@ -554,6 +561,16 @@ function PostCard({
         window.clearTimeout(loopPressTimerRef.current)
         loopPressTimerRef.current = null
       }
+
+      if (loopTapTimerRef.current) {
+        window.clearTimeout(loopTapTimerRef.current)
+        loopTapTimerRef.current = null
+      }
+
+      if (playPauseIconTimerRef.current) {
+        window.clearTimeout(playPauseIconTimerRef.current)
+        playPauseIconTimerRef.current = null
+      }
     }
   }, [])
 
@@ -603,6 +620,21 @@ function PostCard({
       window.clearInterval(intervalId)
     }
   }, [isLoopProcessing, postId])
+
+  useEffect(() => {
+    if (
+      !isLoopVariant ||
+      reducedDataMode ||
+      loopPreloadMode !== 'next' ||
+      isLoopProcessing
+    ) {
+      return
+    }
+
+    if (loopHlsUrl || loopFallbackUrl) {
+      void prefetchHlsVideo(loopHlsUrl, loopFallbackUrl)
+    }
+  }, [isLoopProcessing, isLoopVariant, loopFallbackUrl, loopHlsUrl, loopPreloadMode, reducedDataMode])
   const likes = localPost.likes ?? localPost.stats?.likes ?? 0
   const comments = localPost.comments ?? localPost.stats?.comments ?? 0
   const saves = localPost.saves ?? localPost.stats?.saves ?? 0
@@ -939,15 +971,6 @@ function PostCard({
 
   function handleLoopMuteToggle(event) {
     event?.stopPropagation?.()
-    if (suppressLoopTapMuteRef.current) {
-      suppressLoopTapMuteRef.current = false
-      return
-    }
-    const video = loopVideoRef.current
-    if (reducedDataMode && video?.paused) {
-      video.play().catch(() => {})
-      return
-    }
     const nextMuted = !isLoopMuted
     loopGlobalMuted = nextMuted
     setIsLoopMuted(nextMuted)
@@ -968,6 +991,83 @@ function PostCard({
         }),
       )
     }
+  }
+
+  function triggerHeartBurst(x = null, y = null) {
+    const burstId = Date.now() + Math.random()
+    setHeartBursts((current) => [...current, { id: burstId, x, y }])
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try {
+        navigator.vibrate(45)
+      } catch {
+        // Ignore vibration errors
+      }
+    }
+    window.setTimeout(() => {
+      setHeartBursts((current) => current.filter((item) => item.id !== burstId))
+    }, 850)
+  }
+
+  function flashPlayPauseIcon(type) {
+    setShowPlayPauseIcon(type)
+    if (playPauseIconTimerRef.current) {
+      window.clearTimeout(playPauseIconTimerRef.current)
+    }
+    playPauseIconTimerRef.current = window.setTimeout(() => {
+      setShowPlayPauseIcon(null)
+    }, 650)
+  }
+
+  function handleLoopVideoClick(event) {
+    event?.stopPropagation?.()
+    if (suppressLoopTapMuteRef.current) {
+      suppressLoopTapMuteRef.current = false
+      return
+    }
+
+    const now = Date.now()
+    const timeSinceLastTap = now - Number(loopLastTapTimeRef.current || 0)
+    const rect = event.currentTarget.getBoundingClientRect()
+    const clickX = event.clientX - rect.left
+    const clickY = event.clientY - rect.top
+
+    if (timeSinceLastTap < 300) {
+      // DOUBLE TAP: LIKE & HEART BURST
+      if (loopTapTimerRef.current) {
+        window.clearTimeout(loopTapTimerRef.current)
+        loopTapTimerRef.current = null
+      }
+      loopLastTapTimeRef.current = 0
+
+      triggerHeartBurst(clickX, clickY)
+
+      if (!localPost.likedByViewer && isAuthenticated) {
+        void runPostAction('like', togglePostLike)
+      }
+      return
+    }
+
+    loopLastTapTimeRef.current = now
+
+    if (loopTapTimerRef.current) {
+      window.clearTimeout(loopTapTimerRef.current)
+    }
+
+    loopTapTimerRef.current = window.setTimeout(() => {
+      loopTapTimerRef.current = null
+      const video = loopVideoRef.current
+      if (!video) return
+
+      if (video.paused) {
+        setIsLoopManuallyPaused(false)
+        video.play().catch(() => {})
+        flashPlayPauseIcon('play')
+      } else {
+        setIsLoopManuallyPaused(true)
+        video.pause()
+        flashPlayPauseIcon('pause')
+      }
+    }, 260)
   }
 
   function handleLoopProgressInput(event) {
@@ -1398,6 +1498,13 @@ function PostCard({
   }, [isLoopVariant, postId, post?._recommendation])
 
   useEffect(() => {
+    if (!isLoopInViewport || !isLoopCardActive) {
+      setIsLoopManuallyPaused(false)
+      setShowPlayPauseIcon(null)
+    }
+  }, [isLoopInViewport, isLoopCardActive])
+
+  useEffect(() => {
     if (!isLoopVariant) {
       return undefined
     }
@@ -1412,7 +1519,8 @@ function PostCard({
       isLoopInViewport &&
       isLoopCardActive &&
       document.visibilityState === 'visible' &&
-      !isLoopPressPaused
+      !isLoopPressPaused &&
+      !isLoopManuallyPaused
     video.muted = isLoopMuted || !isLoopInViewport
 
     if (!shouldPlay) {
@@ -1424,7 +1532,7 @@ function PostCard({
 
     video.play().catch(() => {})
     return undefined
-  }, [isLoopCardActive, isLoopInViewport, isLoopMuted, isLoopPressPaused, isLoopVariant, postId, reducedDataMode])
+  }, [isLoopCardActive, isLoopInViewport, isLoopManuallyPaused, isLoopMuted, isLoopPressPaused, isLoopVariant, postId, reducedDataMode])
 
   useEffect(() => {
     if (!isLoopVariant || typeof document === 'undefined') {
@@ -2146,7 +2254,7 @@ function PostCard({
                   >
                     {isLoopProcessing ? (
                       <div
-                        className={`grid w-full place-items-center bg-black text-white ${
+                        className={`relative grid w-full place-items-center bg-black text-white overflow-hidden ${
                           isLoopMobileVariant
                             ? 'h-[calc(100dvh-56px)]'
                             : isLoopDesktopVariant
@@ -2154,7 +2262,15 @@ function PostCard({
                               : 'h-[72vh] md:h-[70vh]'
                         }`}
                       >
-                        <div className="px-6 text-center">
+                        {loopPosterUrl ? (
+                          <img
+                            src={loopPosterUrl}
+                            alt=""
+                            aria-hidden="true"
+                            className="absolute inset-0 size-full object-cover opacity-40 blur-md scale-105"
+                          />
+                        ) : null}
+                        <div className="relative z-10 px-6 text-center">
                           <span className="mx-auto block size-9 animate-spin rounded-full border-2 border-white/25 border-t-white" />
                           <p className="mt-4 text-sm font-semibold">Video işleniyor</p>
                           <p className="mt-1 text-xs text-white/65">
@@ -2189,13 +2305,11 @@ function PostCard({
                       preload={
                         reducedDataMode
                           ? 'none'
-                          : isLoopInViewport || loopPreloadMode === 'active'
+                          : isLoopInViewport || loopPreloadMode === 'active' || loopPreloadMode === 'next'
                           ? 'auto'
-                          : loopPreloadMode === 'next'
-                            ? 'metadata'
-                            : 'none'
+                          : 'none'
                       }
-                      onClick={handleLoopMuteToggle}
+                      onClick={handleLoopVideoClick}
                       onPointerDown={handleLoopPressStart}
                       onPointerUp={handleLoopPressEnd}
                       onPointerCancel={handleLoopPressEnd}
@@ -2209,10 +2323,37 @@ function PostCard({
                       onEnded={handleLoopVideoEnded}
                     />
                     )}
+                    {heartBursts.map((burst) => (
+                      <div
+                        key={burst.id}
+                        className="pointer-events-none absolute z-40 text-rose-500 drop-shadow-[0_8px_25px_rgba(244,63,94,0.85)] loop-heart-burst"
+                        style={{
+                          left: burst.x != null ? `${burst.x}px` : '50%',
+                          top: burst.y != null ? `${burst.y}px` : '50%',
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="size-24" aria-hidden="true">
+                          <path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z" />
+                        </svg>
+                      </div>
+                    ))}
+                    {showPlayPauseIcon ? (
+                      <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 grid size-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white shadow-2xl backdrop-blur-sm transition-all duration-300">
+                        {showPlayPauseIcon === 'pause' ? (
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="size-10" aria-hidden="true">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="ml-1 size-10" aria-hidden="true">
+                            <path d="m8 5 11 7-11 7V5z" />
+                          </svg>
+                        )}
+                      </div>
+                    ) : null}
                     {!isLoopProcessing && reducedDataMode && !isLoopPlaying && !loopPlaybackError ? (
                       <button
                         type="button"
-                        onClick={handleLoopMuteToggle}
+                        onClick={handleLoopVideoClick}
                         className="absolute left-1/2 top-1/2 z-30 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/25 bg-black/60 text-white shadow-xl backdrop-blur transition hover:bg-black/75"
                         aria-label="Videoyu oynat"
                       >
