@@ -552,7 +552,7 @@ function LoopPage() {
                   key={`loop-skeleton-${index}`}
                   className={`overflow-hidden ${isMobileViewport ? '' : 'rounded-[20px] border border-border bg-card'}`}
                 >
-                  <div className={`${isMobileViewport ? 'h-[calc(100dvh-112px)]' : 'h-[70vh]'} animate-pulse bg-secondary`} />
+                  <div className={`${isMobileViewport ? 'h-[calc(100dvh-56px)]' : 'h-[70vh]'} animate-pulse bg-secondary`} />
                 </div>
               ))}
             </div>
@@ -580,7 +580,7 @@ function LoopPage() {
           ) : null}
 
           {isMobileViewport ? (
-            <div className="relative h-[calc(100dvh-60px)] overflow-hidden bg-black">
+            <div className="relative h-[calc(100dvh-56px)] overflow-hidden bg-black">
               <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-20 bg-gradient-to-b from-black/55 to-transparent" />
               <div className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-12 items-center justify-between bg-transparent px-3 backdrop-blur-[1px]">
                 <button
@@ -628,12 +628,12 @@ function LoopPage() {
 
               <div
                 ref={mobileScrollerRef}
-                className="h-[calc(100dvh-60px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
+                className="h-[calc(100dvh-56px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
                 {visiblePosts.map((post, index) => (
                   <div
                     key={post._id || post.id}
-                    className="snap-start min-h-[calc(100dvh-60px)]"
+                    className="snap-start min-h-[calc(100dvh-56px)]"
                     style={{ scrollSnapStop: 'always' }}
                   >
                     {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
@@ -642,7 +642,7 @@ function LoopPage() {
                         variant="loop"
                         onPostHidden={handleHidePostFromLoop}
                         loopPlaybackState={{
-                          isActive: index === activeLoopIndex,
+                           isActive: index === activeLoopIndex,
                           preloadMode:
                             index === activeLoopIndex
                               ? 'active'
@@ -654,7 +654,7 @@ function LoopPage() {
                         onOpenAuthorStory={handleOpenAuthorStory}
                       />
                     ) : (
-                      <div className="h-[calc(100dvh-60px)] w-full bg-black" />
+                      <div className="h-[calc(100dvh-56px)] w-full bg-black" />
                     )}
                   </div>
                 ))}

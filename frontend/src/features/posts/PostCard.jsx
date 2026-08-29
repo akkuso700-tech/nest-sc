@@ -2148,7 +2148,7 @@ function PostCard({
                       <div
                         className={`grid w-full place-items-center bg-black text-white ${
                           isLoopMobileVariant
-                            ? 'h-[calc(100dvh-60px)]'
+                            ? 'h-[calc(100dvh-56px)]'
                             : isLoopDesktopVariant
                               ? 'h-[calc(100vh-190px)] min-h-[620px] max-h-[820px]'
                               : 'h-[72vh] md:h-[70vh]'
@@ -2169,7 +2169,7 @@ function PostCard({
                       poster={loopPosterUrl || undefined}
                       className={`w-full object-cover ${
                         isLoopMobileVariant
-                          ? 'h-[calc(100dvh-60px)]'
+                          ? 'h-[calc(100dvh-56px)]'
                           : isLoopDesktopVariant
                             ? 'h-[calc(100vh-190px)] min-h-[620px] max-h-[820px]'
                             : 'h-[72vh] md:h-[70vh]'
