@@ -94,6 +94,7 @@ function LoopPage() {
   })
   const [activeStoryRail, setActiveStoryRail] = useState(null)
   const [activeLoopIndex, setActiveLoopIndex] = useState(0)
+  const [isMobileTopBarVisible, setIsMobileTopBarVisible] = useState(true)
   const [toast, setToast] = useState({ message: '', tone: 'success' })
   const focusedPostId = `${searchParams.get('post') || ''}`.trim()
 
@@ -300,8 +301,11 @@ function LoopPage() {
 
   const visiblePosts = useMemo(() => state.posts, [state.posts])
 
+  const lastScrollTopRef = useRef(0)
+
   useEffect(() => {
     setActiveLoopIndex(0)
+    setIsMobileTopBarVisible(true)
     const scroller = isMobileViewport ? mobileScrollerRef.current : desktopScrollerRef.current
     scroller?.scrollTo?.({ top: 0, behavior: 'auto' })
   }, [activeTab, isMobileViewport])
@@ -354,10 +358,25 @@ function LoopPage() {
       return undefined
     }
 
+    lastScrollTopRef.current = scroller.scrollTop
+
     function syncActiveIndex() {
       const viewportHeight = Math.max(1, scroller.clientHeight || 1)
-      const nextIndex = Math.round(scroller.scrollTop / viewportHeight)
+      const currentScrollTop = scroller.scrollTop
+      const nextIndex = Math.round(currentScrollTop / viewportHeight)
       setActiveLoopIndex(Math.min(Math.max(nextIndex, 0), visiblePosts.length - 1))
+
+      if (isMobileViewport) {
+        const delta = currentScrollTop - lastScrollTopRef.current
+        if (currentScrollTop <= 15 || nextIndex === 0) {
+          setIsMobileTopBarVisible(true)
+        } else if (delta > 20 && nextIndex >= 1) {
+          setIsMobileTopBarVisible(false)
+        } else if (delta < -20) {
+          setIsMobileTopBarVisible(true)
+        }
+        lastScrollTopRef.current = currentScrollTop
+      }
     }
 
     syncActiveIndex()
@@ -581,8 +600,18 @@ function LoopPage() {
 
           {isMobileViewport ? (
             <div className="relative h-[calc(100dvh-56px)] overflow-hidden bg-black">
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-20 bg-gradient-to-b from-black/55 to-transparent" />
-              <div className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-12 items-center justify-between bg-transparent px-3 backdrop-blur-[1px]">
+              <div
+                className={`pointer-events-none absolute inset-x-0 top-0 z-20 h-20 bg-gradient-to-b from-black/55 to-transparent transition-opacity duration-300 ${
+                  isMobileTopBarVisible ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+              <div
+                className={`absolute inset-x-0 top-0 z-30 flex h-12 items-center justify-between bg-transparent px-3 backdrop-blur-[1px] transition-all duration-300 ease-out ${
+                  isMobileTopBarVisible
+                    ? 'translate-y-0 opacity-100 pointer-events-auto'
+                    : '-translate-y-full opacity-0 pointer-events-none'
+                }`}
+              >
                 <button
                   type="button"
                   onClick={handleMobileCreate}

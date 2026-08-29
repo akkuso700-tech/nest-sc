@@ -191,3 +191,97 @@ export function resolveMediaUrlCandidates(url) {
 export function resolveMediaUrl(url) {
   return resolveMediaUrlCandidates(url)[0] || ''
 }
+
+export function generateVideoPosterFrame(file, targetTimeSec = 0.1) {
+  return new Promise((resolve) => {
+    if (typeof document === 'undefined' || !file) {
+      resolve(null)
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'auto'
+
+    let cleanedUp = false
+    const cleanup = () => {
+      if (cleanedUp) return
+      cleanedUp = true
+      URL.revokeObjectURL(objectUrl)
+      video.removeAttribute('src')
+      video.load()
+    }
+
+    const timeoutId = setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, 4500)
+
+    const captureFrame = () => {
+      try {
+        const width = video.videoWidth || 640
+        const height = video.videoHeight || 360
+        const canvas = document.createElement('canvas')
+        const maxEdge = 960
+        let targetWidth = width
+        let targetHeight = height
+
+        if (width > maxEdge || height > maxEdge) {
+          if (width >= height) {
+            targetWidth = maxEdge
+            targetHeight = Math.round((height * maxEdge) / width)
+          } else {
+            targetHeight = maxEdge
+            targetWidth = Math.round((width * maxEdge) / height)
+          }
+        }
+
+        canvas.width = targetWidth
+        canvas.height = targetHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, targetWidth, targetHeight)
+
+        canvas.toBlob(
+          (blob) => {
+            clearTimeout(timeoutId)
+            cleanup()
+            if (blob) {
+              const posterUrl = URL.createObjectURL(blob)
+              resolve({ blob, posterUrl, width: targetWidth, height: targetHeight })
+            } else {
+              resolve(null)
+            }
+          },
+          'image/webp',
+          0.85,
+        )
+      } catch {
+        clearTimeout(timeoutId)
+        cleanup()
+        resolve(null)
+      }
+    }
+
+    video.onloadeddata = () => {
+      if (video.duration > 0 && targetTimeSec > 0) {
+        video.currentTime = Math.min(targetTimeSec, Math.max(0, video.duration - 0.05))
+      } else {
+        captureFrame()
+      }
+    }
+
+    video.onseeked = () => {
+      captureFrame()
+    }
+
+    video.onerror = () => {
+      clearTimeout(timeoutId)
+      cleanup()
+      resolve(null)
+    }
+
+    video.src = objectUrl
+  })
+}

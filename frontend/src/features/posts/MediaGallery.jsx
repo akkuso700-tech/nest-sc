@@ -36,10 +36,18 @@ function PlayBadge() {
   )
 }
 
-function ProcessingBadge({ progress = 0 }) {
+function ProcessingBadge({ progress = 0, posterUrl = '' }) {
   return (
-    <div className="absolute inset-0 z-10 grid place-items-center bg-black text-white">
-      <div className="px-4 text-center">
+    <div className="absolute inset-0 z-10 grid place-items-center bg-black text-white overflow-hidden">
+      {posterUrl ? (
+        <img
+          src={posterUrl}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 size-full object-cover opacity-40 blur-md scale-105"
+        />
+      ) : null}
+      <div className="relative z-10 px-4 text-center">
         <span className="mx-auto block size-8 animate-spin rounded-full border-2 border-white/25 border-t-white" />
         <p className="mt-3 text-sm font-semibold">Video işleniyor</p>
         <p className="mt-1 text-xs text-white/65">%{Math.max(0, Math.min(99, Number(progress || 0)))}</p>
@@ -282,7 +290,10 @@ function MediaGallery({
                 onBlur={() => handleVideoPreviewStop(refKey)}
               >
                 {mediaIsProcessing ? (
-                  <ProcessingBadge progress={item?.processingProgress} />
+                  <ProcessingBadge
+                    progress={item?.processingProgress}
+                    posterUrl={posterCandidates[0] || ''}
+                  />
                 ) : mediaType === 'video' ? (
                   <MediaVideo
                     refKey={refKey}

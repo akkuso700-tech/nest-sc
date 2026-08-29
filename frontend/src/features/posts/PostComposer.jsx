@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getFullName } from '../../utils/social.js'
-import { resolveMediaUrl } from '../../utils/media.js'
+import { generateVideoPosterFrame, resolveMediaUrl } from '../../utils/media.js'
 import { getTrendingTopics, uploadLoopVideoDirect } from '../../services/postsService.js'
 import { searchUsers } from '../../services/usersService.js'
 import { getConversations } from '../../services/messagesService.js'
@@ -37,10 +37,11 @@ function logUploadPerf(payload) {
   }
 }
 
-function createPreviewItems(files) {
+function createPreviewItems(files, posters = new Map()) {
   return files.map((file) => ({
     id: `${file.name}-${file.lastModified}`,
     url: URL.createObjectURL(file),
+    posterUrl: posters.get(`${file.name}-${file.lastModified}`) || '',
     type: file.type.startsWith('video/') ? 'video' : 'image',
     name: file.name,
   }))
@@ -666,7 +667,10 @@ function PostComposer({
 
   function replaceFiles(nextFiles) {
     const includesVideo = nextFiles.some((file) => file.type.startsWith('video/'))
-    previewItems.forEach((item) => URL.revokeObjectURL(item.url))
+    previewItems.forEach((item) => {
+      if (item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url)
+      if (item.posterUrl?.startsWith('blob:')) URL.revokeObjectURL(item.posterUrl)
+    })
     setSelectedFiles(nextFiles)
     setPreviewItems(createPreviewItems(nextFiles))
     if (isStoryComposer) {
@@ -877,6 +881,17 @@ function PostComposer({
     setSubmitError('')
     setIsExpanded(true)
     replaceFiles([videoFile])
+
+    void generateVideoPosterFrame(videoFile).then((result) => {
+      if (!result?.posterUrl) return
+      setPreviewItems((currentItems) =>
+        currentItems.map((item) =>
+          item.id === `${videoFile.name}-${videoFile.lastModified}`
+            ? { ...item, posterUrl: result.posterUrl }
+            : item,
+        ),
+      )
+    })
   }
 
   function handleRemovePreview(previewId) {
@@ -1482,6 +1497,7 @@ function PostComposer({
                       {item.type === 'video' ? (
                         <video
                           src={resolveMediaUrl(item.url)}
+                          poster={item.posterUrl || undefined}
                           controls
                           playsInline
                           preload="metadata"
