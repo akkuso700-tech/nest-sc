@@ -6,8 +6,8 @@ import ActionToast from '../components/feedback/ActionToast.jsx'
 import AuthShell from '../components/auth/AuthShell.jsx'
 import { AuthEyeIcon } from '../components/auth/AuthIcons.jsx'
 import { authInputClassName } from '../components/auth/authStyles.js'
-import { apiRequest } from '../lib/apiClient.js'
 import { apiOrigin } from '../lib/apiClient.js'
+import { checkLoginIdentifier, requestPasswordReset } from '../services/authService.js'
 import { useAuth } from '../store/AuthContext.jsx'
 
 const rememberedLoginKey = 'Nest Social-Login'
@@ -130,16 +130,7 @@ function LoginPage() {
     setError('')
 
     try {
-      await apiRequest(
-        '/auth/login/check-identifier',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            emailOrUsername: formState.emailOrUsername.trim(),
-          }),
-        },
-        { skipRefreshRetry: true },
-      )
+      await checkLoginIdentifier(formState.emailOrUsername.trim())
 
       setStep(2)
     } catch (submitError) {
@@ -196,17 +187,7 @@ function LoginPage() {
     })
 
     try {
-      const payload = await apiRequest(
-        '/auth/password-reset/request',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            email: forgotState.email.trim(),
-            language: lang,
-          }),
-        },
-        { skipRefreshRetry: true },
-      )
+      const payload = await requestPasswordReset(forgotState.email.trim(), lang)
 
       setToast({
         message: payload.message,

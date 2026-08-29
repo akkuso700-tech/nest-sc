@@ -1,3 +1,5 @@
+import { pinnedApiUrl as configPinnedApiUrl } from './domainConfig.js'
+
 function buildDefaultApiUrl() {
   if (typeof window === 'undefined') {
     return 'http://localhost:5000/api/v1'
@@ -5,42 +7,20 @@ function buildDefaultApiUrl() {
 
   const hostname = window.location.hostname
   const protocol = window.location.protocol || 'https:'
-  const normalizedHost = hostname.replace(/^www\./, '')
 
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5000/api/v1'
   }
 
-  if (normalizedHost === 'demo.nest-sc.com') {
-    return 'https://api-demo.nest-sc.com/api/v1'
-  }
-
-  if (normalizedHost === 'nest-sc.com') {
-    return 'https://api.nest-sc.com/api/v1'
+  if (configPinnedApiUrl) {
+    return configPinnedApiUrl
   }
 
   return `${protocol}//${hostname}/api/v1`
 }
 
 function resolvePinnedApiUrlByHost() {
-  if (typeof window === 'undefined') {
-    return ''
-  }
-
-  const normalizedHost = String(window.location.hostname || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^www\./, '')
-
-  if (normalizedHost === 'demo.nest-sc.com') {
-    return 'https://api-demo.nest-sc.com/api/v1'
-  }
-
-  if (normalizedHost === 'nest-sc.com') {
-    return 'https://api.nest-sc.com/api/v1'
-  }
-
-  return ''
+  return configPinnedApiUrl
 }
 
 function shouldUseEnvApiUrl(value) {

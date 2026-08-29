@@ -423,7 +423,6 @@ function PostCard({
   const [isFollowProcessing, setIsFollowProcessing] = useState(false)
   const [isLoopCaptionExpanded, setIsLoopCaptionExpanded] = useState(false)
   const [heartBursts, setHeartBursts] = useState([])
-  const [showPlayPauseIcon, setShowPlayPauseIcon] = useState(null)
   const [isLoopManuallyPaused, setIsLoopManuallyPaused] = useState(false)
   const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
   const [toast, setToast] = useState({ message: '', tone: 'success' })
@@ -440,7 +439,6 @@ function PostCard({
   const loopPressTimerRef = useRef(null)
   const loopTapTimerRef = useRef(null)
   const loopLastTapTimeRef = useRef(0)
-  const playPauseIconTimerRef = useRef(null)
   const loopHoldActiveRef = useRef(false)
   const suppressLoopTapMuteRef = useRef(false)
   const loopReplayCountRef = useRef(0)
@@ -565,11 +563,6 @@ function PostCard({
       if (loopTapTimerRef.current) {
         window.clearTimeout(loopTapTimerRef.current)
         loopTapTimerRef.current = null
-      }
-
-      if (playPauseIconTimerRef.current) {
-        window.clearTimeout(playPauseIconTimerRef.current)
-        playPauseIconTimerRef.current = null
       }
     }
   }, [])
@@ -1008,16 +1001,6 @@ function PostCard({
     }, 850)
   }
 
-  function flashPlayPauseIcon(type) {
-    setShowPlayPauseIcon(type)
-    if (playPauseIconTimerRef.current) {
-      window.clearTimeout(playPauseIconTimerRef.current)
-    }
-    playPauseIconTimerRef.current = window.setTimeout(() => {
-      setShowPlayPauseIcon(null)
-    }, 650)
-  }
-
   function handleLoopVideoClick(event) {
     event?.stopPropagation?.()
     if (suppressLoopTapMuteRef.current) {
@@ -1055,18 +1038,8 @@ function PostCard({
 
     loopTapTimerRef.current = window.setTimeout(() => {
       loopTapTimerRef.current = null
-      const video = loopVideoRef.current
-      if (!video) return
-
-      if (video.paused) {
-        setIsLoopManuallyPaused(false)
-        video.play().catch(() => {})
-        flashPlayPauseIcon('play')
-      } else {
-        setIsLoopManuallyPaused(true)
-        video.pause()
-        flashPlayPauseIcon('pause')
-      }
+      // SINGLE TAP: TOGGLE MUTE / UNMUTE
+      handleLoopMuteToggle(event)
     }, 260)
   }
 
@@ -1113,7 +1086,7 @@ function PostCard({
   }
 
   function handleLoopPressStart() {
-    if (!isLoopMobileVariant) {
+    if (!isLoopVariant) {
       return
     }
 
@@ -1131,7 +1104,7 @@ function PostCard({
         video.pause()
       }
       loopPressTimerRef.current = null
-    }, 220)
+    }, 180)
   }
 
   function handleLoopPressEnd() {
@@ -1146,6 +1119,10 @@ function PostCard({
 
     loopHoldActiveRef.current = false
     setIsLoopPressPaused(false)
+    const video = loopVideoRef.current
+    if (video && video.paused && isLoopCardActive && isLoopInViewport && document.visibilityState === 'visible') {
+      video.play().catch(() => {})
+    }
   }
 
   function handleLoopVideoContextMenu(event) {
@@ -1500,7 +1477,6 @@ function PostCard({
   useEffect(() => {
     if (!isLoopInViewport || !isLoopCardActive) {
       setIsLoopManuallyPaused(false)
-      setShowPlayPauseIcon(null)
     }
   }, [isLoopInViewport, isLoopCardActive])
 
@@ -2337,16 +2313,12 @@ function PostCard({
                         </svg>
                       </div>
                     ))}
-                    {showPlayPauseIcon ? (
+                    {isLoopMuteHintVisible ? (
                       <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 grid size-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white shadow-2xl backdrop-blur-sm transition-all duration-300">
-                        {showPlayPauseIcon === 'pause' ? (
-                          <svg viewBox="0 0 24 24" fill="currentColor" className="size-10" aria-hidden="true">
-                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                          </svg>
+                        {isLoopMuted ? (
+                          <VolumeOffIcon className="size-9" />
                         ) : (
-                          <svg viewBox="0 0 24 24" fill="currentColor" className="ml-1 size-10" aria-hidden="true">
-                            <path d="m8 5 11 7-11 7V5z" />
-                          </svg>
+                          <VolumeOnIcon className="size-9" />
                         )}
                       </div>
                     ) : null}

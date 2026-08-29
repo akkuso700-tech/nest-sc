@@ -316,6 +316,17 @@ function NotificationsPage() {
     }
   }
 
+  function handleOpenNotification(notification) {
+    if (!notification) return
+
+    if (!notification.readAt) {
+      handleMarkRead(notification._id)
+    }
+
+    const targetRoute = buildNotificationRoute(notification, lang)
+    navigate(targetRoute)
+  }
+
   return (
     <>
       <Seo

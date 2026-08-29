@@ -1,17 +1,14 @@
+import { pinnedEndpoint } from './domainConfig.js'
+
 const sentFingerprints = new Set()
 
 function resolveClientErrorsEndpoint() {
-  const hostname = window.location.hostname
-  const normalizedHost = hostname.replace(/^www\./, '')
+  const pinned = pinnedEndpoint('performance/client-errors')
+  if (pinned) return pinned
 
+  const hostname = window.location.hostname
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:5000/api/v1/performance/client-errors'
-  }
-  if (normalizedHost === 'demo.nest-sc.com') {
-    return 'https://api-demo.nest-sc.com/api/v1/performance/client-errors'
-  }
-  if (normalizedHost === 'nest-sc.com') {
-    return 'https://api.nest-sc.com/api/v1/performance/client-errors'
   }
 
   return `${window.location.origin}/api/v1/performance/client-errors`

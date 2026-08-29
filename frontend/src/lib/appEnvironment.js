@@ -1,17 +1,15 @@
+import { pinnedEnvironment } from './domainConfig.js'
+
 function resolveAppEnvironment() {
+  if (pinnedEnvironment) {
+    return pinnedEnvironment
+  }
+
   if (typeof window !== 'undefined') {
     const hostname = String(window.location.hostname || '')
       .trim()
       .toLowerCase()
       .replace(/^www\./, '')
-
-    if (hostname === 'demo.nest-sc.com') {
-      return 'demo'
-    }
-
-    if (hostname === 'nest-sc.com') {
-      return 'live'
-    }
 
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'local'
