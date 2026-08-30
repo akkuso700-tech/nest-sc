@@ -208,6 +208,17 @@ const deleteMessageForCurrentUser = asyncHandler(async (req, res) => {
     await message.save()
   }
 
+  const io = req.app.locals.io || null
+  if (io) {
+    const payload = {
+      messageId: message._id,
+      conversationId: message.conversation,
+      deletedByUserId: req.user._id,
+    }
+    io.to(`user:${message.sender}`).emit('message_deleted', payload)
+    io.to(`user:${message.recipient}`).emit('message_deleted', payload)
+  }
+
   res.json({
     message: 'Message hidden for the current user. Admin records remain intact.',
   })
@@ -232,6 +243,17 @@ const updateMessageForCurrentUser = asyncHandler(async (req, res) => {
 
   message.text = nextText
   await message.save()
+
+  const io = req.app.locals.io || null
+  if (io) {
+    const payload = {
+      messageId: message._id,
+      conversationId: message.conversation,
+      text: nextText,
+    }
+    io.to(`user:${message.sender}`).emit('message_updated', payload)
+    io.to(`user:${message.recipient}`).emit('message_updated', payload)
+  }
 
   res.json({
     message: 'Message updated successfully.',

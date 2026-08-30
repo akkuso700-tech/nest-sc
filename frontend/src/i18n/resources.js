@@ -542,6 +542,7 @@ export const resources = {
         seoTitle: 'Nest Social - Messages',
         seoDescription: 'A focused, full-screen realtime messaging experience.',
         presence: {
+          online: 'Online',
           ready: 'Ready to message',
           active: 'Active',
           recent: 'Active recently',
@@ -595,6 +596,7 @@ export const resources = {
         emptyChat: 'This conversation is empty. Send the first message.',
         noSearchResults: 'No messages matched your search.',
         optimizingMedia: 'Optimizing media...',
+        uploadingMedia: 'Uploading media...',
         removeMedia: 'Remove media',
         addMedia: 'Add media',
         photo: 'Photo',
@@ -1339,6 +1341,7 @@ export const resources = {
         seoTitle: 'Nest Social - Mesajlar',
         seoDescription: 'Gerçek zamanlı, odaklı ve tam ekran mesajlaşma deneyimi.',
         presence: {
+          online: 'Çevrimiçi',
           ready: 'Mesajlaşmaya hazır',
           active: 'Aktif',
           recent: 'Az önce aktifti',
@@ -1392,6 +1395,7 @@ export const resources = {
         emptyChat: 'Bu sohbet boş. İlk mesajı sen gönder.',
         noSearchResults: 'Aramana uygun mesaj bulunamadı.',
         optimizingMedia: 'Medya optimize ediliyor...',
+        uploadingMedia: 'Medyalar yükleniyor...',
         removeMedia: 'Medyayı kaldır',
         addMedia: 'Medya ekle',
         photo: 'Foto',

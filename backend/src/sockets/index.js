@@ -22,6 +22,7 @@ const newMessageSchema = z.object({
       }),
     )
     .optional(),
+  replyToId: z.string().min(1).optional().nullable(),
 })
 
 const markReadSchema = z.object({
@@ -73,6 +74,8 @@ function resolveSocketAck(acknowledgment, payload) {
   }
 }
 
+const onlineUsers = new Map()
+
 function initSocketServer(server) {
   const io = new Server(server, {
     cors: {
@@ -84,8 +87,23 @@ function initSocketServer(server) {
   io.use(socketAuth)
 
   io.on('connection', (socket) => {
-    const userRoom = `user:${socket.user._id}`
+    const userId = socket.user._id.toString()
+    const userRoom = `user:${userId}`
     socket.join(userRoom)
+
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set())
+    }
+    const userSockets = onlineUsers.get(userId)
+    const isFirstConnection = userSockets.size === 0
+    userSockets.add(socket.id)
+
+    if (isFirstConnection) {
+      io.emit('user:status', { userId, isOnline: true })
+    }
+
+    // Yeni bağlanan kullanıcıya mevcut tüm online kullanıcı listesini gönder
+    socket.emit('users:online', Array.from(onlineUsers.keys()))
 
     socket.on('new_message', async (payload, acknowledgment) => {
       try {
@@ -95,6 +113,7 @@ function initSocketServer(server) {
           recipientId: parsedPayload.recipientId,
           text: parsedPayload.text,
           media: parsedPayload.media || [],
+          replyToId: parsedPayload.replyToId || null,
           io,
         })
 
@@ -140,6 +159,49 @@ function initSocketServer(server) {
         resolveSocketAck(acknowledgment, { ok: true, notification })
       } catch (error) {
         resolveSocketAck(acknowledgment, { ok: false, message: error.message })
+      }
+    })
+
+    socket.on('typing:start', (payload) => {
+      try {
+        if (payload?.recipientId) {
+          io.to(`user:${payload.recipientId}`).emit('typing:start', {
+            conversationId: payload.conversationId || null,
+            userId: socket.user._id,
+          })
+        }
+      } catch {
+        // Ignore
+      }
+    })
+
+    socket.on('typing:stop', (payload) => {
+      try {
+        if (payload?.recipientId) {
+          io.to(`user:${payload.recipientId}`).emit('typing:stop', {
+            conversationId: payload.conversationId || null,
+            userId: socket.user._id,
+          })
+        }
+      } catch {
+        // Ignore
+      }
+    })
+
+    socket.on('disconnect', async () => {
+      const currentSockets = onlineUsers.get(userId)
+      if (currentSockets) {
+        currentSockets.delete(socket.id)
+        if (currentSockets.size === 0) {
+          onlineUsers.delete(userId)
+          const lastLoginAt = new Date()
+          io.emit('user:status', { userId, isOnline: false, lastLoginAt })
+          try {
+            await User.findByIdAndUpdate(userId, { lastLoginAt })
+          } catch {
+            // Best effort
+          }
+        }
       }
     })
   })

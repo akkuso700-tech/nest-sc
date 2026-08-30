@@ -1,4 +1,4 @@
-import { apiRequest } from '../lib/apiClient.js'
+import { apiBaseUrl, apiRequest } from '../lib/apiClient.js'
 
 export function getConversations(limit = 30) {
   return apiRequest(`/messages/conversations?limit=${limit}`)
@@ -12,8 +12,43 @@ export function getConversationMessages(conversationId, limit = 50, before = nul
   return apiRequest(url)
 }
 
-export function sendMessage(payload) {
+export function sendMessage(payload, onProgress) {
   if (payload instanceof FormData) {
+    if (typeof onProgress === 'function') {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', `${apiBaseUrl}/messages`)
+        xhr.withCredentials = true
+        xhr.setRequestHeader('Accept', 'application/json')
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100)
+            onProgress(percent)
+          }
+        }
+
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText)
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data)
+            } else {
+              reject(new Error(data?.message || 'Mesaj gönderilemedi.'))
+            }
+          } catch {
+            reject(new Error('Sunucu yanıtı okunamadı.'))
+          }
+        }
+
+        xhr.onerror = () => {
+          reject(new Error('Ağ hatası oluştu.'))
+        }
+
+        xhr.send(payload)
+      })
+    }
+
     return apiRequest('/messages', {
       method: 'POST',
       body: payload,
