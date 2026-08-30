@@ -23,6 +23,7 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { formatClockTime, getFullName } from '../utils/social.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { compressImageToFile, formatBytes } from '../utils/imageUpload.js'
+import { playMessageNotificationSound } from '../utils/notificationSound.js'
 import {
   BackIcon,
   CheckIcon,
@@ -514,6 +515,12 @@ function MessagesPage() {
   const [openMessageMenuId, setOpenMessageMenuId] = useState('')
   const [editingMessageId, setEditingMessageId] = useState('')
   const [editingMessageText, setEditingMessageText] = useState('')
+  const [isPeerTyping, setIsPeerTyping] = useState(false)
+  const [onlineUserIds, setOnlineUserIds] = useState(new Set())
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const peerTypingTimeoutRef = useRef(null)
+  const myTypingTimeoutRef = useRef(null)
+  const isMeTypingRef = useRef(false)
   const [toast, setToast] = useState(null)
   const [composeTarget, setComposeTarget] = useState(null)
   const [lightboxMedia, setLightboxMedia] = useState(null)
@@ -581,7 +588,7 @@ function MessagesPage() {
     return () => {
       resizeObserver.disconnect()
     }
-  }, [isMobileViewport, sendError, isOptimizingMedia, messagePreviews.length])
+  }, [isMobileViewport, sendError, isOptimizingMedia, isSending, uploadProgress, messagePreviews.length])
 
   useEffect(() => {
     const recipientId = searchParams.get('recipientId')
@@ -693,7 +700,9 @@ function MessagesPage() {
 
         setMessagesState({ items: payload.messages, isLoading: false, error: '' })
         setHasMoreMessages(Boolean(payload.hasMore))
-        await markConversationRead(activeConversationId)
+        if (typeof document !== 'undefined' && document.hasFocus() && !document.hidden) {
+          await markConversationRead(activeConversationId)
+        }
       } catch (error) {
         if (cancelled) {
           return
@@ -828,6 +837,7 @@ function MessagesPage() {
               recipient: message.recipient,
               text: message.text,
               media: message.media || [],
+              replyTo: message.replyTo || null,
               createdAt: message.createdAt,
               readAt: message.readAt,
             },
@@ -835,8 +845,11 @@ function MessagesPage() {
         }
       })
 
-      if (message.recipient === user.id) {
-        await markConversationRead(message.conversationId)
+      if (message.recipient === user.id || (user?.id && message.sender !== user.id)) {
+        playMessageNotificationSound()
+        if (typeof document !== 'undefined' && document.hasFocus() && !document.hidden) {
+          await markConversationRead(message.conversationId)
+        }
       }
     }
 
@@ -863,15 +876,102 @@ function MessagesPage() {
       }))
     }
 
+    function handleMessageUpdated(payload) {
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: currentState.items.map((item) =>
+          (item._id?.toString?.() === payload.messageId?.toString?.() ||
+            item.id?.toString?.() === payload.messageId?.toString?.())
+            ? { ...item, text: payload.text }
+            : item,
+        ),
+      }))
+    }
+
+    function handleMessageDeleted(payload) {
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: currentState.items.filter(
+          (item) =>
+            item._id?.toString?.() !== payload.messageId?.toString?.() &&
+            item.id?.toString?.() !== payload.messageId?.toString?.(),
+        ),
+      }))
+    }
+
+    function handlePeerTypingStart(payload) {
+      const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString()
+      if (
+        payload?.userId &&
+        activePeerId &&
+        payload.userId.toString() === activePeerId
+      ) {
+        setIsPeerTyping(true)
+        if (peerTypingTimeoutRef.current) {
+          clearTimeout(peerTypingTimeoutRef.current)
+        }
+        peerTypingTimeoutRef.current = setTimeout(() => {
+          setIsPeerTyping(false)
+        }, 3500)
+      }
+    }
+
+    function handlePeerTypingStop(payload) {
+      const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString()
+      if (
+        payload?.userId &&
+        activePeerId &&
+        payload.userId.toString() === activePeerId
+      ) {
+        setIsPeerTyping(false)
+        if (peerTypingTimeoutRef.current) {
+          clearTimeout(peerTypingTimeoutRef.current)
+        }
+      }
+    }
+
+    function handleUsersOnline(userIds) {
+      if (Array.isArray(userIds)) {
+        setOnlineUserIds(new Set(userIds.map((id) => id.toString())))
+      }
+    }
+
+    function handleUserStatus(payload) {
+      if (payload?.userId) {
+        const id = payload.userId.toString()
+        setOnlineUserIds((prev) => {
+          const next = new Set(prev)
+          if (payload.isOnline) {
+            next.add(id)
+          } else {
+            next.delete(id)
+          }
+          return next
+        })
+      }
+    }
+
     socket.on('new_message', handleIncomingMessage)
     socket.on('messages_read', handleMessagesRead)
+    socket.on('message_updated', handleMessageUpdated)
+    socket.on('message_deleted', handleMessageDeleted)
+    socket.on('typing:start', handlePeerTypingStart)
+    socket.on('typing:stop', handlePeerTypingStop)
+    socket.on('users:online', handleUsersOnline)
+    socket.on('user:status', handleUserStatus)
 
     return () => {
       socket.off('new_message', handleIncomingMessage)
       socket.off('messages_read', handleMessagesRead)
+      socket.off('message_updated', handleMessageUpdated)
+      socket.off('message_deleted', handleMessageDeleted)
+      socket.off('typing:start', handlePeerTypingStart)
+      socket.off('typing:stop', handlePeerTypingStop)
+      socket.off('users:online', handleUsersOnline)
+      socket.off('user:status', handleUserStatus)
       disconnectSocketClient()
     }
-  }, [activeConversationId, composeTarget, isAuthenticated, isMobileViewport, user?.id])
+  }, [activeConversationId, activePeer, composeTarget, isAuthenticated, isMobileViewport, user?.id])
 
   useEffect(() => {
     scrollMessagesToBottom()
@@ -909,7 +1009,35 @@ function MessagesPage() {
     setEditingMessageText('')
     setReplyingToMessage(null)
     setHighlightedMessageId('')
+    setIsPeerTyping(false)
+    isMeTypingRef.current = false
+    if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+    if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current)
   }, [activeConversationId])
+
+  useEffect(() => {
+    if (!activeConversationId || !isAuthenticated) {
+      return undefined
+    }
+
+    async function handleWindowFocus() {
+      if (typeof document !== 'undefined' && document.hasFocus() && !document.hidden) {
+        try {
+          await markConversationRead(activeConversationId)
+        } catch {
+          // Best-effort
+        }
+      }
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleWindowFocus)
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+      document.removeEventListener('visibilitychange', handleWindowFocus)
+    }
+  }, [activeConversationId, isAuthenticated])
 
   useEffect(() => {
     if (!toast?.message) {
@@ -989,7 +1117,14 @@ function MessagesPage() {
 
   const activePeer = getConversationPeer(activeConversation) || composeTarget
   const shouldShowMobileChat = !isMobileViewport || mobileChatOpen || Boolean(composeTarget)
-  const activePresenceLabel = formatPresence(activePeer?.lastLoginAt, t)
+  const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString() || ''
+  const isActivePeerOnline = Boolean(activePeerId && onlineUserIds.has(activePeerId))
+  const activePresenceLabel = useMemo(() => {
+    if (isActivePeerOnline) {
+      return t('messages.presence.online', { defaultValue: 'Çevrimiçi' })
+    }
+    return formatPresence(activePeer?.lastLoginAt, t)
+  }, [isActivePeerOnline, activePeer?.lastLoginAt, t])
   const filteredMessages = useMemo(() => {
     const query = messageSearchValue.trim().toLowerCase()
 
@@ -1344,15 +1479,60 @@ function MessagesPage() {
     }
   }
 
+  function handleDraftChange(event) {
+    const value = event.target.value
+    setMessageDraft(value)
+
+    const activePeerId = activePeer?._id || activePeer?.id
+    if (!activePeerId || !isAuthenticated) {
+      return
+    }
+
+    const socket = connectSocketClient()
+
+    if (!isMeTypingRef.current && value.trim().length > 0) {
+      isMeTypingRef.current = true
+      socket.emit('typing:start', {
+        recipientId: activePeerId,
+        conversationId: activeConversationId || null,
+      })
+    }
+
+    if (myTypingTimeoutRef.current) {
+      clearTimeout(myTypingTimeoutRef.current)
+    }
+
+    myTypingTimeoutRef.current = setTimeout(() => {
+      isMeTypingRef.current = false
+      socket.emit('typing:stop', {
+        recipientId: activePeerId,
+        conversationId: activeConversationId || null,
+      })
+    }, 2500)
+  }
+
   async function handleSendMessage() {
     if (isOptimizingMedia || isSending) {
       return
     }
 
     const trimmedMessage = messageDraft.trim()
+    const activePeerId = activePeer?._id || activePeer?.id
 
-    if (!activePeer?._id || (!trimmedMessage && !messageFiles.length)) {
+    if (!activePeerId || (!trimmedMessage && !messageFiles.length)) {
       return
+    }
+
+    if (myTypingTimeoutRef.current) {
+      clearTimeout(myTypingTimeoutRef.current)
+    }
+    if (isMeTypingRef.current) {
+      isMeTypingRef.current = false
+      const socket = connectSocketClient()
+      socket.emit('typing:stop', {
+        recipientId: activePeerId,
+        conversationId: activeConversationId || null,
+      })
     }
 
     setIsSending(true)
@@ -1361,11 +1541,11 @@ function MessagesPage() {
     const replyToId = replyingToMessage ? (replyingToMessage._id || replyingToMessage.id) : null
 
     try {
-      let payloadBody = { recipientId: activePeer._id, text: trimmedMessage, media: [], replyToId }
+      let payloadBody = { recipientId: activePeerId, text: trimmedMessage, media: [], replyToId }
 
       if (messageFiles.length) {
         const formData = new FormData()
-        formData.set('recipientId', activePeer._id)
+        formData.set('recipientId', activePeerId)
         formData.set('text', trimmedMessage)
         if (replyToId) {
           formData.set('replyToId', replyToId)
@@ -1376,7 +1556,13 @@ function MessagesPage() {
         payloadBody = formData
       }
 
-      const response = await sendMessage(payloadBody)
+      if (messageFiles.length) {
+        setUploadProgress(0)
+      }
+
+      const response = await sendMessage(payloadBody, (percent) => {
+        setUploadProgress(percent)
+      })
       const payload = response.messageItem
 
       setMessagesState((currentState) => ({
@@ -1401,6 +1587,7 @@ function MessagesPage() {
       setReplyingToMessage(null)
       replaceMessageFiles([])
       upsertConversationAfterSend(payload)
+      setUploadProgress(0)
       setIsSending(false)
 
       if (isMobileViewport) {
@@ -1411,6 +1598,7 @@ function MessagesPage() {
       }
     } catch (error) {
       setSendError(error.message || t('messages.errors.sendFailed'))
+      setUploadProgress(0)
       setIsSending(false)
     }
   }
@@ -1596,6 +1784,8 @@ function MessagesPage() {
                   <div className="space-y-0.5">
                     {filteredConversations.map((conversation) => {
                       const peer = getConversationPeer(conversation)
+                      const peerId = peer?._id?.toString() || peer?.id?.toString() || ''
+                      const isPeerOnline = Boolean(peerId && onlineUserIds.has(peerId))
                       const isActive = conversation.id === activeConversationId && shouldShowMobileChat
 
                       return (
@@ -1622,6 +1812,12 @@ function MessagesPage() {
                                 }`}
                                 textClassName="text-sm font-semibold"
                               />
+                              {isPeerOnline ? (
+                                <span
+                                  className="absolute bottom-0 right-0 size-3 rounded-full bg-emerald-500 ring-2 ring-card shadow-sm"
+                                  title={t('messages.presence.online', { defaultValue: 'Çevrimiçi' })}
+                                />
+                              ) : null}
                               {conversation.unreadCount ? (
                                 <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
                                   {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
@@ -1734,17 +1930,39 @@ function MessagesPage() {
                             to={`/${lang}/u/${activePeer.username}`}
                             className="flex min-w-0 flex-1 items-center gap-2.5"
                           >
-                            <UserAvatar
-                              user={activePeer}
-                              className="size-8 shrink-0 bg-primary text-inverse"
-                              textClassName="text-xs font-semibold"
-                            />
+                            <div className="relative shrink-0">
+                              <UserAvatar
+                                user={activePeer}
+                                className="size-8 shrink-0 bg-primary text-inverse"
+                                textClassName="text-xs font-semibold"
+                              />
+                              {isActivePeerOnline ? (
+                                <span
+                                  className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-card"
+                                  title={t('messages.presence.online', { defaultValue: 'Çevrimiçi' })}
+                                />
+                              ) : null}
+                            </div>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-text">
                                 <span className="flex items-center gap-1">{getFullName(activePeer)} <VerifiedBadge user={activePeer} size="xs" /></span>
                               </p>
                               <p className="truncate text-[11px] text-muted">
-                                {activePresenceLabel}
+                                {isPeerTyping ? (
+                                  <span className="text-primary font-medium inline-flex items-center gap-1">
+                                    {t('messages.typing', { defaultValue: 'Yazıyor...' })}
+                                    <span className="inline-flex gap-0.5">
+                                      <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></span>
+                                      <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></span>
+                                      <span className="size-1 rounded-full bg-primary animate-bounce"></span>
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className={`inline-flex items-center gap-1 ${isActivePeerOnline ? 'text-emerald-600 dark:text-emerald-400 font-medium' : ''}`}>
+                                    {isActivePeerOnline ? <span className="size-1.5 rounded-full bg-emerald-500 inline-block" /> : null}
+                                    {activePresenceLabel}
+                                  </span>
+                                )}
                               </p>
                             </div>
                           </Link>
@@ -1806,17 +2024,43 @@ function MessagesPage() {
                             to={`/${lang}/u/${activePeer.username}`}
                             className="flex min-w-0 flex-1 items-center gap-3 "
                           >
-                            <UserAvatar
-                              user={activePeer}
-                              className="size-12 shrink-0 bg-primary text-inverse"
-                              textClassName="text-sm font-semibold"
-                            />
+                            <div className="relative shrink-0">
+                              <UserAvatar
+                                user={activePeer}
+                                className="size-12 shrink-0 bg-primary text-inverse"
+                                textClassName="text-sm font-semibold"
+                              />
+                              {isActivePeerOnline ? (
+                                <span
+                                  className="absolute bottom-0.5 right-0.5 size-3.5 rounded-full bg-emerald-500 ring-2 ring-card shadow-sm"
+                                  title={t('messages.presence.online', { defaultValue: 'Çevrimiçi' })}
+                                />
+                              ) : null}
+                            </div>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-text">
                                 <span className="flex items-center gap-1">{getFullName(activePeer)} <VerifiedBadge user={activePeer} size="xs" /></span>
                               </p>
                               <p className="truncate text-xs text-muted">
-                                @{activePeer.username}
+                                {isPeerTyping ? (
+                                  <span className="text-primary font-medium inline-flex items-center gap-1">
+                                    {t('messages.typing', { defaultValue: 'Yazıyor...' })}
+                                    <span className="inline-flex gap-0.5">
+                                      <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></span>
+                                      <span className="size-1 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></span>
+                                      <span className="size-1 rounded-full bg-primary animate-bounce"></span>
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span>@{activePeer.username}</span>
+                                    <span>•</span>
+                                    <span className={`inline-flex items-center gap-1 ${isActivePeerOnline ? 'text-emerald-600 dark:text-emerald-400 font-medium' : ''}`}>
+                                      {isActivePeerOnline ? <span className="size-1.5 rounded-full bg-emerald-500 inline-block" /> : null}
+                                      {activePresenceLabel}
+                                    </span>
+                                  </span>
+                                )}
                               </p>
                             </div>
                           </Link>
@@ -2028,6 +2272,23 @@ function MessagesPage() {
                         />
                       )
                     })}
+
+                    {isPeerTyping ? (
+                      <div className="flex items-end gap-2 justify-start transition-all duration-300">
+                        <UserAvatar
+                          user={activePeer}
+                          className="size-7 shrink-0 bg-primary text-inverse"
+                          textClassName="text-[10px] font-semibold"
+                        />
+                        <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2.5 shadow-sm">
+                          <div className="flex items-center gap-1.5 py-0.5">
+                            <span className="size-1.5 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.3s]" />
+                            <span className="size-1.5 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.15s]" />
+                            <span className="size-1.5 rounded-full bg-primary/80 animate-bounce" />
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -2083,6 +2344,24 @@ function MessagesPage() {
                     </div>
                   ) : null}
 
+                  {isSending && messageFiles.length > 0 ? (
+                    <div className={`${isMobileViewport ? 'mx-1 mb-2 mt-2' : 'mb-3'} rounded-2xl border border-border bg-secondary p-3 shadow-sm transition-all duration-300`}>
+                      <div className="flex items-center justify-between text-xs font-medium text-text mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <span>{t('messages.uploadingMedia', { defaultValue: 'Medyalar yükleniyor...' })}</span>
+                        </div>
+                        <span className="font-semibold text-primary">%{uploadProgress}</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-200 ease-out"
+                          style={{ width: `${Math.max(4, uploadProgress)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
                   {messagePreviews.length ? (
                     <div className={`${isMobileViewport ? 'absolute bottom-[calc(100%+8px)] left-2 right-2 z-10 flex overflow-x-auto rounded-[18px] border border-border bg-[rgb(var(--color-card)/0.96)] px-2 py-2 shadow-lg backdrop-blur' : 'mb-3 flex flex-wrap gap-2'}`}>
                       {messagePreviews.map((item) => (
@@ -2104,15 +2383,21 @@ function MessagesPage() {
                               className="h-full w-full object-cover"
                             />
                           )}
-                          <button
-                            type="button"
-                            onClick={() => removePreview(item.id)}
-                            className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/72 text-white transition hover:bg-black/85"
-                            aria-label={t('messages.removeMedia')}
-                            title={t('messages.removeMedia')}
-                          >
-                            <CloseIcon />
-                          </button>
+                          {isSending ? (
+                            <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-[1px]">
+                              <span className="text-[11px] font-bold text-white">%{uploadProgress}</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => removePreview(item.id)}
+                              className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/72 text-white transition hover:bg-black/85"
+                              aria-label={t('messages.removeMedia')}
+                              title={t('messages.removeMedia')}
+                            >
+                              <CloseIcon />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2182,7 +2467,7 @@ function MessagesPage() {
                         ref={textareaRef}
                         rows={1}
                         value={messageDraft}
-                        onChange={(event) => setMessageDraft(event.target.value)}
+                        onChange={handleDraftChange}
                         onKeyDown={handleMessageKeyDown}
                         disabled={!activePeer || isOptimizingMedia}
                         placeholder={t('messages.placeholder')}
