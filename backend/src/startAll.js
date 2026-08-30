@@ -36,5 +36,7 @@ function shutdown(exitCode = 0) {
 process.on('SIGINT', () => shutdown(0))
 process.on('SIGTERM', () => shutdown(0))
 
-start('API server', 'server.js', { LOOP_WORKER_MODE: 'external' })
+start('API server', 'server.js', { LOOP_WORKER_MODE: 'external', MESSAGE_NOTIFICATION_WORKER_MODE: 'external' })
 start('Loop worker', 'workers/loopVideoWorker.js')
+start('Message notification worker', 'workers/messageNotificationWorker.js')
+

@@ -10,6 +10,7 @@
     "start:api": "node src/server.js",
     "start:all": "node src/startAll.js",
     "worker:loop": "node src/workers/loopVideoWorker.js",
+    "worker:message-notification": "node src/workers/messageNotificationWorker.js",
     "verify:loop-backfill": "node scripts/verifyLoopBackfill.js",
     "test": "node --test test/*.test.js"
   },
@@ -18,9 +19,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@aws-sdk/client-s3": "^3.910.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.2",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -29,6 +31,7 @@
     "express-rate-limit": "^8.3.2",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.4.1",
     "morgan": "^1.10.1",

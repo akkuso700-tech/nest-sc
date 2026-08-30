@@ -157,9 +157,15 @@ const envSchema = z.object({
   LOOP_DIRECT_UPLOAD_ENABLED: z.string().optional(),
   LOOP_DIRECT_UPLOAD_URL: optionalTrimmedString(10),
   LOOP_DIRECT_UPLOAD_SECRET: optionalTrimmedString(32),
-  LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(600),
-  LOOP_DIRECT_UPLOAD_CHUNK_BYTES: z.coerce.number().int().min(1024 * 1024).max(16 * 1024 * 1024).default(8 * 1024 * 1024),
   LOOP_HOSTINGER_MEDIA_ROOT: optionalTrimmedString(2),
+  REDIS_URL: optionalTrimmedString(5),
+  REDIS_HOST: optionalTrimmedString(2),
+  REDIS_PORT: z.coerce.number().int().positive().optional(),
+  REDIS_PASSWORD: optionalTrimmedString(1),
+  MESSAGE_NOTIFICATION_QUEUE_ENABLED: z.string().optional(),
+  MESSAGE_NOTIFICATION_DELAY_MS: z.coerce.number().int().positive().default(5 * 60 * 1000),
+  MESSAGE_NOTIFICATION_THROTTLE_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
+  MESSAGE_NOTIFICATION_WORKER_MODE: z.enum(['embedded', 'external', 'disabled']).default('embedded'),
 })
 
 const parsedEnv = envSchema.safeParse(envSource)
@@ -302,6 +308,21 @@ const env = {
   loopDirectUploadTicketTtlSeconds: rawEnv.LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS,
   loopDirectUploadChunkBytes: rawEnv.LOOP_DIRECT_UPLOAD_CHUNK_BYTES,
   loopHostingerMediaRoot: rawEnv.LOOP_HOSTINGER_MEDIA_ROOT || undefined,
+  redis: {
+    url: rawEnv.REDIS_URL || undefined,
+    host: rawEnv.REDIS_HOST || '127.0.0.1',
+    port: rawEnv.REDIS_PORT || 6379,
+    password: rawEnv.REDIS_PASSWORD || undefined,
+  },
+  messageNotification: {
+    queueEnabled: parseBoolean(
+      rawEnv.MESSAGE_NOTIFICATION_QUEUE_ENABLED,
+      Boolean(rawEnv.REDIS_URL || rawEnv.REDIS_HOST || rawEnv.NODE_ENV !== 'production'),
+    ),
+    delayMs: rawEnv.MESSAGE_NOTIFICATION_DELAY_MS,
+    throttleMs: rawEnv.MESSAGE_NOTIFICATION_THROTTLE_MS,
+    workerMode: rawEnv.MESSAGE_NOTIFICATION_WORKER_MODE,
+  },
   jwt: {
     accessSecret: rawEnv.JWT_ACCESS_SECRET,
     refreshSecret: rawEnv.JWT_REFRESH_SECRET,

@@ -4,6 +4,7 @@ const { connectDatabase } = require('./config/database')
 const { createApp } = require('./app')
 const { initSocketServer } = require('./sockets')
 const { runWorker } = require('./workers/loopVideoWorker')
+const { runMessageNotificationWorker } = require('./workers/messageNotificationWorker')
 
 async function bootstrap() {
   const app = createApp()
@@ -21,6 +22,11 @@ async function bootstrap() {
     if (env.loopWorkerMode === 'embedded') {
       void runWorker({ manageDatabase: false }).catch((error) => {
         console.error('Embedded Loop worker failed:', error)
+      })
+    }
+    if (env.messageNotification.workerMode === 'embedded') {
+      void runMessageNotificationWorker({ io, manageDatabase: false }).catch((error) => {
+        console.warn('Embedded Message notification worker failed:', error.message)
       })
     }
   } catch (error) {

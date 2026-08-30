@@ -5,6 +5,7 @@ const { Conversation } = require('../models/Conversation')
 const { Message } = require('../models/Message')
 const { Notification } = require('../models/Notification')
 const { normalizeMediaList, normalizeUserMedia } = require('../utils/mediaUrls')
+const { enqueueOfflineMessageNotification } = require('../queues/messageNotificationQueue')
 
 function buildConversationKey(firstUserId, secondUserId) {
   return [firstUserId.toString(), secondUserId.toString()].sort().join(':')
@@ -174,13 +175,26 @@ async function createMessageAndNotify({
 
   const serializedMessage = serializeMessage(populatedMessage || message)
 
+  let isRecipientOnline = false
   if (io) {
     const senderRoom = `user:${sender._id}`
     const recipientRoom = `user:${recipientId}`
+    const recipientSockets = io.sockets?.adapter?.rooms?.get(recipientRoom)?.size || 0
+    isRecipientOnline = recipientSockets > 0
 
     io.to(recipientRoom).emit('new_message', serializedMessage)
     io.to(senderRoom).emit('new_message', serializedMessage)
     io.to(recipientRoom).emit('notification:new', serializedNotification)
+  }
+
+  if (!isRecipientOnline) {
+    void enqueueOfflineMessageNotification({
+      recipientId,
+      senderId: sender._id,
+      messageId: message._id,
+    }).catch((queueError) => {
+      console.warn('[MessagingService] Failed to enqueue offline notification:', queueError.message)
+    })
   }
 
   return {
