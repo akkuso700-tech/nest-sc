@@ -1,4 +1,5 @@
 const { env } = require('../config/env')
+const { getQueueStatus } = require('../queues/messageNotificationQueue')
 
 function getHealth(req, res) {
   res.json({
@@ -12,6 +13,7 @@ function getHealth(req, res) {
       backfillEnabled: env.loopRawBackfillLimit > 0,
       backfillBatchSize: env.loopRawBackfillLimit,
     },
+    messageNotifications: getQueueStatus(),
   })
 }
 
