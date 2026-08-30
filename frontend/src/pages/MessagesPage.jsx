@@ -527,6 +527,21 @@ function MessagesPage() {
   const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0)
   const [mobileComposerHeight, setMobileComposerHeight] = useState(60)
 
+  const activeConversation = useMemo(
+    () =>
+      conversationsState.items.find(
+        (conversation) => conversation.id === activeConversationId,
+      ) || null,
+    [activeConversationId, conversationsState.items],
+  )
+
+  const activePeer = getConversationPeer(activeConversation) || composeTarget
+  const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString() || ''
+  const activePeerIdRef = useRef(activePeerId)
+  useEffect(() => {
+    activePeerIdRef.current = activePeerId
+  }, [activePeerId])
+
   useEffect(
     () => () => {
       messagePreviews.forEach((item) => URL.revokeObjectURL(item.url))
@@ -900,11 +915,11 @@ function MessagesPage() {
     }
 
     function handlePeerTypingStart(payload) {
-      const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString()
+      const currentActivePeerId = activePeerIdRef.current
       if (
         payload?.userId &&
-        activePeerId &&
-        payload.userId.toString() === activePeerId
+        currentActivePeerId &&
+        payload.userId.toString() === currentActivePeerId
       ) {
         setIsPeerTyping(true)
         if (peerTypingTimeoutRef.current) {
@@ -917,11 +932,11 @@ function MessagesPage() {
     }
 
     function handlePeerTypingStop(payload) {
-      const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString()
+      const currentActivePeerId = activePeerIdRef.current
       if (
         payload?.userId &&
-        activePeerId &&
-        payload.userId.toString() === activePeerId
+        currentActivePeerId &&
+        payload.userId.toString() === currentActivePeerId
       ) {
         setIsPeerTyping(false)
         if (peerTypingTimeoutRef.current) {
@@ -1107,17 +1122,7 @@ function MessagesPage() {
     [conversationsState.items],
   )
 
-  const activeConversation = useMemo(
-    () =>
-      conversationsState.items.find(
-        (conversation) => conversation.id === activeConversationId,
-      ) || null,
-    [activeConversationId, conversationsState.items],
-  )
-
-  const activePeer = getConversationPeer(activeConversation) || composeTarget
   const shouldShowMobileChat = !isMobileViewport || mobileChatOpen || Boolean(composeTarget)
-  const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString() || ''
   const isActivePeerOnline = Boolean(activePeerId && onlineUserIds.has(activePeerId))
   const activePresenceLabel = useMemo(() => {
     if (isActivePeerOnline) {
