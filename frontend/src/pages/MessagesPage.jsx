@@ -521,11 +521,30 @@ function MessagesPage() {
   const peerTypingTimeoutRef = useRef(null)
   const myTypingTimeoutRef = useRef(null)
   const isMeTypingRef = useRef(false)
+  const lastTypingEmitTimeRef = useRef(0)
   const [toast, setToast] = useState(null)
-  const [composeTarget, setComposeTarget] = useState(null)
   const [lightboxMedia, setLightboxMedia] = useState(null)
   const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0)
   const [mobileComposerHeight, setMobileComposerHeight] = useState(60)
+
+  const urlRecipientId = searchParams.get('recipientId') || ''
+  const urlUsername = searchParams.get('username') || ''
+  const urlName = searchParams.get('name') || ''
+  const urlAvatarUrl = searchParams.get('avatarUrl') || ''
+
+  const composeTarget = useMemo(() => {
+    if (!urlRecipientId && !urlUsername) {
+      return null
+    }
+    return {
+      _id: urlRecipientId,
+      id: urlRecipientId,
+      username: urlUsername,
+      fullName: urlName || urlUsername || t('common.unknownUser'),
+      firstName: urlName || urlUsername || t('common.unknownUser'),
+      avatarUrl: urlAvatarUrl,
+    }
+  }, [urlRecipientId, urlUsername, urlName, urlAvatarUrl, t])
 
   const activeConversation = useMemo(
     () =>
@@ -535,7 +554,10 @@ function MessagesPage() {
     [activeConversationId, conversationsState.items],
   )
 
-  const activePeer = getConversationPeer(activeConversation) || composeTarget
+  const activePeer = useMemo(() => {
+    return getConversationPeer(activeConversation) || composeTarget
+  }, [activeConversation, composeTarget])
+
   const activePeerId = activePeer?._id?.toString() || activePeer?.id?.toString() || ''
   const activePeerIdRef = useRef(activePeerId)
   useEffect(() => {
@@ -606,46 +628,9 @@ function MessagesPage() {
   }, [isMobileViewport, sendError, isOptimizingMedia, isSending, uploadProgress, messagePreviews.length])
 
   useEffect(() => {
-    const recipientId = searchParams.get('recipientId')
-    const username = searchParams.get('username')
-    const fullName = searchParams.get('name')
-    const avatarUrl = searchParams.get('avatarUrl')
-
-    if (!recipientId && !username) {
-      setComposeTarget(null)
-      return
-    }
-
-    setComposeTarget({
-      _id: recipientId || '',
-      id: recipientId || '',
-      username: username || '',
-      fullName: fullName || username || t('common.unknownUser'),
-      firstName: fullName || username || t('common.unknownUser'),
-      avatarUrl: avatarUrl || '',
-    })
-
-    if (isMobileViewport) {
-      setMobileChatOpen(true)
-    }
-  }, [isMobileViewport, searchParams, t])
-
-  useEffect(() => {
-    if (!isMobileViewport && conversationsState.items.length && !activeConversationId) {
-      setActiveConversationId(conversationsState.items[0].id)
-    }
-  }, [activeConversationId, conversationsState.items, isMobileViewport])
-
-  useEffect(() => {
-    if (!isMobileViewport) {
-      setMobileChatOpen(Boolean(activeConversationId))
-    }
-  }, [activeConversationId, isMobileViewport])
-
-  useEffect(() => {
     if (!isAuthenticated) {
       setConversationsState({ items: [], isLoading: false, error: '' })
-      return
+      return undefined
     }
 
     let cancelled = false
@@ -655,28 +640,11 @@ function MessagesPage() {
 
       try {
         const payload = await getConversations()
+        if (cancelled) return
 
-        if (cancelled) {
-          return
-        }
-
-        setConversationsState({ items: payload.conversations, isLoading: false, error: '' })
-
-        const targetConversationId = findConversationIdForPeer(payload.conversations, composeTarget)
-
-        if (targetConversationId) {
-          setActiveConversationId(targetConversationId)
-          return
-        }
-
-        if (!isMobileViewport) {
-          setActiveConversationId((currentId) => currentId || payload.conversations[0]?.id || '')
-        }
+        setConversationsState({ items: payload.conversations || [], isLoading: false, error: '' })
       } catch (error) {
-        if (cancelled) {
-          return
-        }
-
+        if (cancelled) return
         setConversationsState({
           items: [],
           isLoading: false,
@@ -690,7 +658,32 @@ function MessagesPage() {
     return () => {
       cancelled = true
     }
-  }, [composeTarget, isAuthenticated, isMobileViewport, t])
+  }, [isAuthenticated, t])
+
+  useEffect(() => {
+    if (composeTarget) {
+      const matchedId = findConversationIdForPeer(conversationsState.items, composeTarget)
+      if (matchedId) {
+        setActiveConversationId(matchedId)
+      } else {
+        setActiveConversationId('')
+      }
+      if (isMobileViewport) {
+        setMobileChatOpen(true)
+      }
+      return
+    }
+
+    if (!isMobileViewport && conversationsState.items.length && !activeConversationId) {
+      setActiveConversationId(conversationsState.items[0].id)
+    }
+  }, [conversationsState.items, composeTarget, isMobileViewport])
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileChatOpen(Boolean(activeConversationId || composeTarget))
+    }
+  }, [activeConversationId, composeTarget, isMobileViewport])
 
   useEffect(() => {
     if (!activeConversationId || !isAuthenticated) {
@@ -927,7 +920,7 @@ function MessagesPage() {
         }
         peerTypingTimeoutRef.current = setTimeout(() => {
           setIsPeerTyping(false)
-        }, 3500)
+        }, 4500)
       }
     }
 
@@ -990,7 +983,7 @@ function MessagesPage() {
 
   useEffect(() => {
     scrollMessagesToBottom()
-  }, [messagesState.items])
+  }, [messagesState.items, isPeerTyping])
 
   useEffect(() => {
     if (!isMobileViewport) {
@@ -1212,21 +1205,27 @@ function MessagesPage() {
       setActiveConversationId(normalizedConversationId)
     }
 
-    setComposeTarget(null)
+    if (searchParams.get('recipientId') || searchParams.get('username')) {
+      navigate(`/${lang}/messages`, { replace: true })
+    }
   }
 
   function openConversation(conversationId) {
+    if (searchParams.get('recipientId') || searchParams.get('username')) {
+      navigate(`/${lang}/messages`, { replace: true })
+    }
     setActiveConversationId(conversationId)
-    setComposeTarget(null)
     if (isMobileViewport) {
       setMobileChatOpen(true)
     }
   }
 
   function handleBackToInbox() {
+    if (searchParams.get('recipientId') || searchParams.get('username')) {
+      navigate(`/${lang}/messages`, { replace: true })
+    }
     setMobileChatOpen(false)
     setActiveConversationId('')
-    setComposeTarget(null)
     setMessagesState({ items: [], isLoading: false, error: '' })
   }
 
@@ -1455,7 +1454,6 @@ function MessagesPage() {
       }))
       if (activeConversationId === conversationId) {
         setActiveConversationId('')
-        setComposeTarget(null)
         setMessagesState({ items: [], isLoading: false, error: '' })
       }
       setOpenConversationMenuId('')
@@ -1474,7 +1472,6 @@ function MessagesPage() {
       }))
       if (activeConversationId === conversationId) {
         setActiveConversationId('')
-        setComposeTarget(null)
         setMessagesState({ items: [], isLoading: false, error: '' })
       }
       setOpenConversationMenuId('')
@@ -1495,8 +1492,24 @@ function MessagesPage() {
 
     const socket = connectSocketClient()
 
-    if (!isMeTypingRef.current && value.trim().length > 0) {
+    if (value.length === 0) {
+      if (isMeTypingRef.current) {
+        isMeTypingRef.current = false
+        socket.emit('typing:stop', {
+          recipientId: activePeerId,
+          conversationId: activeConversationId || null,
+        })
+      }
+      if (myTypingTimeoutRef.current) {
+        clearTimeout(myTypingTimeoutRef.current)
+      }
+      return
+    }
+
+    const now = Date.now()
+    if (!isMeTypingRef.current || now - lastTypingEmitTimeRef.current > 1500) {
       isMeTypingRef.current = true
+      lastTypingEmitTimeRef.current = now
       socket.emit('typing:start', {
         recipientId: activePeerId,
         conversationId: activeConversationId || null,
@@ -1513,7 +1526,7 @@ function MessagesPage() {
         recipientId: activePeerId,
         conversationId: activeConversationId || null,
       })
-    }, 2500)
+    }, 3000)
   }
 
   async function handleSendMessage() {
@@ -1635,8 +1648,8 @@ function MessagesPage() {
   }
 
   const mobileMessagesViewportStyle = isMobileViewport
-    ? { paddingBottom: `${mobileComposerHeight + mobileKeyboardOffset + 16}px` }
-    : undefined
+    ? { paddingBottom: `${mobileComposerHeight + mobileKeyboardOffset + 32}px` }
+    : { paddingBottom: '24px' }
 
   const mobileComposerStyle = isMobileViewport
     ? {
@@ -2285,11 +2298,14 @@ function MessagesPage() {
                           className="size-7 shrink-0 bg-primary text-inverse"
                           textClassName="text-[10px] font-semibold"
                         />
-                        <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2.5 shadow-sm">
-                          <div className="flex items-center gap-1.5 py-0.5">
-                            <span className="size-1.5 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.3s]" />
-                            <span className="size-1.5 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.15s]" />
-                            <span className="size-1.5 rounded-full bg-primary/80 animate-bounce" />
+                        <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2 shadow-sm flex items-center gap-2">
+                          <span className="text-xs font-medium text-text">
+                            {t('messages.typing', { defaultValue: 'Yazıyor...' })}
+                          </span>
+                          <div className="flex items-center gap-1 py-0.5">
+                            <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+                            <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+                            <span className="size-1.5 rounded-full bg-primary animate-bounce" />
                           </div>
                         </div>
                       </div>
