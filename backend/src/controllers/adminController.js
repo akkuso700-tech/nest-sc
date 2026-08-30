@@ -957,15 +957,13 @@ const getUserDetail = asyncHandler(async (req, res) => {
     Post.find({ author: userId }).sort({ createdAt: -1 }).limit(20),
     Conversation.find({ participantIds: userId })
       .populate('participantIds', 'firstName lastName username avatarUrl verification accountStatus')
-      .sort({ updatedAt: -1 })
-      .limit(30),
+      .sort({ updatedAt: -1 }),
     Message.find({
       $or: [{ sender: userId }, { recipient: userId }],
     })
       .populate('sender', 'firstName lastName username avatarUrl verification')
       .populate('recipient', 'firstName lastName username avatarUrl verification')
-      .sort({ createdAt: -1 })
-      .limit(100),
+      .sort({ createdAt: 1 }),
     LocationConsentLog.find({ user: userId }).sort({ createdAt: -1 }).limit(20),
   ])
 
