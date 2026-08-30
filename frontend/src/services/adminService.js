@@ -154,3 +154,17 @@ export function updateAdminSignupContractsSettings(contracts = {}) {
     body: JSON.stringify({ contracts }),
   })
 }
+
+export function deleteAdminConversation(conversationId, reason = '') {
+  return apiRequest(`/admin/conversations/${conversationId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export function deleteAdminMessage(messageId, reason = '') {
+  return apiRequest(`/admin/messages/${messageId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason }),
+  })
+}

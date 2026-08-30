@@ -28,6 +28,8 @@ const {
   getVerificationRequest,
   updateVerificationRequestStatus,
   revokeUserVerification,
+  deleteAdminConversation,
+  deleteAdminMessage,
 } = require('../controllers/adminController')
 const {
   updateUserRoleSchema,
@@ -54,6 +56,8 @@ const {
   adminVerificationRequestIdSchema,
   updateVerificationRequestStatusSchema,
   revokeUserVerificationSchema,
+  deleteAdminConversationSchema,
+  deleteAdminMessageSchema,
 } = require('../validators/adminValidators')
 
 const adminRouter = express.Router()
@@ -143,10 +147,15 @@ adminRouter.get(
   validateRequest(adminSignupContractsSettingsSchema),
   getSignupContractsSettingsController,
 )
-adminRouter.patch(
-  '/settings/contracts',
-  validateRequest(updateAdminSignupContractsSettingsSchema),
-  updateSignupContractsSettingsController,
+adminRouter.delete(
+  '/conversations/:conversationId',
+  validateRequest(deleteAdminConversationSchema),
+  deleteAdminConversation,
+)
+adminRouter.delete(
+  '/messages/:messageId',
+  validateRequest(deleteAdminMessageSchema),
+  deleteAdminMessage,
 )
 
 module.exports = { adminRouter }
