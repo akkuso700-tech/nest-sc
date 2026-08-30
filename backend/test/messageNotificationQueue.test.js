@@ -153,3 +153,41 @@ test('processNotificationJob skips when all messages are already read', async ()
     Message.find = originalMessageFind
   }
 })
+
+test('enqueueOfflineMessageNotification successfully queues and debounces in in-memory fallback mode', async () => {
+  const {
+    enqueueOfflineMessageNotification,
+    closeMessageNotificationQueue,
+    getQueueStatus,
+  } = require('../src/queues/messageNotificationQueue')
+
+  const recipientId = '507f1f77bcf86cd799439011'
+  const senderId = '507f1f77bcf86cd799439012'
+
+  const firstResult = await enqueueOfflineMessageNotification({
+    recipientId,
+    senderId,
+    messageId: '507f1f77bcf86cd799439013',
+    delayMs: 100000,
+  })
+
+  assert.equal(firstResult.queued, true)
+  assert.equal(firstResult.mode, 'in_memory_fallback')
+
+  const debouncedResult = await enqueueOfflineMessageNotification({
+    recipientId,
+    senderId,
+    messageId: '507f1f77bcf86cd799439014',
+    delayMs: 100000,
+  })
+
+  assert.equal(debouncedResult.queued, true)
+  assert.equal(debouncedResult.debounced, true)
+
+  const status = getQueueStatus()
+  assert.equal(status.activeMode, 'in_memory_fallback')
+  assert.ok(status.pendingMemoryJobs >= 1)
+
+  await closeMessageNotificationQueue()
+})
+

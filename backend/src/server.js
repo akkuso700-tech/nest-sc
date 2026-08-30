@@ -5,6 +5,7 @@ const { createApp } = require('./app')
 const { initSocketServer } = require('./sockets')
 const { runWorker } = require('./workers/loopVideoWorker')
 const { runMessageNotificationWorker } = require('./workers/messageNotificationWorker')
+const { setAppIo } = require('./queues/messageNotificationQueue')
 
 async function bootstrap() {
   const app = createApp()
@@ -12,6 +13,7 @@ async function bootstrap() {
   const io = initSocketServer(server)
 
   app.locals.io = io
+  setAppIo(io)
 
   server.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`)
