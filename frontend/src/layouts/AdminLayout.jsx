@@ -58,6 +58,7 @@ function getPageMeta(pathname, lang) {
       title: 'Kullanıcı Detayı',
       eyebrow: 'Kullanıcı Operasyonları',
       description: 'Hesap, aktivite, içerik ve güvenlik kayıtlarını birlikte değerlendirin.',
+      hideHeading: true,
     }
   }
   if (pathname.includes(`${base}/users`)) {
@@ -372,29 +373,31 @@ function AdminLayout() {
           </header>
 
           <main className="admin-main">
-            <section className="admin-page-heading">
-              <div>
-                <span>{pageMeta.eyebrow}</span>
-                <h1>{pageMeta.title}</h1>
-                <p>{pageMeta.description}</p>
-              </div>
-              {supportsRange ? (
-                <div className="admin-range-wrap">
-                  <div className="admin-segmented-control" aria-label="Analiz dönemi">
-                    {[['today', 'Bugün'], ['7d', '7 gün'], ['30d', '30 gün'], ['custom', 'Özel']].map(([key, label]) => (
-                      <button key={key} type="button" className={range === key ? 'is-active' : ''} onClick={() => selectRange(key)}>{label}</button>
-                    ))}
-                  </div>
-                  {customOpen ? (
-                    <div className="admin-date-popover">
-                      <label>Başlangıç<input type="date" value={customDates.dateFrom} onChange={(event) => setCustomDates((current) => ({ ...current, dateFrom: event.target.value }))} /></label>
-                      <label>Bitiş<input type="date" value={customDates.dateTo} onChange={(event) => setCustomDates((current) => ({ ...current, dateTo: event.target.value }))} /></label>
-                      <button type="button" disabled={!customDates.dateFrom || !customDates.dateTo} onClick={() => { setRange('custom'); setCustomOpen(false) }}>Uygula</button>
-                    </div>
-                  ) : null}
+            {!pageMeta.hideHeading ? (
+              <section className="admin-page-heading">
+                <div>
+                  <span>{pageMeta.eyebrow}</span>
+                  <h1>{pageMeta.title}</h1>
+                  <p>{pageMeta.description}</p>
                 </div>
-              ) : null}
-            </section>
+                {supportsRange ? (
+                  <div className="admin-range-wrap">
+                    <div className="admin-segmented-control" aria-label="Analiz dönemi">
+                      {[['today', 'Bugün'], ['7d', '7 gün'], ['30d', '30 gün'], ['custom', 'Özel']].map(([key, label]) => (
+                        <button key={key} type="button" className={range === key ? 'is-active' : ''} onClick={() => selectRange(key)}>{label}</button>
+                      ))}
+                    </div>
+                    {customOpen ? (
+                      <div className="admin-date-popover">
+                        <label>Başlangıç<input type="date" value={customDates.dateFrom} onChange={(event) => setCustomDates((current) => ({ ...current, dateFrom: event.target.value }))} /></label>
+                        <label>Bitiş<input type="date" value={customDates.dateTo} onChange={(event) => setCustomDates((current) => ({ ...current, dateTo: event.target.value }))} /></label>
+                        <button type="button" disabled={!customDates.dateFrom || !customDates.dateTo} onClick={() => { setRange('custom'); setCustomOpen(false) }}>Uygula</button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
 
             {supportsRange ? (
               <section className="admin-summary-grid" aria-busy={summary.loading}>

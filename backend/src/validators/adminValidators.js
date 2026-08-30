@@ -278,6 +278,26 @@ const updateAdminSignupContractsSettingsSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const deleteAdminConversationSchema = z.object({
+  body: z.object({
+    reason: z.string().trim().max(300).optional().default(''),
+  }),
+  params: z.object({
+    conversationId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
+const deleteAdminMessageSchema = z.object({
+  body: z.object({
+    reason: z.string().trim().max(300).optional().default(''),
+  }),
+  params: z.object({
+    messageId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
 module.exports = {
   updateUserRoleSchema,
   updateUserStatusSchema,
@@ -303,4 +323,6 @@ module.exports = {
   updateAdminSignupNotificationSettingsSchema,
   adminSignupContractsSettingsSchema,
   updateAdminSignupContractsSettingsSchema,
+  deleteAdminConversationSchema,
+  deleteAdminMessageSchema,
 }

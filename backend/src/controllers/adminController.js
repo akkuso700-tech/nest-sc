@@ -955,12 +955,17 @@ const getUserDetail = asyncHandler(async (req, res) => {
       .populate('activity.savedPostIds', '_id text createdAt')
       .populate('activity.sharedPostIds', '_id text createdAt'),
     Post.find({ author: userId }).sort({ createdAt: -1 }).limit(20),
-    Conversation.find({ participantIds: userId }).sort({ updatedAt: -1 }).limit(20),
+    Conversation.find({ participantIds: userId })
+      .populate('participantIds', 'firstName lastName username avatarUrl verification accountStatus')
+      .sort({ updatedAt: -1 })
+      .limit(30),
     Message.find({
       $or: [{ sender: userId }, { recipient: userId }],
     })
+      .populate('sender', 'firstName lastName username avatarUrl verification')
+      .populate('recipient', 'firstName lastName username avatarUrl verification')
       .sort({ createdAt: -1 })
-      .limit(50),
+      .limit(100),
     LocationConsentLog.find({ user: userId }).sort({ createdAt: -1 }).limit(20),
   ])
 
@@ -1672,6 +1677,108 @@ const updateSignupContractsSettingsController = asyncHandler(async (req, res) =>
   })
 })
 
+const deleteAdminConversation = asyncHandler(async (req, res) => {
+  const { conversationId } = req.validated?.params || req.params
+  const { reason = '' } = req.validated?.body || req.body || {}
+
+  if (!mongoose.isValidObjectId(conversationId)) {
+    throw new AppError('Gecersiz sohbet kimligi.', 400)
+  }
+
+  const conversation = await Conversation.findById(conversationId)
+  if (!conversation) {
+    throw new AppError('Sohbet bulunamadi.', 404)
+  }
+
+  const messageCount = await Message.countDocuments({ conversation: conversationId })
+
+  // 1. Delete all messages of this conversation
+  await Message.deleteMany({ conversation: conversationId })
+
+  // 2. Delete the conversation record
+  await Conversation.findByIdAndDelete(conversationId)
+
+  // 3. Create Audit Log
+  await createAuditLog({
+    actorId: req.user._id,
+    action: 'admin.conversation.deleted',
+    targetKind: 'system',
+    targetId: conversationId,
+    summary: `Sohbet ve ${messageCount} adet mesaj kalici olarak silindi. Gerekce: ${reason || 'Belirtilmedi'}`,
+    metadata: {
+      participantIds: conversation.participantIds,
+      deletedMessagesCount: messageCount,
+      reason,
+    },
+  })
+
+  res.json({
+    success: true,
+    message: 'Sohbet ve ilgili tum mesajlar kalici olarak silindi.',
+    deletedConversationId: conversationId,
+    deletedMessagesCount: messageCount,
+  })
+})
+
+const deleteAdminMessage = asyncHandler(async (req, res) => {
+  const { messageId } = req.validated?.params || req.params
+  const { reason = '' } = req.validated?.body || req.body || {}
+
+  if (!mongoose.isValidObjectId(messageId)) {
+    throw new AppError('Gecersiz mesaj kimligi.', 400)
+  }
+
+  const message = await Message.findById(messageId)
+  if (!message) {
+    throw new AppError('Mesaj bulunamadi.', 404)
+  }
+
+  const conversationId = message.conversation
+
+  // 1. Delete message
+  await Message.findByIdAndDelete(messageId)
+
+  // 2. Update conversation preview if needed
+  if (conversationId) {
+    const latestMessage = await Message.findOne({ conversation: conversationId }).sort({ createdAt: -1 })
+    if (latestMessage) {
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastMessageId: latestMessage._id,
+        lastMessagePreview: latestMessage.text || (latestMessage.media?.length ? 'Medya eki' : ''),
+        lastMessageAt: latestMessage.createdAt,
+      })
+    } else {
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastMessageId: null,
+        lastMessagePreview: '',
+        lastMessageAt: null,
+      })
+    }
+  }
+
+  // 3. Create Audit Log
+  await createAuditLog({
+    actorId: req.user._id,
+    action: 'admin.message.deleted',
+    targetKind: 'system',
+    targetId: messageId,
+    summary: `Mesaj admin tarafindan kalici olarak silindi. Gerekce: ${reason || 'Belirtilmedi'}`,
+    metadata: {
+      conversationId,
+      sender: message.sender,
+      recipient: message.recipient,
+      reason,
+    },
+  })
+
+  res.json({
+    success: true,
+    message: 'Mesaj kalici olarak silindi.',
+    deletedMessageId: messageId,
+    conversationId,
+  })
+})
+
 module.exports = {
   getOverview,
   listUsers,
@@ -1698,4 +1805,6 @@ module.exports = {
   getVerificationRequest,
   updateVerificationRequestStatus,
   revokeUserVerification,
+  deleteAdminConversation,
+  deleteAdminMessage,
 }
