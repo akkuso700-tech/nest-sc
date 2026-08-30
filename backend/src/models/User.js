@@ -260,6 +260,16 @@ const userSchema = new mongoose.Schema(
         },
       ],
     },
+    preferences: {
+      emailNotifications: {
+        messages: { type: Boolean, default: true },
+        mentions: { type: Boolean, default: true },
+      },
+    },
+    lastMessageEmailSentAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

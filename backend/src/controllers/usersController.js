@@ -835,6 +835,16 @@ const updateMyProfile = asyncHandler(async (req, res) => {
       country: body.location.country ?? profile.location?.country ?? '',
     }
   }
+  if (body.preferences?.emailNotifications) {
+    if (!profile.preferences) profile.preferences = {}
+    if (!profile.preferences.emailNotifications) profile.preferences.emailNotifications = {}
+    if (typeof body.preferences.emailNotifications.messages === 'boolean') {
+      profile.preferences.emailNotifications.messages = body.preferences.emailNotifications.messages
+    }
+    if (typeof body.preferences.emailNotifications.mentions === 'boolean') {
+      profile.preferences.emailNotifications.mentions = body.preferences.emailNotifications.mentions
+    }
+  }
   if (hasField('isPrivate')) {
     profile.isPrivate = body.isPrivate
   }

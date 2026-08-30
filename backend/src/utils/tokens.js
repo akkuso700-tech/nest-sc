@@ -94,6 +94,12 @@ function serializeUser(user) {
       preferConfiguredOrigin: false,
     }),
     isPrivate: user.isPrivate,
+    preferences: {
+      emailNotifications: {
+        messages: user.preferences?.emailNotifications?.messages !== false,
+        mentions: user.preferences?.emailNotifications?.mentions !== false,
+      },
+    },
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
   }

@@ -142,6 +142,12 @@ const updateProfileSchema = z.object({
       city: z.string().trim().max(80).optional().default(''),
       country: z.string().trim().max(80).optional().default(''),
     }).optional(),
+    preferences: z.object({
+      emailNotifications: z.object({
+        messages: z.boolean().optional(),
+        mentions: z.boolean().optional(),
+      }).optional(),
+    }).optional(),
     isPrivate: z.boolean().optional(),
   }),
   params: z.object({}).default({}),
