@@ -157,6 +157,8 @@ const envSchema = z.object({
   LOOP_DIRECT_UPLOAD_ENABLED: z.string().optional(),
   LOOP_DIRECT_UPLOAD_URL: optionalTrimmedString(10),
   LOOP_DIRECT_UPLOAD_SECRET: optionalTrimmedString(32),
+  LOOP_DIRECT_UPLOAD_TICKET_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(600),
+  LOOP_DIRECT_UPLOAD_CHUNK_BYTES: z.coerce.number().int().min(1024 * 1024).max(16 * 1024 * 1024).default(8 * 1024 * 1024),
   LOOP_HOSTINGER_MEDIA_ROOT: optionalTrimmedString(2),
   REDIS_URL: optionalTrimmedString(5),
   REDIS_HOST: optionalTrimmedString(2),
@@ -315,10 +317,7 @@ const env = {
     password: rawEnv.REDIS_PASSWORD || undefined,
   },
   messageNotification: {
-    queueEnabled: parseBoolean(
-      rawEnv.MESSAGE_NOTIFICATION_QUEUE_ENABLED,
-      Boolean(rawEnv.REDIS_URL || rawEnv.REDIS_HOST || rawEnv.NODE_ENV !== 'production'),
-    ),
+    queueEnabled: parseBoolean(rawEnv.MESSAGE_NOTIFICATION_QUEUE_ENABLED, true),
     delayMs: rawEnv.MESSAGE_NOTIFICATION_DELAY_MS,
     throttleMs: rawEnv.MESSAGE_NOTIFICATION_THROTTLE_MS,
     workerMode: rawEnv.MESSAGE_NOTIFICATION_WORKER_MODE,
