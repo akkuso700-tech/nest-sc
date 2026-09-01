@@ -62,9 +62,9 @@ const requestApiBaseCandidates = resolveApiBaseCandidates(apiBaseUrl, {
 })
 const configuredRequestTimeoutMs = Number(import.meta.env?.VITE_API_TIMEOUT_MS)
 const API_REQUEST_TIMEOUT_MS = Number.isFinite(configuredRequestTimeoutMs)
-  ? Math.min(Math.max(configuredRequestTimeoutMs, 3000), 30000)
-  : 10000
-const API_RETRY_DELAY_MS = 250
+  ? Math.min(Math.max(configuredRequestTimeoutMs, 3000), 60000)
+  : 20000
+const API_RETRY_DELAY_MS = 350
 
 let refreshPromise = null
 
@@ -154,7 +154,7 @@ async function fetchWithApiFallback(path, options = {}, config = {}) {
   let lastResponse = null
   const method = String(options.method || 'GET').toUpperCase()
   const retryEnabled = config.retry ?? isIdempotentMethod(method)
-  const maxAttempts = retryEnabled ? 2 : 1
+  const maxAttempts = retryEnabled ? 3 : 2
   const timeoutMs = Math.min(
     Math.max(Number(config.timeoutMs) || API_REQUEST_TIMEOUT_MS, 100),
     60000,
@@ -183,7 +183,7 @@ async function fetchWithApiFallback(path, options = {}, config = {}) {
     }
 
     if (attempt < maxAttempts - 1) {
-      await wait(API_RETRY_DELAY_MS * (attempt + 1))
+      await wait(API_RETRY_DELAY_MS * Math.pow(2, attempt))
     }
   }
 

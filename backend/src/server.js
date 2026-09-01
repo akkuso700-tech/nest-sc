@@ -15,23 +15,26 @@ async function bootstrap() {
   app.locals.io = io
   setAppIo(io)
 
+  try {
+    await connectDatabase()
+  } catch (error) {
+    console.error('Failed to connect to database during startup:', error)
+    process.exit(1)
+  }
+
   server.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`)
   })
-  try {
-    await connectDatabase()
-    if (env.loopWorkerMode === 'embedded') {
-      void runWorker({ manageDatabase: false }).catch((error) => {
-        console.error('Embedded Loop worker failed:', error)
-      })
-    }
-    if (env.messageNotification.workerMode === 'embedded') {
-      void runMessageNotificationWorker({ io, manageDatabase: false }).catch((error) => {
-        console.warn('Embedded Message notification worker failed:', error.message)
-      })
-    }
-  } catch (error) {
-    console.error('Failed to connect to database:', error)
+
+  if (env.loopWorkerMode === 'embedded') {
+    void runWorker({ manageDatabase: false }).catch((error) => {
+      console.error('Embedded Loop worker failed:', error)
+    })
+  }
+  if (env.messageNotification.workerMode === 'embedded') {
+    void runMessageNotificationWorker({ io, manageDatabase: false }).catch((error) => {
+      console.warn('Embedded Message notification worker failed:', error.message)
+    })
   }
 }
 
