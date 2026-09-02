@@ -1,4 +1,4 @@
-﻿import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
@@ -639,6 +639,8 @@ function resolveSiteUrl() {
   return ''
 }
 
+const clientHomeFeedCache = new Map()
+
 function HomePage() {
   const { lang = 'tr', tagSlug = '' } = useParams()
   const navigate = useNavigate()
@@ -650,13 +652,17 @@ function HomePage() {
   const selectedTopic = selectedTagFromPath || searchParams.get('topic') || ''
   const isTagPage = Boolean(selectedTagFromPath)
   const [activeFeedTab, setActiveFeedTab] = useState('explore')
-  const [feedState, setFeedState] = useState({
-    posts: [],
-    isLoading: true,
-    error: '',
-    hasMore: false,
-    nextCursor: null,
-    nextOffset: null,
+  const [feedState, setFeedState] = useState(() => {
+    const cacheKey = `explore:${selectedTopic || ''}`
+    const cached = clientHomeFeedCache.get(cacheKey)
+    return {
+      posts: cached?.posts || [],
+      isLoading: !cached?.posts?.length,
+      error: '',
+      hasMore: Boolean(cached?.hasMore),
+      nextCursor: cached?.nextCursor || null,
+      nextOffset: cached?.nextOffset || null,
+    }
   })
   const [isPublishing, setIsPublishing] = useState(false)
   const [trendsState, setTrendsState] = useState({
@@ -831,14 +837,27 @@ function HomePage() {
         return
       }
 
-      setFeedState({
-        posts: [],
-        isLoading: true,
-        error: '',
-        hasMore: false,
-        nextCursor: null,
-        nextOffset: null,
-      })
+      const cacheKey = `${activeFeedTab}:${selectedTopic || ''}`
+      const cached = clientHomeFeedCache.get(cacheKey)
+      if (cached?.posts?.length) {
+        setFeedState((prev) => ({
+          ...prev,
+          posts: cached.posts,
+          isLoading: false,
+          hasMore: Boolean(cached.hasMore),
+          nextCursor: cached.nextCursor || null,
+          nextOffset: cached.nextOffset || null,
+        }))
+      } else {
+        setFeedState({
+          posts: [],
+          isLoading: true,
+          error: '',
+          hasMore: false,
+          nextCursor: null,
+          nextOffset: null,
+        })
+      }
 
       try {
         const shouldInjectLoopPreview = activeFeedTab === 'explore' && !selectedTopic
@@ -875,27 +894,27 @@ function HomePage() {
           return
         }
 
-        setFeedState({
+        const nextState = {
           posts: filterOutStoryPosts(payload.posts || []),
           isLoading: false,
           error: '',
-          hasMore: payload.pagination.hasMore,
-          nextCursor: payload.pagination.nextCursor || null,
-          nextOffset: payload.pagination.nextOffset,
-        })
+          hasMore: Boolean(payload?.pagination?.hasMore),
+          nextCursor: payload?.pagination?.nextCursor || null,
+          nextOffset: payload?.pagination?.nextOffset ?? null,
+        }
+
+        clientHomeFeedCache.set(cacheKey, nextState)
+        setFeedState(nextState)
       } catch (error) {
         if (cancelled) {
           return
         }
 
-        setFeedState({
-          posts: [],
+        setFeedState((current) => ({
+          ...current,
           isLoading: false,
-          error: error.message || 'Feed could not be loaded.',
-          hasMore: false,
-          nextCursor: null,
-          nextOffset: null,
-        })
+          error: current.posts.length ? '' : (error.message || 'Feed could not be loaded.'),
+        }))
       }
     }
 

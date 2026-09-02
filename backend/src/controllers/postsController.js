@@ -61,6 +61,39 @@ const trendingTopicsCache = {
   expiresAt: 0,
 }
 
+const PUBLIC_FEED_CACHE_TTL_MS = 25 * 1000 // 25s TTL for guest public feeds
+const publicFeedCache = new Map()
+
+function getPublicFeedCacheKey({ view, loopMode, topic, limit, offset }) {
+  return `${view || 'explore'}:${loopMode || 'none'}:${topic || 'none'}:${limit || 10}:${offset || 0}`
+}
+
+function getFromPublicFeedCache(key) {
+  const entry = publicFeedCache.get(key)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) {
+    publicFeedCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function setInPublicFeedCache(key, data, ttlMs = PUBLIC_FEED_CACHE_TTL_MS) {
+  if (publicFeedCache.size > 200) {
+    const oldestKey = publicFeedCache.keys().next().value
+    publicFeedCache.delete(oldestKey)
+  }
+  publicFeedCache.set(key, {
+    data,
+    expiresAt: Date.now() + ttlMs,
+  })
+}
+
+function invalidatePublicFeedCache() {
+  publicFeedCache.clear()
+  trendingTopicsCache.expiresAt = 0
+}
+
 function nowMs() {
   return Date.now()
 }
@@ -1976,6 +2009,7 @@ const createPost = asyncHandler(async (req, res) => {
       perf.mark('mentions_done')
 
       emitTrendsUpdate(io)
+      invalidatePublicFeedCache()
       perf.mark('trends_emit_done')
 
     const isScheduled = parsedInput.publication?.status === 'scheduled'
@@ -2017,6 +2051,20 @@ const createPost = asyncHandler(async (req, res) => {
 
 const getFeed = asyncHandler(async (req, res) => {
   const { authorId, limit, cursor, offset, topic, view, loopMode } = req.validated.query
+
+  const isGuestInitialFeed = !req.user && !authorId && !cursor && (!offset || Number(offset) === 0)
+  const publicCacheKey = isGuestInitialFeed
+    ? getPublicFeedCacheKey({ view, loopMode, topic, limit, offset: 0 })
+    : null
+
+  if (publicCacheKey) {
+    const cachedResponse = getFromPublicFeedCache(publicCacheKey)
+    if (cachedResponse) {
+      res.json(cachedResponse)
+      return
+    }
+  }
+
   const experiment = buildFeedExperiment({ req, view, loopMode })
   const scope = normalizeFeedSessionScope({
     reqUserId: req.user?._id?.toString(),
@@ -2308,10 +2356,16 @@ const getFeed = asyncHandler(async (req, res) => {
       topic: view === 'loop' ? loopMode : topic,
     })
     let orderedPostIds = []
+    let loopCandidates = []
+    let basePosts = []
+    const isInitialPage = !cursor && (!offset || Number(offset) === 0)
+
     if (view === 'loop') {
       const recentlySeenPostIdSet = new Set(await getRecentlySeenPostIds(req.user))
-      const candidateLimit = Math.max(LOOP_RANKING_CANDIDATE_MIN, FEED_SESSION_MAX_ITEMS + 40)
-      const loopCandidates = await Post.find(filter)
+      const candidateLimit = isInitialPage
+        ? Math.max(LOOP_RANKING_CANDIDATE_MIN, limit * 5)
+        : Math.max(LOOP_RANKING_CANDIDATE_MIN, FEED_SESSION_MAX_ITEMS + 40)
+      loopCandidates = await Post.find(filter)
         .select(FEED_POST_PROJECTION)
         .populate('author', 'firstName lastName username avatarUrl verification')
         .sort({ createdAt: -1 })
@@ -2385,11 +2439,15 @@ const getFeed = asyncHandler(async (req, res) => {
 
       orderedPostIds = rankedLoops.map((post) => post._id.toString())
     } else {
-      const basePosts = await Post.find(filter)
+      const candidateLimit = isInitialPage
+        ? Math.min(FEED_SESSION_MAX_ITEMS, Math.max(48, limit * 4))
+        : FEED_SESSION_MAX_ITEMS
+
+      basePosts = await Post.find(filter)
         .select(FEED_POST_PROJECTION)
         .populate('author', 'firstName lastName username avatarUrl verification')
         .sort(sort)
-        .limit(FEED_SESSION_MAX_ITEMS)
+        .limit(candidateLimit)
         .lean()
 
       const globalEntries = basePosts.map((post) => {
@@ -2435,9 +2493,17 @@ const getFeed = asyncHandler(async (req, res) => {
       limit,
       scope,
     })
-    const orderedPosts = await fetchPostsInOrder(page.pageIds, req.user)
 
-    res.json({
+    const candidateMap = new Map(
+      (view === 'loop' ? loopCandidates : basePosts).map((post) => [post._id.toString(), post]),
+    )
+    const inMemoryPosts = page.pageIds.map((id) => candidateMap.get(id)).filter(Boolean)
+    const orderedPosts =
+      inMemoryPosts.length === page.pageIds.length
+        ? inMemoryPosts
+        : await fetchPostsInOrder(page.pageIds, req.user)
+
+    const responsePayload = {
       posts: serializeFeedPosts(orderedPosts, req.user, {
         sessionId: session.id,
         startRank: Math.max(0, Number(offset || 0)) + 1,
@@ -2455,7 +2521,13 @@ const getFeed = asyncHandler(async (req, res) => {
         algorithm,
         experiment,
       },
-    })
+    }
+
+    if (publicCacheKey) {
+      setInPublicFeedCache(publicCacheKey, responsePayload)
+    }
+
+    res.json(responsePayload)
     return
   }
 
@@ -3243,6 +3315,7 @@ const updatePost = asyncHandler(async (req, res) => {
   })
 
   emitTrendsUpdate(io)
+  invalidatePublicFeedCache()
 
   const populatedPost = await Post.findById(post._id).populate(
     'author',
@@ -3273,6 +3346,7 @@ const togglePostArchive = asyncHandler(async (req, res) => {
   post.archivedAt = post.archivedAt ? null : new Date()
   await post.save()
   emitTrendsUpdate(io)
+  invalidatePublicFeedCache()
 
   const populatedPost = await Post.findById(post._id).populate(
     'author',
@@ -3303,6 +3377,7 @@ const deletePost = asyncHandler(async (req, res) => {
   await Comment.deleteMany({ post: post._id })
   await post.deleteOne()
   emitTrendsUpdate(io)
+  invalidatePublicFeedCache()
 
   res.json({
     message: 'Post deleted successfully.',

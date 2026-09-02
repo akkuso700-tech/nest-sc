@@ -66,6 +66,8 @@ function PlusIcon() {
   )
 }
 
+const clientLoopFeedCache = new Map()
+
 function LoopPage() {
   const { lang = 'tr' } = useParams()
   const navigate = useNavigate()
@@ -79,13 +81,17 @@ function LoopPage() {
   const isLoadingMoreRef = useRef(false)
   const [activeTab, setActiveTab] = useState('explore')
   const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
-  const [state, setState] = useState({
-    posts: [],
-    isLoading: true,
-    error: '',
-    hasMore: false,
-    nextCursor: null,
-    nextOffset: 0,
+  const focusedPostId = `${searchParams.get('post') || ''}`.trim()
+  const [state, setState] = useState(() => {
+    const cached = !focusedPostId ? clientLoopFeedCache.get('explore') : null
+    return {
+      posts: cached?.posts || [],
+      isLoading: !cached?.posts?.length,
+      error: '',
+      hasMore: Boolean(cached?.hasMore),
+      nextCursor: cached?.nextCursor || null,
+      nextOffset: cached?.nextOffset || 0,
+    }
   })
   const [storyState, setStoryState] = useState({
     rails: [],
@@ -96,7 +102,6 @@ function LoopPage() {
   const [activeLoopIndex, setActiveLoopIndex] = useState(0)
   const [isMobileTopBarVisible, setIsMobileTopBarVisible] = useState(true)
   const [toast, setToast] = useState({ message: '', tone: 'success' })
-  const focusedPostId = `${searchParams.get('post') || ''}`.trim()
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -119,14 +124,27 @@ function LoopPage() {
 
     async function loadLoopFeed() {
       const loopMode = resolveLoopMode(activeTab)
-      setState({
-        posts: [],
-        isLoading: true,
-        error: '',
-        hasMore: false,
-        nextCursor: null,
-        nextOffset: null,
-      })
+      const cached = !focusedPostId ? clientLoopFeedCache.get(activeTab) : null
+
+      if (cached?.posts?.length) {
+        setState((prev) => ({
+          ...prev,
+          posts: cached.posts,
+          isLoading: false,
+          hasMore: Boolean(cached.hasMore),
+          nextCursor: cached.nextCursor || null,
+          nextOffset: cached.nextOffset || 0,
+        }))
+      } else {
+        setState({
+          posts: [],
+          isLoading: true,
+          error: '',
+          hasMore: false,
+          nextCursor: null,
+          nextOffset: null,
+        })
+      }
 
       try {
         const [feedPayload, focusedPostPayload] = await Promise.all([
@@ -160,7 +178,7 @@ function LoopPage() {
           return
         }
 
-        setState({
+        const nextState = {
           posts: mergedPosts,
           isLoading: false,
           error: '',
@@ -170,20 +188,23 @@ function LoopPage() {
             typeof feedPayload?.pagination?.nextOffset === 'number'
               ? feedPayload.pagination.nextOffset
               : null,
-        })
+        }
+
+        if (!focusedPostId) {
+          clientLoopFeedCache.set(activeTab, nextState)
+        }
+
+        setState(nextState)
       } catch (error) {
         if (cancelled) {
           return
         }
 
-        setState({
-          posts: [],
+        setState((current) => ({
+          ...current,
           isLoading: false,
-          error: error.message || 'Loop videolari yuklenemedi.',
-          hasMore: false,
-          nextCursor: null,
-          nextOffset: null,
-        })
+          error: current.posts.length ? '' : (error.message || 'Loop videolari yuklenemedi.'),
+        }))
       }
     }
 
