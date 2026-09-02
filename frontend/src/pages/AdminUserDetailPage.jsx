@@ -4,6 +4,7 @@ import ActionToast from '../components/feedback/ActionToast.jsx'
 import ConfirmActionDialog from '../components/feedback/ConfirmActionDialog.jsx'
 import UserAvatar from '../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
+import AudioMessagePlayer from '../components/media/AudioMessagePlayer.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 import { formatLocation, formatRelativeTime, getFullName } from '../utils/social.js'
 import {
@@ -1920,13 +1921,26 @@ function AdminUserDetailPage() {
                                           : 'rounded-tl-sm border border-slate-200/90 bg-white text-slate-900'
                                       }`}
                                     >
-                                      {/* Medya Ekleri (Fotoğraf / Video) */}
+                                      {/* Medya Ekleri (Fotoğraf / Video / Sesli Mesaj) */}
                                       {msg.media && msg.media.length > 0 ? (
                                         <div className="mb-2.5 grid gap-2">
                                           {msg.media.map((med, mIdx) => (
-                                            <div key={mIdx} className="overflow-hidden rounded-xl bg-black/10">
-                                              {med.type === 'video' ? (
-                                                <div className="relative">
+                                            <div key={mIdx} className="overflow-hidden rounded-xl">
+                                              {med.type === 'audio' ? (
+                                                <div className={`p-2 rounded-xl border ${
+                                                  isInspectedUser
+                                                    ? 'border-blue-400/40 bg-blue-700/50'
+                                                    : 'border-slate-200 bg-slate-50'
+                                                }`}>
+                                                  <AudioMessagePlayer
+                                                    src={med.url}
+                                                    duration={med.durationSeconds || 0}
+                                                    isMine={isInspectedUser}
+                                                    variant="admin"
+                                                  />
+                                                </div>
+                                              ) : med.type === 'video' ? (
+                                                <div className="relative bg-black/10 rounded-xl overflow-hidden">
                                                   <video
                                                     src={resolveMediaUrl(med.url)}
                                                     poster={med.posterUrl ? resolveMediaUrl(med.posterUrl) : ''}
@@ -1944,7 +1958,7 @@ function AdminUserDetailPage() {
                                               ) : (
                                                 <div
                                                   onClick={() => setPreviewMedia({ url: resolveMediaUrl(med.url), type: 'image' })}
-                                                  className="group relative cursor-pointer overflow-hidden rounded-xl"
+                                                  className="group relative cursor-pointer overflow-hidden rounded-xl bg-black/10"
                                                 >
                                                   <img
                                                     src={resolveMediaUrl(med.url)}
@@ -2020,10 +2034,28 @@ function AdminUserDetailPage() {
                                 return (
                                   <div
                                     key={med.key}
-                                    onClick={() => setPreviewMedia({ url: resolveMediaUrl(med.url), type: med.type })}
+                                    onClick={() => med.type !== 'audio' && setPreviewMedia({ url: resolveMediaUrl(med.url), type: med.type })}
                                     className="group relative aspect-square cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-2xs"
                                   >
-                                    {med.type === 'video' ? (
+                                    {med.type === 'audio' ? (
+                                      <div className="flex h-full w-full flex-col justify-between p-3 bg-gradient-to-b from-slate-800 to-slate-900">
+                                        <div className="flex items-center justify-between">
+                                          <span className="rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold">
+                                            🎙️ Sesli Mesaj
+                                          </span>
+                                        </div>
+                                        <div className="my-auto">
+                                          <AudioMessagePlayer
+                                            src={med.url}
+                                            duration={med.durationSeconds || 0}
+                                            variant="admin"
+                                          />
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                          {new Date(med.createdAt).toLocaleDateString('tr-TR')}
+                                        </div>
+                                      </div>
+                                    ) : med.type === 'video' ? (
                                       <video
                                         src={resolveMediaUrl(med.url)}
                                         className="h-full w-full object-cover opacity-85 group-hover:opacity-100"
@@ -2039,19 +2071,23 @@ function AdminUserDetailPage() {
                                     )}
 
                                     {/* Type badge */}
-                                    <span className="absolute top-2 left-2 rounded-md bg-slate-900/80 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-xs">
-                                      {med.type === 'video' ? '🎥 Video' : '📷 Fotoğraf'}
-                                    </span>
+                                    {med.type !== 'audio' && (
+                                      <span className="absolute top-2 left-2 rounded-md bg-slate-900/80 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-xs">
+                                        {med.type === 'video' ? '🎥 Video' : '📷 Fotoğraf'}
+                                      </span>
+                                    )}
 
                                     {/* Sender & Date footer */}
-                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent p-2 text-white">
-                                      <p className="text-[10px] font-semibold truncate">
-                                        {isFromInspected ? 'Kullanıcı' : otherParticipant.firstName}
-                                      </p>
-                                      <p className="text-[9px] text-slate-300">
-                                        {new Date(med.createdAt).toLocaleDateString('tr-TR')}
-                                      </p>
-                                    </div>
+                                    {med.type !== 'audio' && (
+                                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent p-2 text-white">
+                                        <p className="text-[10px] font-semibold truncate">
+                                          {isFromInspected ? 'Kullanıcı' : otherParticipant.firstName}
+                                        </p>
+                                        <p className="text-[9px] text-slate-300">
+                                          {new Date(med.createdAt).toLocaleDateString('tr-TR')}
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })}
