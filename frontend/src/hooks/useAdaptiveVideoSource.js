@@ -9,7 +9,8 @@ function supportsNativeHls() {
 export function supportsManagedHlsSource(hlsUrl) {
   const normalizedUrl = String(hlsUrl || '').toLowerCase()
   return /(?:^|[-/])master-ts-remote\.m3u8(?:$|[?#])/.test(normalizedUrl) ||
-    /(?:^|\/)master\.m3u8(?:$|[?#])/.test(normalizedUrl)
+    /(?:^|\/)master\.m3u8(?:$|[?#])/.test(normalizedUrl) ||
+    /(?:^|[-/])master-remote\.m3u8(?:$|[?#])/.test(normalizedUrl)
 }
 
 export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled = true }) {

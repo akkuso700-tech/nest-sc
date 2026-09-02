@@ -242,7 +242,17 @@ postSchema.index({
 postSchema.index({
   group: 1,
   contentType: 1,
+  privacy: 1,
+  archivedAt: 1,
+  'moderation.visibility': 1,
+  'stats.likes': -1,
+  createdAt: -1,
+})
+postSchema.index({
+  group: 1,
+  contentType: 1,
   'media.type': 1,
+  'media.processing': 1,
   privacy: 1,
   archivedAt: 1,
   'moderation.visibility': 1,
