@@ -455,8 +455,8 @@ async function buildMediaItems(files = [], options = {}) {
           url: uploadedMedia.url,
           hlsUrl: uploadedHlsUrl,
           posterUrl: uploadedPosterUrl || mediaItem.posterUrl,
-          type: uploadedMedia.type,
-          durationSeconds: uploadedMedia.durationSeconds || mediaItem.durationSeconds || 0,
+          type: mediaItem.type || (isAudio ? 'audio' : isVideo ? 'video' : 'image'),
+          durationSeconds: mediaItem.durationSeconds || uploadedMedia.durationSeconds || resolvedDurationSeconds || 0,
           processing: uploadedHlsUrl
             ? 'hls-ready'
             : sourceMediaPath !== file.path

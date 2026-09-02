@@ -1926,7 +1926,7 @@ function AdminUserDetailPage() {
                                         <div className="mb-2.5 grid gap-2">
                                           {msg.media.map((med, mIdx) => (
                                             <div key={mIdx} className="overflow-hidden rounded-xl">
-                                              {med.type === 'audio' ? (
+                                              {med.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(med?.url || '')) ? (
                                                 <div className={`p-2 rounded-xl border ${
                                                   isInspectedUser
                                                     ? 'border-blue-400/40 bg-blue-700/50'
@@ -2037,7 +2037,7 @@ function AdminUserDetailPage() {
                                     onClick={() => med.type !== 'audio' && setPreviewMedia({ url: resolveMediaUrl(med.url), type: med.type })}
                                     className="group relative aspect-square cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-2xs"
                                   >
-                                    {med.type === 'audio' ? (
+                                    {med.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(med?.url || '')) ? (
                                       <div className="flex h-full w-full flex-col justify-between p-3 bg-gradient-to-b from-slate-800 to-slate-900">
                                         <div className="flex items-center justify-between">
                                           <span className="rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold">

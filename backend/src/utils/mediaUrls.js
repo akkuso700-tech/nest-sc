@@ -91,18 +91,29 @@ function normalizeMediaList(media = []) {
     return []
   }
 
-  return media.map((item) => ({
-    ...item,
-    url: normalizeMediaUrl(item?.url),
-    hlsUrl: normalizeMediaUrl(item?.hlsUrl),
-    posterUrl: normalizeMediaUrl(item?.posterUrl),
-    renditions: Array.isArray(item?.renditions)
-      ? item.renditions.map((rendition) => ({
-          ...rendition,
-          url: normalizeMediaUrl(rendition?.url),
-        }))
-      : [],
-  }))
+  return media.map((item) => {
+    const raw = typeof item?.toObject === 'function' ? item.toObject() : item
+    const url = normalizeMediaUrl(raw?.url)
+    const isAudioUrl = /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(url || raw?.url || ''))
+    const resolvedType = raw?.type && raw.type !== 'image' && raw.type !== 'video' && raw.type !== 'audio'
+      ? (isAudioUrl ? 'audio' : 'image')
+      : (raw?.type || (isAudioUrl ? 'audio' : 'image'))
+
+    return {
+      ...raw,
+      url,
+      hlsUrl: normalizeMediaUrl(raw?.hlsUrl),
+      posterUrl: normalizeMediaUrl(raw?.posterUrl),
+      type: resolvedType,
+      durationSeconds: Number(raw?.durationSeconds) || 0,
+      renditions: Array.isArray(raw?.renditions)
+        ? raw.renditions.map((rendition) => ({
+            ...rendition,
+            url: normalizeMediaUrl(rendition?.url),
+          }))
+        : [],
+    }
+  })
 }
 
 function normalizeUserMedia(user = null) {
