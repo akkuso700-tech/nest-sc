@@ -4,7 +4,8 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "hostinger:build": "npm --prefix ../frontend install --include=dev --no-audit --no-fund && npm --prefix ../frontend run build",
+    "build": "node -e \"const fs=require('fs'),cp=require('child_process'),p=fs.existsSync('../frontend/package.json')?'../frontend':fs.existsSync('./frontend/package.json')?'./frontend':null;if(p){cp.execSync('npm --prefix '+p+' install --include=dev --no-audit --no-fund && npm --prefix '+p+' run build',{stdio:'inherit'})}else{console.log('No frontend directory found, skipping build')}\"",
+    "hostinger:build": "node -e \"const fs=require('fs'),cp=require('child_process'),p=fs.existsSync('../frontend/package.json')?'../frontend':fs.existsSync('./frontend/package.json')?'./frontend':null;if(p){cp.execSync('npm --prefix '+p+' install --include=dev --no-audit --no-fund && npm --prefix '+p+' run build',{stdio:'inherit'})}else{console.log('No frontend directory found, skipping build')}\"",
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js",
     "start:api": "node src/server.js",
