@@ -586,10 +586,10 @@ function MessageBubble({
             <LinkPreviewCard preview={message.linkPreview} isMine={isMine} />
           ) : null}
 
-          {(message.media || []).some((item) => item.type === 'audio') ? (
+          {(message.media || []).some((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))) ? (
             <div className="py-1">
-              {message.media
-                .filter((item) => item.type === 'audio')
+              {(message.media || [])
+                .filter((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))
                 .map((audioItem, idx) => (
                   <AudioMessagePlayer
                     key={audioItem.url || idx}
@@ -601,18 +601,18 @@ function MessageBubble({
             </div>
           ) : null}
 
-          {(message.media || []).filter((item) => item.type !== 'audio').length ? (
+          {(message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))).length ? (
             <MediaGallery
-              items={(message.media || []).filter((item) => item.type !== 'audio')}
+              items={(message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))}
               className={`max-w-[200px] sm:max-w-[236px] ${
-                message.text || (message.media || []).some((item) => item.type === 'audio')
+                message.text || (message.media || []).some((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))
                   ? 'mt-3'
                   : 'mt-0'
               }`}
               interactive
               onItemClick={(_, index) =>
                 onOpenMedia(
-                  (message.media || []).filter((item) => item.type !== 'audio'),
+                  (message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))),
                   index,
                 )
               }
