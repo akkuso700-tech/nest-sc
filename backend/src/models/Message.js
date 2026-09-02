@@ -30,7 +30,8 @@ const messageSchema = new mongoose.Schema(
       {
         url: { type: String, default: '' },
         posterUrl: { type: String, default: '' },
-        type: { type: String, enum: ['image', 'video'], required: true },
+        type: { type: String, enum: ['image', 'video', 'audio'], required: true },
+        durationSeconds: { type: Number, default: 0 },
       },
     ],
     deliveredAt: {
@@ -51,6 +52,30 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Message',
       default: null,
+    },
+    reactions: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        emoji: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 16,
+        },
+      },
+    ],
+    linkPreview: {
+      url: { type: String, trim: true },
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+      image: { type: String, trim: true },
+      siteName: { type: String, trim: true },
+      domain: { type: String, trim: true },
+      favicon: { type: String, trim: true },
     },
   },
   {

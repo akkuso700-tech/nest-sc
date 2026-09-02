@@ -42,13 +42,15 @@ function createStorage(targetDirectory) {
 function mediaFileFilter(req, file, callback) {
   if (
     file.mimetype.startsWith('image/') ||
-    file.mimetype.startsWith('video/')
+    file.mimetype.startsWith('video/') ||
+    file.mimetype.startsWith('audio/') ||
+    file.mimetype === 'application/ogg'
   ) {
     callback(null, true)
     return
   }
 
-  callback(new AppError('Only image and video uploads are allowed.', 400))
+  callback(new AppError('Only image, video and audio uploads are allowed.', 400))
 }
 
 function resolvePostMediaFileSizeLimit(contentType, mimeType) {
@@ -128,7 +130,7 @@ function matchesSignature(buffer, signature, startIndex = 0) {
   return true
 }
 
-async function detectMediaTypeFromSignature(filePath) {
+async function detectMediaTypeFromSignature(filePath, declaredType = '') {
   const handle = await fs.promises.open(filePath, 'r')
 
   try {
@@ -146,12 +148,23 @@ async function detectMediaTypeFromSignature(filePath) {
       return 'image'
     }
 
+    // Audio-specific signatures (MP3 ID3, MP3 sync, WAV)
+    if (
+      matchesSignature(header, [0x49, 0x44, 0x33]) ||
+      (header.length >= 2 && header[0] === 0xff && (header[1] & 0xe0) === 0xe0) ||
+      (matchesSignature(header, [0x52, 0x49, 0x46, 0x46]) &&
+        matchesSignature(header, [0x57, 0x41, 0x56, 0x45], 8))
+    ) {
+      return 'audio'
+    }
+
+    // Container formats (WebM/MKV, Ogg, MP4/M4A) can be audio or video
     if (
       matchesSignature(header, [0x1a, 0x45, 0xdf, 0xa3]) ||
       matchesSignature(header, [0x4f, 0x67, 0x67, 0x53]) ||
       matchesSignature(header, [0x66, 0x74, 0x79, 0x70], 4)
     ) {
-      return 'video'
+      return declaredType === 'audio' ? 'audio' : 'video'
     }
 
     return 'unknown'
@@ -166,16 +179,23 @@ function resolveSafeMimeType(file, mediaType) {
     return sourceMimeType
   }
 
+  if (mediaType === 'audio') {
+    return 'audio/webm'
+  }
+
   return mediaType === 'video' ? 'video/mp4' : 'image/jpeg'
 }
 
 async function validateUploadedFileSignature(file) {
-  const declaredType = String(file?.mimetype || '').startsWith('video/')
+  const sourceMime = String(file?.mimetype || '').toLowerCase()
+  const declaredType = sourceMime.startsWith('video/')
     ? 'video'
-    : String(file?.mimetype || '').startsWith('image/')
+    : sourceMime.startsWith('image/')
       ? 'image'
-      : 'unknown'
-  const detectedType = await detectMediaTypeFromSignature(file.path)
+      : (sourceMime.startsWith('audio/') || sourceMime === 'application/ogg')
+        ? 'audio'
+        : 'unknown'
+  const detectedType = await detectMediaTypeFromSignature(file.path, declaredType)
 
   if (declaredType === 'unknown' || detectedType === 'unknown' || declaredType !== detectedType) {
     throw new AppError('Uploaded file content does not match its declared media type.', 400)
@@ -254,10 +274,16 @@ async function buildMediaItems(files = [], options = {}) {
   setTrace('validatedFileCount', validatedFiles.length)
 
   const videoFiles = validatedFiles.filter((file) => file.safeMediaType === 'video')
+  const audioFiles = validatedFiles.filter((file) => file.safeMediaType === 'audio')
   setTrace('videoFileCount', videoFiles.length)
+  setTrace('audioFileCount', audioFiles.length)
+
+  if (audioFiles.length > 1 || (audioFiles.length && validatedFiles.length > 1)) {
+    throw new AppError('You can upload 1 voice message at a time.', 400)
+  }
 
   if (videoFiles.length > 1 || (videoFiles.length && validatedFiles.length > 1)) {
-    throw new AppError('You can upload either up to 4 images or 1 video.', 400)
+    throw new AppError('You can upload either up to 4 images, 1 video or 1 voice message.', 400)
   }
 
   const shouldUseRemoteStorage = isRemoteStorageEnabled()
@@ -265,6 +291,7 @@ async function buildMediaItems(files = [], options = {}) {
   const filesUploadedRemotely = []
 
   for (const file of validatedFiles) {
+    const isAudio = file.safeMediaType === 'audio'
     const isVideo = file.safeMediaType === 'video'
     const shouldBuildLoopVariants = isVideo && contentType === 'loop'
     const fallbackUrl = buildLocalUploadUrl(file.path)
@@ -356,7 +383,7 @@ async function buildMediaItems(files = [], options = {}) {
       url: fallbackUrl,
       hlsUrl: hlsFallbackUrl,
       posterUrl: posterFallbackUrl,
-      type: isVideo ? 'video' : 'image',
+      type: isAudio ? 'audio' : isVideo ? 'video' : 'image',
       durationSeconds: resolvedDurationSeconds,
       processing: processingState,
     }

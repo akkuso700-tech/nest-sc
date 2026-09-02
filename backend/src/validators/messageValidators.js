@@ -55,10 +55,21 @@ const updateMessageSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const reactMessageSchema = z.object({
+  body: z.object({
+    emoji: z.string().trim().min(1).max(16),
+  }),
+  params: z.object({
+    messageId: objectIdSchema,
+  }),
+  query: z.object({}).default({}),
+})
+
 module.exports = {
   sendMessageSchema,
   listConversationsSchema,
   conversationIdSchema,
   messageIdSchema,
   updateMessageSchema,
+  reactMessageSchema,
 }

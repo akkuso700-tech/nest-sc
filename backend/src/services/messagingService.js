@@ -6,6 +6,7 @@ const { Message } = require('../models/Message')
 const { Notification } = require('../models/Notification')
 const { normalizeMediaList, normalizeUserMedia } = require('../utils/mediaUrls')
 const { enqueueOfflineMessageNotification } = require('../queues/messageNotificationQueue')
+const { extractUrlsFromText, fetchLinkPreview } = require('./linkPreviewService')
 
 function buildConversationKey(firstUserId, secondUserId) {
   return [firstUserId.toString(), secondUserId.toString()].sort().join(':')
@@ -36,6 +37,23 @@ function serializeMessage(message) {
     text: message.text,
     media: normalizeMediaList(message.media || []),
     replyTo: replyToSerialized,
+    reactions: Array.isArray(message.reactions)
+      ? message.reactions.map((r) => ({
+          user: r.user?._id || r.user,
+          emoji: r.emoji,
+        }))
+      : [],
+    linkPreview: message.linkPreview?.url
+      ? {
+          url: message.linkPreview.url,
+          title: message.linkPreview.title,
+          description: message.linkPreview.description,
+          image: message.linkPreview.image,
+          siteName: message.linkPreview.siteName,
+          domain: message.linkPreview.domain,
+          favicon: message.linkPreview.favicon,
+        }
+      : null,
     createdAt: message.createdAt,
     deliveredAt: message.deliveredAt,
     readAt: message.readAt,
@@ -51,6 +69,10 @@ function buildMessagePreview(text = '', media = []) {
 
   if (!media.length) {
     return ''
+  }
+
+  if (media[0].type === 'audio') {
+    return 'Sent a voice message'
   }
 
   if (media[0].type === 'video') {
@@ -122,6 +144,18 @@ async function createMessageAndNotify({
     { upsert: true, returnDocument: 'after' },
   )
 
+  let linkPreview = null
+  if (text) {
+    const urls = extractUrlsFromText(text)
+    if (urls.length > 0) {
+      try {
+        linkPreview = await fetchLinkPreview(urls[0])
+      } catch {
+        // Best effort
+      }
+    }
+  }
+
   const message = await Message.create({
     conversation: conversation._id,
     sender: sender._id,
@@ -129,6 +163,7 @@ async function createMessageAndNotify({
     text,
     media,
     replyTo: replyToId || null,
+    linkPreview: linkPreview || undefined,
     deliveredAt: new Date(),
   })
 

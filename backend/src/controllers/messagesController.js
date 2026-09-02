@@ -20,6 +20,7 @@ const sendMessageBodySchema = z.object({
   recipientId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/),
   text: z.string().trim().max(5000).optional().default(''),
   replyToId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/).optional().nullable(),
+  durationSeconds: z.coerce.number().optional().default(0),
 })
 
 async function parseSendMessageInput(req) {
@@ -32,6 +33,10 @@ async function parseSendMessageInput(req) {
 
   if (!result.data.text.trim() && !media.length) {
     throw new AppError('Message text or media is required.', 400)
+  }
+
+  if (result.data.durationSeconds > 0 && media.length === 1 && media[0].type === 'audio') {
+    media[0].durationSeconds = Math.round(result.data.durationSeconds)
   }
 
   return {
@@ -276,6 +281,16 @@ const hideConversationForCurrentUser = asyncHandler(async (req, res) => {
     await conversation.save()
   }
 
+  await Message.updateMany(
+    {
+      conversation: conversation._id,
+      deletedByUserIds: { $ne: req.user._id },
+    },
+    {
+      $addToSet: { deletedByUserIds: req.user._id },
+    },
+  )
+
   res.json({
     message: 'Conversation hidden successfully.',
   })
@@ -318,8 +333,112 @@ const blockConversationPeer = asyncHandler(async (req, res) => {
     await conversation.save()
   }
 
+  await Message.updateMany(
+    {
+      conversation: conversation._id,
+      deletedByUserIds: { $ne: req.user._id },
+    },
+    {
+      $addToSet: { deletedByUserIds: req.user._id },
+    },
+  )
+
   res.json({
     message: 'User blocked successfully.',
+  })
+})
+
+const toggleMessageReaction = asyncHandler(async (req, res) => {
+  const { messageId } = req.params
+  const { emoji } = req.body
+  const currentUserId = req.user._id
+
+  const message = await Message.findById(messageId)
+  if (!message) {
+    throw new AppError('Message not found.', 404)
+  }
+
+  const isParticipant =
+    String(message.sender) === String(currentUserId) ||
+    String(message.recipient) === String(currentUserId)
+
+  if (!isParticipant) {
+    throw new AppError('You are not authorized to react to this message.', 403)
+  }
+
+  if (!Array.isArray(message.reactions)) {
+    message.reactions = []
+  }
+
+  const existingIndex = message.reactions.findIndex(
+    (r) => String(r.user?._id || r.user) === String(currentUserId),
+  )
+
+  let action = 'added'
+  if (existingIndex > -1) {
+    if (message.reactions[existingIndex].emoji === emoji) {
+      // Same emoji -> remove reaction
+      message.reactions.splice(existingIndex, 1)
+      action = 'removed'
+    } else {
+      // Different emoji -> update reaction
+      message.reactions[existingIndex].emoji = emoji
+      action = 'updated'
+    }
+  } else {
+    message.reactions.push({
+      user: currentUserId,
+      emoji,
+    })
+    action = 'added'
+  }
+
+  await message.save()
+
+  const formattedReactions = message.reactions.map((r) => ({
+    user: r.user?._id || r.user,
+    emoji: r.emoji,
+  }))
+
+  const io = req.app.locals.io
+  if (io) {
+    const payload = {
+      messageId: message._id.toString(),
+      conversationId: message.conversation.toString(),
+      reactions: formattedReactions,
+      action,
+      userId: currentUserId.toString(),
+      emoji,
+    }
+    const otherUserId =
+      String(message.sender) === String(currentUserId)
+        ? message.recipient.toString()
+        : message.sender.toString()
+
+    io.to(`user:${currentUserId.toString()}`).emit('message:reaction', payload)
+    io.to(`user:${otherUserId}`).emit('message:reaction', payload)
+  }
+
+  res.status(200).json({
+    success: true,
+    messageId: message._id,
+    reactions: formattedReactions,
+    action,
+  })
+})
+
+const getLinkPreview = asyncHandler(async (req, res) => {
+  const { url } = req.query
+  if (!url || typeof url !== 'string') {
+    throw new AppError('URL query parameter is required.', 400)
+  }
+
+  const { fetchLinkPreview } = require('../services/linkPreviewService')
+  const preview = await fetchLinkPreview(url)
+
+  res.status(200).json({
+    success: true,
+    preview: preview || null,
   })
 })
 
@@ -332,4 +451,6 @@ module.exports = {
   updateMessageForCurrentUser,
   hideConversationForCurrentUser,
   blockConversationPeer,
+  toggleMessageReaction,
+  getLinkPreview,
 }

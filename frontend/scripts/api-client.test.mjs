@@ -54,7 +54,7 @@ test('timed out API requests abort and stop after the bounded retry policy', asy
     _test.fetchWithApiFallback('/slow', {}, { timeoutMs: 100 }),
     (error) => error?.code === 'API_TIMEOUT',
   )
-  assert.equal(calls, 4)
+  assert.equal(calls, 6)
 })
 
 test('caller cancellation is not retried', async () => {

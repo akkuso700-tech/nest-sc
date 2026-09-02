@@ -18,7 +18,8 @@ const newMessageSchema = z.object({
     .array(
       z.object({
         url: z.string().url(),
-        type: z.enum(['image', 'video']),
+        type: z.enum(['image', 'video', 'audio']),
+        durationSeconds: z.number().optional(),
       }),
     )
     .optional(),

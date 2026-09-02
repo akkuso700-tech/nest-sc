@@ -91,3 +91,10 @@ export function deleteMessage(messageId) {
     method: 'DELETE',
   })
 }
+
+export function toggleMessageReaction(messageId, emoji) {
+  return apiRequest(`/messages/${messageId}/reactions`, {
+    method: 'POST',
+    body: JSON.stringify({ emoji }),
+  })
+}

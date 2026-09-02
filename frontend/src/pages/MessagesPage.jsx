@@ -7,6 +7,8 @@ import UserAvatar from '../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import Seo from '../components/seo/Seo.jsx'
 import MediaGallery from '../features/posts/MediaGallery.jsx'
+import AudioMessagePlayer from '../components/media/AudioMessagePlayer.jsx'
+import { LinkPreviewCard } from '../components/media/LinkPreviewCard.jsx'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import {
   blockConversation,
@@ -17,6 +19,7 @@ import {
   markConversationRead,
   sendMessage,
   updateMessage,
+  toggleMessageReaction,
 } from '../services/messagesService.js'
 import { connectSocketClient, disconnectSocketClient } from '../services/socketClient.js'
 import { useAuth } from '../store/AuthContext.jsx'
@@ -31,8 +34,10 @@ import {
   CloseIcon,
   CopyIcon,
   DownloadIcon,
+  HeartIcon,
   InfoIcon,
   MessageIcon,
+  MicrophoneIcon,
   MoreIcon,
   PencilIcon,
   PhotoIcon,
@@ -41,6 +46,7 @@ import {
   ReplyIcon,
   SearchIcon,
   SendIcon,
+  SmileIcon,
   TrashIcon,
   VideoIcon,
 } from './MessagesPageIcons.jsx'
@@ -100,22 +106,87 @@ function useIsMobileViewport() {
   return isMobileViewport
 }
 
-function formatPresence(lastLoginAt, t) {
+function formatPresence(lastLoginAt, t, lang = 'tr') {
   if (!lastLoginAt) {
-    return t('messages.presence.ready')
+    return t('messages.presence.offline', { defaultValue: 'Çevrimdışı' })
   }
 
-  const diff = Date.now() - new Date(lastLoginAt).getTime()
-
-  if (diff <= 5 * 60 * 1000) {
-    return t('messages.presence.active')
+  const date = new Date(lastLoginAt)
+  if (isNaN(date.getTime())) {
+    return t('messages.presence.offline', { defaultValue: 'Çevrimdışı' })
   }
 
-  if (diff <= 60 * 60 * 1000) {
-    return t('messages.presence.recent')
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+
+  if (diffMs < 60 * 1000) {
+    return t('messages.presence.justNow', { defaultValue: 'Az önce aktifti' })
   }
 
-  return t('messages.presence.today')
+  const minutes = Math.floor(diffMs / (60 * 1000))
+  if (minutes < 60) {
+    return t('messages.presence.minutesAgo', {
+      count: minutes,
+      defaultValue: `${minutes} dakika önce aktifti`,
+    })
+  }
+
+  const timeLocale =
+    lang === 'tr' ? 'tr-TR' : lang === 'de' ? 'de-DE' : lang === 'es' ? 'es-ES' : 'en-US'
+  const timeStr = date.toLocaleTimeString(timeLocale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  const isToday =
+    now.getFullYear() === date.getFullYear() &&
+    now.getMonth() === date.getMonth() &&
+    now.getDate() === date.getDate()
+
+  if (isToday) {
+    return t('messages.presence.todayAt', {
+      time: timeStr,
+      defaultValue: `Bugün ${timeStr}'de aktifti`,
+    })
+  }
+
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const isYesterday =
+    yesterday.getFullYear() === date.getFullYear() &&
+    yesterday.getMonth() === date.getMonth() &&
+    yesterday.getDate() === date.getDate()
+
+  if (isYesterday) {
+    return t('messages.presence.yesterdayAt', {
+      time: timeStr,
+      defaultValue: `Dün ${timeStr}'de aktifti`,
+    })
+  }
+
+  const isSameYear = now.getFullYear() === date.getFullYear()
+  if (isSameYear) {
+    const dateStr = date.toLocaleDateString(timeLocale, {
+      day: 'numeric',
+      month: 'long',
+    })
+    return t('messages.presence.dateAt', {
+      date: dateStr,
+      time: timeStr,
+      defaultValue: `${dateStr} ${timeStr}'de aktifti`,
+    })
+  }
+
+  const fullDateStr = date.toLocaleDateString(timeLocale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  return t('messages.presence.dateOnly', {
+    date: fullDateStr,
+    defaultValue: `${fullDateStr}'de aktifti`,
+  })
 }
 
 function MediaLightbox({ items = [], activeIndex = 0, onClose, onNavigate, t }) {
@@ -283,6 +354,45 @@ function MediaLightbox({ items = [], activeIndex = 0, onClose, onNavigate, t }) 
   )
 }
 
+const QUICK_REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '🔥']
+
+function renderFormattedMessageText(text = '', isMine = false) {
+  if (!text) return null
+
+  const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/gi
+  const parts = []
+  let lastIndex = 0
+  let match
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index))
+    }
+    const url = match[0]
+    parts.push(
+      <a
+        key={`url-${match.index}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className={`underline break-all font-medium transition-opacity hover:opacity-80 ${
+          isMine ? 'text-inverse underline-offset-2' : 'text-primary underline-offset-2'
+        }`}
+      >
+        {url}
+      </a>,
+    )
+    lastIndex = match.index + url.length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex))
+  }
+
+  return parts
+}
+
 function MessageBubble({
   message,
   isMine,
@@ -303,10 +413,13 @@ function MessageBubble({
   onReport,
   onOpenMedia,
   onScrollToMessage,
+  onToggleReaction,
   t,
 }) {
   const showSeen = isMine && Boolean(message.readAt)
   const messageId = message._id || message.id
+  const [showHeartBurst, setShowHeartBurst] = useState(false)
+  const [showReactionPicker, setShowReactionPicker] = useState(false)
 
   const replySenderName = useMemo(() => {
     if (!message.replyTo) return ''
@@ -317,21 +430,108 @@ function MessageBubble({
     return getFullName(activePeer) || t('common.unknownUser')
   }, [message.replyTo, activePeer, user, t])
 
+  const groupedReactions = useMemo(() => {
+    const list = Array.isArray(message.reactions) ? message.reactions : []
+    const map = {}
+    list.forEach((r) => {
+      const emoji = r.emoji
+      if (!emoji) return
+      if (!map[emoji]) {
+        map[emoji] = { emoji, count: 0, hasMine: false }
+      }
+      map[emoji].count += 1
+      const reactionUserId = r.user?._id || r.user
+      if (reactionUserId && String(reactionUserId) === String(user?.id)) {
+        map[emoji].hasMine = true
+      }
+    })
+    return Object.values(map)
+  }, [message.reactions, user?.id])
+
+  const handleDoubleClick = (event) => {
+    event.stopPropagation()
+    setShowHeartBurst(true)
+    setTimeout(() => setShowHeartBurst(false), 900)
+    onToggleReaction?.(messageId, '❤️')
+  }
+
+  const handleSelectEmoji = (emoji) => {
+    setShowReactionPicker(false)
+    if (emoji === '❤️') {
+      setShowHeartBurst(true)
+      setTimeout(() => setShowHeartBurst(false), 900)
+    }
+    onToggleReaction?.(messageId, emoji)
+  }
+
+  useEffect(() => {
+    if (!showReactionPicker) return
+
+    function handleOutsideClick(event) {
+      if (
+        !event.target.closest?.('[data-reaction-picker="true"]') &&
+        !event.target.closest?.('[data-reaction-btn="true"]')
+      ) {
+        setShowReactionPicker(false)
+      }
+    }
+
+    window.addEventListener('click', handleOutsideClick)
+    return () => window.removeEventListener('click', handleOutsideClick)
+  }, [showReactionPicker])
+
   return (
     <div
       id={`msg-${messageId}`}
-      className={`flex transition-all duration-500 rounded-2xl p-1 ${
+      className={`group/msg flex transition-all duration-500 rounded-2xl p-1 ${
         isHighlighted ? 'bg-primary/20 ring-2 ring-primary/40' : ''
       } ${isMine ? 'justify-end' : 'justify-start'}`}
     >
-      <div className={`flex max-w-[min(88%,620px)] items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div className={`flex max-w-[min(88%,620px)] items-end gap-1.5 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
         <div
-          className={`rounded-lg px-4 py-3 shadow-sm transition ${
+          onDoubleClick={handleDoubleClick}
+          className={`relative select-none rounded-lg px-4 py-3 shadow-sm transition cursor-pointer ${
             isMine
               ? 'bg-primary text-inverse'
               : 'border border-border bg-card text-text'
-          }`}
+          } ${groupedReactions.length ? 'mb-2.5' : ''}`}
+          title={t('messages.doubleTapToLike', { defaultValue: 'Beğenmek için çift tıkla' })}
         >
+          {/* Floating Heart Burst Animation */}
+          {showHeartBurst ? (
+            <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+              <span className="animate-ping absolute text-4xl opacity-80 select-none">❤️</span>
+              <span className="animate-bounce text-3xl select-none">❤️</span>
+            </div>
+          ) : null}
+
+          {/* Quick Reaction Emoji Picker Popup */}
+          {showReactionPicker ? (
+            <div
+              data-reaction-picker="true"
+              onClick={(e) => e.stopPropagation()}
+              className={`absolute z-30 flex items-center gap-1 rounded-full border border-border bg-card/95 p-1 shadow-xl backdrop-blur-md transition-all -top-12 animate-in fade-in zoom-in-95 duration-150 ${
+                isMine ? 'right-0' : 'left-0'
+              }`}
+            >
+              {QUICK_REACTION_EMOJIS.map((emoji) => {
+                const isSelected = groupedReactions.some((g) => g.emoji === emoji && g.hasMine)
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => handleSelectEmoji(emoji)}
+                    className={`grid size-8 place-items-center rounded-full text-base transition-transform hover:scale-130 active:scale-95 cursor-pointer ${
+                      isSelected ? 'bg-primary/20 scale-110' : 'hover:bg-secondary'
+                    }`}
+                  >
+                    <span>{emoji}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+
           {message.replyTo ? (
             <button
               type="button"
@@ -350,7 +550,7 @@ function MessageBubble({
           ) : null}
 
           {isEditing ? (
-            <div className="space-y-3">
+            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
               <textarea
                 rows={2}
                 value={editingText}
@@ -379,16 +579,46 @@ function MessageBubble({
               </div>
             </div>
           ) : message.text ? (
-            <p className="text-base leading-6">{message.text}</p>
+            <p className="text-base leading-6">{renderFormattedMessageText(message.text, isMine)}</p>
           ) : null}
-          {(message.media || []).length ? (
+
+          {message.linkPreview ? (
+            <LinkPreviewCard preview={message.linkPreview} isMine={isMine} />
+          ) : null}
+
+          {(message.media || []).some((item) => item.type === 'audio') ? (
+            <div className="py-1">
+              {message.media
+                .filter((item) => item.type === 'audio')
+                .map((audioItem, idx) => (
+                  <AudioMessagePlayer
+                    key={audioItem.url || idx}
+                    src={audioItem.url}
+                    duration={audioItem.durationSeconds || 0}
+                    isMine={isMine}
+                  />
+                ))}
+            </div>
+          ) : null}
+
+          {(message.media || []).filter((item) => item.type !== 'audio').length ? (
             <MediaGallery
-              items={message.media || []}
-              className={`max-w-[200px] sm:max-w-[236px] ${message.text ? 'mt-3' : 'mt-0'}`}
+              items={(message.media || []).filter((item) => item.type !== 'audio')}
+              className={`max-w-[200px] sm:max-w-[236px] ${
+                message.text || (message.media || []).some((item) => item.type === 'audio')
+                  ? 'mt-3'
+                  : 'mt-0'
+              }`}
               interactive
-              onItemClick={(_, index) => onOpenMedia(message.media || [], index)}
+              onItemClick={(_, index) =>
+                onOpenMedia(
+                  (message.media || []).filter((item) => item.type !== 'audio'),
+                  index,
+                )
+              }
             />
           ) : null}
+
           <div
             className={`mt-2 flex items-center justify-end gap-2 text-[11px] ${
               isMine ? 'text-[rgb(var(--color-text-inverse)/0.7)]' : 'text-soft'
@@ -402,71 +632,125 @@ function MessageBubble({
               </span>
             ) : null}
           </div>
-        </div>
-        <div className="relative shrink-0" data-message-menu-shell="true">
-            <button
-              type="button"
-              onClick={onOpenMenu}
-              className="grid size-9 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
-              aria-label={t('messages.messageActions')}
-              title={t('messages.messageActions')}
+
+          {/* Reaction Badges */}
+          {groupedReactions.length > 0 ? (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`absolute -bottom-3 flex flex-wrap items-center gap-1 z-10 ${
+                isMine ? 'right-2' : 'left-2'
+              }`}
             >
-              <MoreIcon />
-            </button>
-
-            {isMenuOpen ? (
-              <div className={`absolute top-[calc(100%+8px)] z-20 w-[180px] overflow-hidden rounded-lg border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)] ${
-                isMine ? 'right-0' : 'left-0'
-              }`}>
+              {groupedReactions.map((g) => (
                 <button
+                  key={g.emoji}
                   type="button"
-                  onClick={onReply}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                  onClick={() => onToggleReaction?.(messageId, g.emoji)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs font-medium shadow-xs transition hover:scale-105 active:scale-95 cursor-pointer ${
+                    g.hasMine
+                      ? 'border-primary/40 bg-card text-text ring-1 ring-primary/30'
+                      : 'border-border bg-card/95 text-text backdrop-blur-xs hover:bg-secondary'
+                  }`}
+                  title={g.hasMine ? t('messages.reactions') : t('messages.addReaction')}
                 >
-                  <ReplyIcon />
-                  <span>{t('messages.reply')}</span>
+                  <span className="text-xs leading-none">{g.emoji}</span>
+                  {g.count > 1 ? (
+                    <span className="text-[10px] font-bold leading-none opacity-80">{g.count}</span>
+                  ) : null}
                 </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
-                <button
-                  type="button"
-                  onClick={onCopy}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
-                >
-                  <CopyIcon />
-                  <span>{t('messages.copy')}</span>
-                </button>
+        {/* Action buttons (Smile reaction button & 3-dots menu) */}
+        <div className="relative flex items-center shrink-0" data-message-menu-shell="true">
+          <button
+            type="button"
+            data-reaction-btn="true"
+            onClick={() => setShowReactionPicker((curr) => !curr)}
+            className="grid size-8 place-items-center rounded-full text-muted transition opacity-0 group-hover/msg:opacity-100 hover:bg-secondary hover:text-text cursor-pointer focus:opacity-100"
+            aria-label={t('messages.addReaction', { defaultValue: 'Tepki ekle' })}
+            title={t('messages.addReaction', { defaultValue: 'Tepki ekle' })}
+          >
+            <SmileIcon className="size-4" />
+          </button>
 
-                {isMine ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={onStartEdit}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
-                    >
-                      <PencilIcon />
-                      <span>{t('messages.edit')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onDelete}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
-                    >
-                      <TrashIcon />
-                      <span>{t('messages.delete')}</span>
-                    </button>
-                  </>
-                ) : (
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text cursor-pointer"
+            aria-label={t('messages.messageActions')}
+            title={t('messages.messageActions')}
+          >
+            <MoreIcon className="size-4" />
+          </button>
+
+          {isMenuOpen ? (
+            <div className={`absolute top-[calc(100%+8px)] z-20 w-[180px] overflow-hidden rounded-lg border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)] ${
+              isMine ? 'right-0' : 'left-0'
+            }`}>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenMenu()
+                  setShowReactionPicker(true)
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary cursor-pointer"
+              >
+                <SmileIcon />
+                <span>{t('messages.addReaction', { defaultValue: 'Tepki ekle' })}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onReply}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary cursor-pointer"
+              >
+                <ReplyIcon />
+                <span>{t('messages.reply')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onCopy}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary cursor-pointer"
+              >
+                <CopyIcon />
+                <span>{t('messages.copy')}</span>
+              </button>
+
+              {isMine ? (
+                <>
                   <button
                     type="button"
-                    onClick={() => onReport({ kind: 'message', id: message._id || message.id })}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
+                    onClick={onStartEdit}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary cursor-pointer"
                   >
-                    <MoreIcon />
-                    <span>{t('messages.report')}</span>
+                    <PencilIcon />
+                    <span>{t('messages.edit')}</span>
                   </button>
-                )}
-              </div>
-            ) : null}
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900 cursor-pointer"
+                  >
+                    <TrashIcon />
+                    <span>{t('messages.delete')}</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onReport({ kind: 'message', id: message._id || message.id })}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900 cursor-pointer"
+                >
+                  <MoreIcon />
+                  <span>{t('messages.report')}</span>
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -516,7 +800,11 @@ function MessagesPage() {
   const [editingMessageId, setEditingMessageId] = useState('')
   const [editingMessageText, setEditingMessageText] = useState('')
   const [isPeerTyping, setIsPeerTyping] = useState(false)
+  const [typingUsersMap, setTypingUsersMap] = useState({})
+  const typingTimeoutsRef = useRef({})
   const [onlineUserIds, setOnlineUserIds] = useState(new Set())
+  const [lastLoginAtMap, setLastLoginAtMap] = useState({})
+  const [presenceTick, setPresenceTick] = useState(0)
   const [uploadProgress, setUploadProgress] = useState(0)
   const peerTypingTimeoutRef = useRef(null)
   const myTypingTimeoutRef = useRef(null)
@@ -524,8 +812,22 @@ function MessagesPage() {
   const lastTypingEmitTimeRef = useRef(0)
   const [toast, setToast] = useState(null)
   const [lightboxMedia, setLightboxMedia] = useState(null)
-  const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0)
   const [mobileComposerHeight, setMobileComposerHeight] = useState(60)
+  const [mobileKeyboardOffset, setMobileKeyboardOffset] = useState(0)
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const mediaRecorderRef = useRef(null)
+  const audioStreamRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const recordingTimerRef = useRef(null)
+  const recordingStartTimeRef = useRef(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPresenceTick((prev) => prev + 1)
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [])
 
   const urlRecipientId = searchParams.get('recipientId') || ''
   const urlUsername = searchParams.get('username') || ''
@@ -563,6 +865,8 @@ function MessagesPage() {
   useEffect(() => {
     activePeerIdRef.current = activePeerId
   }, [activePeerId])
+
+  const isActivePeerOnline = Boolean(activePeerId && onlineUserIds.has(activePeerId))
 
   useEffect(
     () => () => {
@@ -819,6 +1123,23 @@ function MessagesPage() {
     }
 
     async function handleIncomingMessage(message) {
+      const senderId = message?.sender?._id?.toString() || message?.sender?.toString() || ''
+      if (senderId) {
+        if (typingTimeoutsRef.current[senderId]) {
+          clearTimeout(typingTimeoutsRef.current[senderId])
+          delete typingTimeoutsRef.current[senderId]
+        }
+        setTypingUsersMap((prev) => {
+          if (!prev[senderId]) return prev
+          const next = { ...prev }
+          delete next[senderId]
+          return next
+        })
+        if (senderId === activePeerIdRef.current) {
+          setIsPeerTyping(false)
+        }
+      }
+
       await refreshConversationList()
 
       if (message.conversationId !== activeConversationId) {
@@ -908,33 +1229,51 @@ function MessagesPage() {
     }
 
     function handlePeerTypingStart(payload) {
-      const currentActivePeerId = activePeerIdRef.current
-      if (
-        payload?.userId &&
-        currentActivePeerId &&
-        payload.userId.toString() === currentActivePeerId
-      ) {
-        setIsPeerTyping(true)
-        if (peerTypingTimeoutRef.current) {
-          clearTimeout(peerTypingTimeoutRef.current)
-        }
-        peerTypingTimeoutRef.current = setTimeout(() => {
+      if (!payload?.userId) return
+      const typingUserId = payload.userId.toString()
+
+      setTypingUsersMap((prev) => ({
+        ...prev,
+        [typingUserId]: true,
+      }))
+
+      if (typingTimeoutsRef.current[typingUserId]) {
+        clearTimeout(typingTimeoutsRef.current[typingUserId])
+      }
+
+      typingTimeoutsRef.current[typingUserId] = setTimeout(() => {
+        setTypingUsersMap((prev) => {
+          const next = { ...prev }
+          delete next[typingUserId]
+          return next
+        })
+        if (typingUserId === activePeerIdRef.current) {
           setIsPeerTyping(false)
-        }, 4500)
+        }
+      }, 4500)
+
+      if (typingUserId === activePeerIdRef.current) {
+        setIsPeerTyping(true)
       }
     }
 
     function handlePeerTypingStop(payload) {
-      const currentActivePeerId = activePeerIdRef.current
-      if (
-        payload?.userId &&
-        currentActivePeerId &&
-        payload.userId.toString() === currentActivePeerId
-      ) {
+      if (!payload?.userId) return
+      const typingUserId = payload.userId.toString()
+
+      if (typingTimeoutsRef.current[typingUserId]) {
+        clearTimeout(typingTimeoutsRef.current[typingUserId])
+        delete typingTimeoutsRef.current[typingUserId]
+      }
+
+      setTypingUsersMap((prev) => {
+        const next = { ...prev }
+        delete next[typingUserId]
+        return next
+      })
+
+      if (typingUserId === activePeerIdRef.current) {
         setIsPeerTyping(false)
-        if (peerTypingTimeoutRef.current) {
-          clearTimeout(peerTypingTimeoutRef.current)
-        }
       }
     }
 
@@ -956,13 +1295,39 @@ function MessagesPage() {
           }
           return next
         })
+
+        if (!payload.isOnline && payload.lastLoginAt) {
+          setLastLoginAtMap((prev) => ({
+            ...prev,
+            [id]: payload.lastLoginAt,
+          }))
+        }
       }
+    }
+
+    function handleMessageReaction(payload) {
+      if (!payload?.messageId) return
+
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: currentState.items.map((item) => {
+          const itemId = item._id || item.id
+          if (itemId?.toString() === payload.messageId?.toString()) {
+            return {
+              ...item,
+              reactions: payload.reactions || [],
+            }
+          }
+          return item
+        }),
+      }))
     }
 
     socket.on('new_message', handleIncomingMessage)
     socket.on('messages_read', handleMessagesRead)
     socket.on('message_updated', handleMessageUpdated)
     socket.on('message_deleted', handleMessageDeleted)
+    socket.on('message:reaction', handleMessageReaction)
     socket.on('typing:start', handlePeerTypingStart)
     socket.on('typing:stop', handlePeerTypingStop)
     socket.on('users:online', handleUsersOnline)
@@ -973,10 +1338,13 @@ function MessagesPage() {
       socket.off('messages_read', handleMessagesRead)
       socket.off('message_updated', handleMessageUpdated)
       socket.off('message_deleted', handleMessageDeleted)
+      socket.off('message:reaction', handleMessageReaction)
       socket.off('typing:start', handlePeerTypingStart)
       socket.off('typing:stop', handlePeerTypingStop)
       socket.off('users:online', handleUsersOnline)
       socket.off('user:status', handleUserStatus)
+      Object.values(typingTimeoutsRef.current).forEach((t) => clearTimeout(t))
+      typingTimeoutsRef.current = {}
       disconnectSocketClient()
     }
   }, [activeConversationId, activePeer, composeTarget, isAuthenticated, isMobileViewport, user?.id])
@@ -1019,6 +1387,7 @@ function MessagesPage() {
     setHighlightedMessageId('')
     setIsPeerTyping(false)
     isMeTypingRef.current = false
+    cancelVoiceRecording()
     if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
     if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current)
   }, [activeConversationId])
@@ -1116,13 +1485,14 @@ function MessagesPage() {
   )
 
   const shouldShowMobileChat = !isMobileViewport || mobileChatOpen || Boolean(composeTarget)
-  const isActivePeerOnline = Boolean(activePeerId && onlineUserIds.has(activePeerId))
+  const activePeerLastLoginAt =
+    (activePeerId && lastLoginAtMap[activePeerId]) || activePeer?.lastLoginAt || null
   const activePresenceLabel = useMemo(() => {
     if (isActivePeerOnline) {
       return t('messages.presence.online', { defaultValue: 'Çevrimiçi' })
     }
-    return formatPresence(activePeer?.lastLoginAt, t)
-  }, [isActivePeerOnline, activePeer?.lastLoginAt, t])
+    return formatPresence(activePeerLastLoginAt, t, lang)
+  }, [isActivePeerOnline, activePeerLastLoginAt, t, lang, presenceTick])
   const filteredMessages = useMemo(() => {
     const query = messageSearchValue.trim().toLowerCase()
 
@@ -1529,6 +1899,190 @@ function MessagesPage() {
     }, 3000)
   }
 
+  function formatVoiceDuration(seconds) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`
+  }
+
+  function cleanupRecordingStreams() {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop())
+      audioStreamRef.current = null
+    }
+  }
+
+  async function startVoiceRecording() {
+    if (isRecordingVoice || isSending || isOptimizingMedia || !activePeer) {
+      return
+    }
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setToast({
+          tone: 'error',
+          message: 'Tarayıcınız ses kaydını desteklemiyor.',
+        })
+        return
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioStreamRef.current = stream
+
+      let mimeType = 'audio/webm;codecs=opus'
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          mimeType = 'audio/webm;codecs=opus'
+        } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm'
+        } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+          mimeType = 'audio/ogg;codecs=opus'
+        } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4'
+        } else {
+          mimeType = ''
+        }
+      }
+
+      const options = mimeType ? { mimeType } : {}
+      const recorder = new MediaRecorder(stream, options)
+      mediaRecorderRef.current = recorder
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.start(200)
+      recordingStartTimeRef.current = Date.now()
+      setIsRecordingVoice(true)
+      setRecordingDuration(0)
+
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000)
+        setRecordingDuration(elapsed)
+      }, 1000)
+    } catch (error) {
+      console.error('Microphone error:', error)
+      setToast({
+        tone: 'error',
+        message:
+          t('messages.microphonePermissionDenied', {
+            defaultValue:
+              'Mikrofon erişimi engellendi. Lütfen tarayıcı ayarlarından mikrofon iznini açın.',
+          }),
+      })
+    }
+  }
+
+  function cancelVoiceRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = null
+      mediaRecorderRef.current.stop()
+    }
+    cleanupRecordingStreams()
+    audioChunksRef.current = []
+    setIsRecordingVoice(false)
+    setRecordingDuration(0)
+  }
+
+  async function stopVoiceRecording(shouldSend = true) {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') {
+      cleanupRecordingStreams()
+      setIsRecordingVoice(false)
+      return
+    }
+
+    const duration = Math.max(1, Math.round((Date.now() - recordingStartTimeRef.current) / 1000))
+    cleanupRecordingStreams()
+
+    recorder.onstop = async () => {
+      const mimeType = recorder.mimeType || 'audio/webm'
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+      audioChunksRef.current = []
+      setIsRecordingVoice(false)
+      setRecordingDuration(0)
+
+      if (shouldSend && audioBlob.size > 0 && activePeerId) {
+        const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.${extension}`, {
+          type: mimeType,
+          lastModified: Date.now(),
+        })
+
+        await handleSendVoiceMessage(audioFile, duration)
+      }
+    }
+
+    recorder.stop()
+  }
+
+  async function handleSendVoiceMessage(file, duration) {
+    if (!activePeerId) return
+
+    setIsSending(true)
+    setSendError('')
+    setUploadProgress(0)
+
+    try {
+      const formData = new FormData()
+      formData.set('recipientId', activePeerId)
+      formData.set('text', '')
+      formData.set('durationSeconds', String(duration))
+      formData.append('media', file)
+
+      if (replyingToMessage) {
+        formData.set('replyToId', replyingToMessage._id || replyingToMessage.id)
+      }
+
+      const response = await sendMessage(formData, (progress) => {
+        setUploadProgress(progress)
+      })
+
+      const sentMessage = response.messageItem
+      setMessagesState((currentState) => ({
+        ...currentState,
+        items: [
+          ...currentState.items,
+          {
+            _id: sentMessage.id || sentMessage._id,
+            conversation: sentMessage.conversationId || sentMessage.conversation,
+            sender: sentMessage.sender,
+            recipient: sentMessage.recipient,
+            text: sentMessage.text,
+            media: sentMessage.media || [],
+            replyTo: sentMessage.replyTo || null,
+            createdAt: sentMessage.createdAt,
+            readAt: sentMessage.readAt || null,
+          },
+        ],
+      }))
+
+      setReplyingToMessage(null)
+      upsertConversationAfterSend(sentMessage)
+      setIsSending(false)
+      setUploadProgress(0)
+
+      if (isMobileViewport) {
+        window.requestAnimationFrame(() => {
+          scrollMessagesToBottom()
+        })
+      }
+    } catch (error) {
+      setSendError(error.message || t('messages.errors.sendFailed'))
+      setIsSending(false)
+      setUploadProgress(0)
+    }
+  }
+
   async function handleSendMessage() {
     if (isOptimizingMedia || isSending) {
       return
@@ -1618,6 +2172,52 @@ function MessagesPage() {
       setSendError(error.message || t('messages.errors.sendFailed'))
       setUploadProgress(0)
       setIsSending(false)
+    }
+  }
+
+  async function handleToggleReaction(messageId, emoji) {
+    if (!messageId || !emoji || !user?.id) return
+
+    // Optimistic UI update
+    setMessagesState((currentState) => ({
+      ...currentState,
+      items: currentState.items.map((item) => {
+        const itemId = item._id || item.id
+        if (itemId?.toString() === messageId.toString()) {
+          const currentReactions = Array.isArray(item.reactions) ? [...item.reactions] : []
+          const existingIdx = currentReactions.findIndex(
+            (r) => String(r.user?._id || r.user) === String(user.id),
+          )
+
+          if (existingIdx > -1) {
+            if (currentReactions[existingIdx].emoji === emoji) {
+              currentReactions.splice(existingIdx, 1)
+            } else {
+              currentReactions[existingIdx] = {
+                ...currentReactions[existingIdx],
+                emoji,
+              }
+            }
+          } else {
+            currentReactions.push({
+              user: user.id,
+              emoji,
+            })
+          }
+
+          return {
+            ...item,
+            reactions: currentReactions,
+          }
+        }
+        return item
+      }),
+    }))
+
+    try {
+      await toggleMessageReaction(messageId, emoji)
+    } catch (error) {
+      console.error('Failed to toggle reaction:', error)
     }
   }
 
@@ -1864,7 +2464,18 @@ function MessagesPage() {
                                     : 'text-muted'
                                 }`}
                               >
-                                {conversation.lastMessagePreview || t('messages.noMessagesYet')}
+                                {typingUsersMap[peerId] ? (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span className="italic">{t('messages.typing', { defaultValue: 'Yazıyor...' })}</span>
+                                    <span className="inline-flex items-center gap-0.5">
+                                      <span className="size-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
+                                      <span className="size-1 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
+                                      <span className="size-1 rounded-full bg-emerald-500 animate-bounce" />
+                                    </span>
+                                  </span>
+                                ) : (
+                                  conversation.lastMessagePreview || t('messages.noMessagesYet')
+                                )}
                               </p>
                             </div>
                           </button>
@@ -2280,6 +2891,7 @@ function MessagesPage() {
                           onStartEdit={() => handleStartEditMessage(message)}
                           onReport={setReportTarget}
                           onScrollToMessage={handleScrollToMessage}
+                          onToggleReaction={handleToggleReaction}
                           t={t}
                           onOpenMedia={(items, index) =>
                             setLightboxMedia({
@@ -2446,7 +3058,7 @@ function MessagesPage() {
                         <button
                           type="button"
                           onClick={() => setShowAttachmentMenu((current) => !current)}
-                          disabled={!activePeer || isSending || isOptimizingMedia}
+                          disabled={!activePeer || isSending || isOptimizingMedia || isRecordingVoice}
                           className={`grid place-items-center rounded-full text-muted transition hover:bg-secondary-hover hover:text-text disabled:cursor-not-allowed disabled:opacity-40 ${
                             isMobileViewport ? 'size-8' : 'size-11'
                           }`}
@@ -2457,7 +3069,7 @@ function MessagesPage() {
                         </button>
 
                         {showAttachmentMenu ? (
-                          <div className="absolute bottom-[calc(100%+10px)] left-0 z-20 w-[170px] overflow-hidden rounded-[20px] border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                          <div className="absolute bottom-[calc(100%+10px)] left-0 z-20 w-[180px] overflow-hidden rounded-[20px] border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
                             <button
                               type="button"
                               onClick={() => {
@@ -2480,60 +3092,132 @@ function MessagesPage() {
                               <VideoIcon />
                               <span>{t('messages.video')}</span>
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowAttachmentMenu(false)
+                                startVoiceRecording()
+                              }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
+                            >
+                              <MicrophoneIcon />
+                              <span>{t('messages.voiceMessage', { defaultValue: 'Sesli mesaj' })}</span>
+                            </button>
                           </div>
                         ) : null}
                       </div>
 
-                      <textarea
-                        ref={textareaRef}
-                        rows={1}
-                        value={messageDraft}
-                        onChange={handleDraftChange}
-                        onKeyDown={handleMessageKeyDown}
-                        disabled={!activePeer || isOptimizingMedia}
-                        placeholder={t('messages.placeholder')}
-                        className={`max-h-[140px] flex-1 resize-none overflow-y-auto bg-transparent px-2 text-sm leading-6 text-text outline-none placeholder:text-muted disabled:cursor-not-allowed ${
-                          isMobileViewport ? 'min-h-[24px] py-[10px]' : 'min-h-[44px] py-2'
-                        }`}
-                      />
+                      {isRecordingVoice ? (
+                        <div className="flex flex-1 items-center justify-between gap-2 py-1.5 min-h-[42px] px-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="relative flex size-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full size-3 bg-rose-500" />
+                            </span>
+                            <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                              {formatVoiceDuration(recordingDuration)}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="h-2 w-0.5 rounded-full bg-rose-500/60 animate-pulse" />
+                              <span className="h-4 w-0.5 rounded-full bg-rose-500 animate-pulse [animation-delay:-0.2s]" />
+                              <span className="h-3 w-0.5 rounded-full bg-rose-500/80 animate-pulse [animation-delay:-0.4s]" />
+                              <span className="h-5 w-0.5 rounded-full bg-rose-500 animate-pulse" />
+                              <span className="h-2.5 w-0.5 rounded-full bg-rose-500/70 animate-pulse [animation-delay:-0.1s]" />
+                            </div>
+                            <span className="text-xs text-muted truncate hidden sm:inline">
+                              {t('messages.recordingVoice', { defaultValue: 'Ses kaydediliyor...' })}
+                            </span>
+                          </div>
 
-                      <button
-                        type="button"
-                        onPointerDown={(event) => {
-                          if (isMobileViewport) {
-                            event.preventDefault()
-                          }
-                        }}
-                        onMouseDown={(event) => {
-                          if (isMobileViewport) {
-                            event.preventDefault()
-                          }
-                        }}
-                        onTouchStart={(event) => {
-                          if (isMobileViewport) {
-                            event.preventDefault()
-                          }
-                        }}
-                        onClick={handleSendMessage}
-                        disabled={
-                          !activePeer ||
-                          isSending ||
-                          isOptimizingMedia ||
-                          (!messageDraft.trim() && !messageFiles.length)
-                        }
-                        className={`grid place-items-center rounded-full transition-all duration-200 ${
-                          !activePeer ||
-                          isSending ||
-                          isOptimizingMedia ||
-                          (!messageDraft.trim() && !messageFiles.length)
-                            ? 'cursor-not-allowed bg-secondary-hover text-soft opacity-60'
-                            : 'bg-primary text-inverse shadow-md shadow-primary/25 hover:scale-105 active:scale-95 hover:bg-primary-hover'
-                        } ${isMobileViewport ? 'size-9 mb-1' : 'size-10 mb-1'}`}
-                        aria-label={t('messages.sendMessage')}
-                        title={t('messages.sendMessage')}
-                      >
-                        <SendIcon className={isMobileViewport ? 'size-4.5' : 'size-5'} />
-                      </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={cancelVoiceRecording}
+                              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              title={t('messages.cancelRecording', { defaultValue: 'İptal' })}
+                            >
+                              <TrashIcon className="size-3.5" />
+                              <span className="hidden sm:inline">{t('messages.cancelRecording', { defaultValue: 'İptal' })}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => stopVoiceRecording(true)}
+                              className="grid size-8 place-items-center rounded-full bg-primary text-inverse shadow-md shadow-primary/25 hover:bg-primary-hover active:scale-95 transition cursor-pointer"
+                              title={t('messages.sendVoice', { defaultValue: 'Gönder' })}
+                            >
+                              <SendIcon className="size-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <textarea
+                            ref={textareaRef}
+                            rows={1}
+                            value={messageDraft}
+                            onChange={handleDraftChange}
+                            onKeyDown={handleMessageKeyDown}
+                            disabled={!activePeer || isOptimizingMedia}
+                            placeholder={t('messages.placeholder')}
+                            className={`max-h-[140px] flex-1 resize-none overflow-y-auto bg-transparent px-2 text-sm leading-6 text-text outline-none placeholder:text-muted disabled:cursor-not-allowed ${
+                              isMobileViewport ? 'min-h-[24px] py-[10px]' : 'min-h-[44px] py-2'
+                            }`}
+                          />
+
+                          {!messageDraft.trim() && !messageFiles.length ? (
+                            <button
+                              type="button"
+                              onClick={startVoiceRecording}
+                              disabled={!activePeer || isSending || isOptimizingMedia}
+                              className={`grid place-items-center rounded-full transition-all duration-200 bg-secondary text-text hover:bg-primary hover:text-inverse cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
+                                isMobileViewport ? 'size-9 mb-1' : 'size-10 mb-1'
+                              }`}
+                              aria-label={t('messages.recordVoice', { defaultValue: 'Sesli mesaj kaydet' })}
+                              title={t('messages.recordVoice', { defaultValue: 'Sesli mesaj kaydet' })}
+                            >
+                              <MicrophoneIcon className={isMobileViewport ? 'size-4.5' : 'size-5'} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onPointerDown={(event) => {
+                                if (isMobileViewport) {
+                                  event.preventDefault()
+                                }
+                              }}
+                              onMouseDown={(event) => {
+                                if (isMobileViewport) {
+                                  event.preventDefault()
+                                }
+                              }}
+                              onTouchStart={(event) => {
+                                if (isMobileViewport) {
+                                  event.preventDefault()
+                                }
+                              }}
+                              onClick={handleSendMessage}
+                              disabled={
+                                !activePeer ||
+                                isSending ||
+                                isOptimizingMedia ||
+                                (!messageDraft.trim() && !messageFiles.length)
+                              }
+                              className={`grid place-items-center rounded-full transition-all duration-200 ${
+                                !activePeer ||
+                                isSending ||
+                                isOptimizingMedia ||
+                                (!messageDraft.trim() && !messageFiles.length)
+                                  ? 'cursor-not-allowed bg-secondary-hover text-soft opacity-60'
+                                  : 'bg-primary text-inverse shadow-md shadow-primary/25 hover:scale-105 active:scale-95 hover:bg-primary-hover'
+                              } ${isMobileViewport ? 'size-9 mb-1' : 'size-10 mb-1'}`}
+                              aria-label={t('messages.sendMessage')}
+                              title={t('messages.sendMessage')}
+                            >
+                              <SendIcon className={isMobileViewport ? 'size-4.5' : 'size-5'} />
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
 
