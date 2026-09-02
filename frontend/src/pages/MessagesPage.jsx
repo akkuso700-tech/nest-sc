@@ -414,12 +414,15 @@ function MessageBubble({
   onOpenMedia,
   onScrollToMessage,
   onToggleReaction,
+  isMobileViewport = false,
   t,
 }) {
   const showSeen = isMine && Boolean(message.readAt)
   const messageId = message._id || message.id
   const [showHeartBurst, setShowHeartBurst] = useState(false)
   const [showReactionPicker, setShowReactionPicker] = useState(false)
+  const menuButtonRef = useRef(null)
+  const [openUpwards, setOpenUpwards] = useState(false)
 
   const replySenderName = useMemo(() => {
     if (!message.replyTo) return ''
@@ -447,6 +450,21 @@ function MessageBubble({
     })
     return Object.values(map)
   }, [message.reactions, user?.id])
+
+  useEffect(() => {
+    if (isMenuOpen && menuButtonRef.current) {
+      const rect = menuButtonRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      setOpenUpwards(spaceBelow < 240 && rect.top > 200)
+    }
+  }, [isMenuOpen])
+
+  const handleBubbleClick = (event) => {
+    if (isMobileViewport) {
+      event.stopPropagation()
+      setShowReactionPicker((prev) => !prev)
+    }
+  }
 
   const handleDoubleClick = (event) => {
     event.stopPropagation()
@@ -489,13 +507,14 @@ function MessageBubble({
     >
       <div className={`flex max-w-[min(88%,620px)] items-end gap-1.5 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
         <div
+          onClick={handleBubbleClick}
           onDoubleClick={handleDoubleClick}
           className={`relative select-none rounded-lg px-4 py-3 shadow-sm transition cursor-pointer ${
             isMine
               ? 'bg-primary text-inverse'
               : 'border border-border bg-card text-text'
           } ${groupedReactions.length ? 'mb-2.5' : ''}`}
-          title={t('messages.doubleTapToLike', { defaultValue: 'Beğenmek için çift tıkla' })}
+          title={isMobileViewport ? t('messages.addReaction', { defaultValue: 'Tepki ekle' }) : t('messages.doubleTapToLike', { defaultValue: 'Beğenmek için çift tıkla' })}
         >
           {/* Floating Heart Burst Animation */}
           {showHeartBurst ? (
@@ -510,7 +529,7 @@ function MessageBubble({
             <div
               data-reaction-picker="true"
               onClick={(e) => e.stopPropagation()}
-              className={`absolute z-30 flex items-center gap-1 rounded-full border border-border bg-card/95 p-1 shadow-xl backdrop-blur-md transition-all -top-12 animate-in fade-in zoom-in-95 duration-150 ${
+              className={`absolute z-40 flex items-center gap-1 rounded-full border border-border bg-card/95 p-1 shadow-xl backdrop-blur-md transition-all -top-12 animate-in fade-in zoom-in-95 duration-150 max-w-[calc(100vw-40px)] ${
                 isMine ? 'right-0' : 'left-0'
               }`}
             >
@@ -535,7 +554,10 @@ function MessageBubble({
           {message.replyTo ? (
             <button
               type="button"
-              onClick={() => onScrollToMessage(message.replyTo.id || message.replyTo._id)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onScrollToMessage(message.replyTo.id || message.replyTo._id)
+              }}
               className={`mb-2.5 block w-full rounded-md border-l-3 border-primary px-2.5 py-1.5 text-left transition ${
                 isMine
                   ? 'bg-black/15 text-inverse/90 hover:bg-black/25'
@@ -587,7 +609,7 @@ function MessageBubble({
           ) : null}
 
           {(message.media || []).some((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))) ? (
-            <div className="py-1">
+            <div className="py-1" onClick={(e) => e.stopPropagation()}>
               {(message.media || [])
                 .filter((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))
                 .map((audioItem, idx) => (
@@ -602,21 +624,23 @@ function MessageBubble({
           ) : null}
 
           {(message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))).length ? (
-            <MediaGallery
-              items={(message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))}
-              className={`max-w-[200px] sm:max-w-[236px] ${
-                message.text || (message.media || []).some((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))
-                  ? 'mt-3'
-                  : 'mt-0'
-              }`}
-              interactive
-              onItemClick={(_, index) =>
-                onOpenMedia(
-                  (message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))),
-                  index,
-                )
-              }
-            />
+            <div onClick={(e) => e.stopPropagation()}>
+              <MediaGallery
+                items={(message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))}
+                className={`max-w-[200px] sm:max-w-[236px] ${
+                  message.text || (message.media || []).some((item) => item.type === 'audio' || /\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || '')))
+                    ? 'mt-3'
+                    : 'mt-0'
+                }`}
+                interactive
+                onItemClick={(_, index) =>
+                  onOpenMedia(
+                    (message.media || []).filter((item) => item.type !== 'audio' && !/\.(webm|ogg|opus|mp3|wav|m4a|aac)(\?.*)?$/i.test(String(item?.url || ''))),
+                    index,
+                  )
+                }
+              />
+            </div>
           ) : null}
 
           <div
@@ -677,6 +701,7 @@ function MessageBubble({
           </button>
 
           <button
+            ref={menuButtonRef}
             type="button"
             onClick={onOpenMenu}
             className="grid size-8 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text cursor-pointer"
@@ -687,7 +712,9 @@ function MessageBubble({
           </button>
 
           {isMenuOpen ? (
-            <div className={`absolute top-[calc(100%+8px)] z-20 w-[180px] overflow-hidden rounded-lg border border-border bg-card py-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)] ${
+            <div className={`absolute z-40 w-[180px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-border bg-card py-1.5 shadow-[0_20px_50px_rgba(15,23,42,0.22)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
+              openUpwards ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'
+            } ${
               isMine ? 'right-0' : 'left-0'
             }`}>
               <button
@@ -2892,6 +2919,7 @@ function MessagesPage() {
                           onReport={setReportTarget}
                           onScrollToMessage={handleScrollToMessage}
                           onToggleReaction={handleToggleReaction}
+                          isMobileViewport={isMobileViewport}
                           t={t}
                           onOpenMedia={(items, index) =>
                             setLightboxMedia({
