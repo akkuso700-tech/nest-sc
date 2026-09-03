@@ -385,7 +385,7 @@ function MediaVideo({
           internalVideoRef.current = node
           setVideoRef(refKey, node)
         }}
-        src={adaptiveSource}
+        src={adaptiveSource || undefined}
         poster={posterUrl || undefined}
         controls={!interactive && !feedLayout}
         playsInline

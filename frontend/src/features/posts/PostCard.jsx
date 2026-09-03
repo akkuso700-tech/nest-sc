@@ -268,8 +268,7 @@ const MORE_LABEL_RESERVED_CHARS = 16
 const VIEW_TRACK_THRESHOLD = 0.6
 const VIEW_TRACK_DELAY_MS = 1000
 const LOOP_VIEW_METRIC_MIN_VISIBLE_MS = 250
-const LOOP_RECOVERY_MAX_ATTEMPTS = 3
-const LOOP_RECOVERY_RETRY_DELAY_MS = 350
+const LOOP_BUFFER_STALL_TIMEOUT_MS = 10000
 const LOOP_TELEMETRY_MIN_INTERVAL_MS = 4000
 const LOOP_DROPPED_FRAMES_SAMPLE_INTERVAL_MS = 5000
 const MOBILE_UA_PATTERN = /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i
@@ -881,25 +880,62 @@ function PostCard({
     }
   }
 
-  function recoverLoopPlayback(event) {
+  function handleLoopVideoWaiting(event) {
     if (!isLoopVariant) {
       return
     }
 
     const video = event?.currentTarget || loopVideoRef.current
-    const eventType = `${event?.type || ''}`.toLowerCase()
+    void sendLoopTelemetry('waiting', {
+      currentTimeSec: Number(video?.currentTime || 0),
+    })
 
-    if (eventType === 'waiting' || eventType === 'stalled' || eventType === 'error') {
-      void sendLoopTelemetry(eventType, {
-        currentTimeSec: Number(video?.currentTime || 0),
-      })
+    // Normal buffering must NEVER forcibly reload the video element or increment failure counters.
+    // We only set a fallback timer (10s) if the playback completely freezes without any forward progress.
+    if (
+      !loopRecoveryTimerRef.current &&
+      isLoopInViewport &&
+      isLoopCardActive &&
+      document.visibilityState === 'visible'
+    ) {
+      loopRecoveryTimerRef.current = window.setTimeout(() => {
+        const currentVideo = loopVideoRef.current
+        if (currentVideo && currentVideo.paused && isLoopCardActive && isLoopInViewport) {
+          setLoopPlaybackError('Video baglantisi yavas. Tekrar dene.')
+          void sendLoopTelemetry('recover-failed', {
+            currentTimeSec: Number(currentVideo.currentTime || 0),
+          })
+        }
+      }, LOOP_BUFFER_STALL_TIMEOUT_MS)
     }
+  }
 
-    if (!video || !isLoopInViewport || !isLoopCardActive || document.visibilityState !== 'visible') {
+  function handleLoopVideoStalled(event) {
+    if (!isLoopVariant) {
       return
     }
 
-    if (loopRecoveryAttemptRef.current >= LOOP_RECOVERY_MAX_ATTEMPTS) {
+    const video = event?.currentTarget || loopVideoRef.current
+    void sendLoopTelemetry('stalled', {
+      currentTimeSec: Number(video?.currentTime || 0),
+    })
+  }
+
+  function handleLoopVideoError(event) {
+    if (!isLoopVariant) {
+      return
+    }
+
+    const video = event?.currentTarget || loopVideoRef.current
+    void sendLoopTelemetry('error', {
+      currentTimeSec: Number(video?.currentTime || 0),
+    })
+
+    if (!video || !isLoopInViewport || !isLoopCardActive) {
+      return
+    }
+
+    if (loopRecoveryAttemptRef.current >= 2) {
       setLoopPlaybackError('Video baglantisi yavas. Tekrar dene.')
       void sendLoopTelemetry('recover-failed', {
         currentTimeSec: Number(video.currentTime || 0),
@@ -908,28 +944,20 @@ function PostCard({
     }
 
     loopRecoveryAttemptRef.current += 1
-    const resumeTime = Number(video.currentTime || 0)
-
     if (loopRecoveryTimerRef.current) {
       window.clearTimeout(loopRecoveryTimerRef.current)
     }
 
     loopRecoveryTimerRef.current = window.setTimeout(() => {
       try {
-        if (video.readyState < 3) {
-          video.load()
+        video.load()
+        if (isLoopInViewport && isLoopCardActive && document.visibilityState === 'visible') {
+          video.play().catch(() => {})
         }
-
-        const duration = Number(video.duration || 0)
-        if (duration > 0 && Number.isFinite(resumeTime) && resumeTime > 0) {
-          video.currentTime = Math.min(resumeTime, Math.max(duration - 0.1, 0))
-        }
-
-        video.play().catch(() => {})
       } catch {
-        // Recovery should never block the loop stream UX.
+        // Recovery should stay best-effort
       }
-    }, LOOP_RECOVERY_RETRY_DELAY_MS * loopRecoveryAttemptRef.current)
+    }, 1000)
   }
 
   function handleLoopVideoPlaying() {
@@ -2257,7 +2285,7 @@ function PostCard({
                     ) : (
                     <video
                       ref={loopVideoRef}
-                      src={loopVideoSourceUrl}
+                      src={loopVideoSourceUrl || undefined}
                       poster={loopPosterUrl || undefined}
                       className={`w-full object-cover ${
                         isLoopMobileVariant
@@ -2293,9 +2321,9 @@ function PostCard({
                       onTimeUpdate={handleLoopVideoTimeUpdate}
                       onPlaying={handleLoopVideoPlaying}
                       onPause={() => setIsLoopPlaying(false)}
-                      onWaiting={recoverLoopPlayback}
-                      onStalled={recoverLoopPlayback}
-                      onError={recoverLoopPlayback}
+                      onWaiting={handleLoopVideoWaiting}
+                      onStalled={handleLoopVideoStalled}
+                      onError={handleLoopVideoError}
                       onEnded={handleLoopVideoEnded}
                     />
                     )}
