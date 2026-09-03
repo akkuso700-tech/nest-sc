@@ -76,6 +76,10 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
           maxBufferLength: 25,
           maxMaxBufferLength: 50,
           lowLatencyMode: false,
+          manifestLoadingMaxRetry: 3,
+          levelLoadingMaxRetry: 3,
+          fragLoadingMaxRetry: 4,
+          fragLoadingRetryDelay: 500,
         })
         hls.loadSource(hlsUrl)
         hls.attachMedia(video)
@@ -85,6 +89,14 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
         video.addEventListener('loadeddata', clearFallbackTimer, { once: true })
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data?.fatal) return
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            hls?.startLoad()
+            return
+          }
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            hls?.recoverMediaError()
+            return
+          }
           activateFallback()
         })
       })
@@ -98,5 +110,5 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
     }
   }, [enabled, fallbackUrl, hlsUrl, managedHls, nativeHls, videoRef])
 
-  return directSource
+  return directSource || undefined
 }
