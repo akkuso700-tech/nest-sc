@@ -298,7 +298,21 @@ const deleteAdminMessageSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const adminOverviewSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({
+    period: z
+      .enum(['today', 'yesterday', '7d', '28d', 'this_month', 'last_month', 'this_year', 'custom'])
+      .optional()
+      .default('28d'),
+    dateFrom: z.string().trim().optional().default(''),
+    dateTo: z.string().trim().optional().default(''),
+  }),
+})
+
 module.exports = {
+  adminOverviewSchema,
   updateUserRoleSchema,
   updateUserStatusSchema,
   adminListUsersSchema,

@@ -32,6 +32,7 @@ const {
   deleteAdminMessage,
 } = require('../controllers/adminController')
 const {
+  adminOverviewSchema,
   updateUserRoleSchema,
   updateUserStatusSchema,
   adminListUsersSchema,
@@ -63,7 +64,7 @@ const {
 const adminRouter = express.Router()
 
 adminRouter.use(authenticate, authorizeRoles('admin'))
-adminRouter.get('/overview', getOverview)
+adminRouter.get('/overview', validateRequest(adminOverviewSchema), getOverview)
 adminRouter.get('/audit-logs', validateRequest(adminListAuditLogsSchema), listAuditLogs)
 adminRouter.get('/users', validateRequest(adminListUsersSchema), listUsers)
 adminRouter.get(

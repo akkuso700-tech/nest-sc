@@ -116,7 +116,132 @@ function percentChange(current, previous) {
   return Number((((safeCurrent - safePrevious) / safePrevious) * 100).toFixed(2))
 }
 
+function buildOverviewDateRange(period = '28d', dateFrom, dateTo) {
+  const now = new Date()
+  let rangeStart = new Date(now)
+  let rangeEnd = new Date(now)
+  let previousStart = new Date(now)
+  let previousEnd = new Date(now)
+  let resolution = 'daily'
+  let label = 'Son 28 Gün'
+  let dateFormat = '%Y-%m-%d'
+
+  if (period === 'today') {
+    rangeStart.setHours(0, 0, 0, 0)
+    rangeEnd.setHours(23, 59, 59, 999)
+    previousStart = new Date(rangeStart)
+    previousStart.setDate(previousStart.getDate() - 1)
+    previousEnd = new Date(rangeEnd)
+    previousEnd.setDate(previousEnd.getDate() - 1)
+    resolution = 'hourly'
+    dateFormat = '%Y-%m-%d %H:00'
+    label = 'Bugün'
+  } else if (period === 'yesterday') {
+    rangeStart.setDate(rangeStart.getDate() - 1)
+    rangeStart.setHours(0, 0, 0, 0)
+    rangeEnd = new Date(rangeStart)
+    rangeEnd.setHours(23, 59, 59, 999)
+    previousStart = new Date(rangeStart)
+    previousStart.setDate(previousStart.getDate() - 1)
+    previousEnd = new Date(rangeEnd)
+    previousEnd.setDate(previousEnd.getDate() - 1)
+    resolution = 'hourly'
+    dateFormat = '%Y-%m-%d %H:00'
+    label = 'Dün'
+  } else if (period === '7d') {
+    rangeStart.setDate(rangeStart.getDate() - 6)
+    rangeStart.setHours(0, 0, 0, 0)
+    rangeEnd.setHours(23, 59, 59, 999)
+    previousEnd = new Date(rangeStart.getTime() - 1)
+    previousStart = new Date(previousEnd)
+    previousStart.setDate(previousStart.getDate() - 6)
+    previousStart.setHours(0, 0, 0, 0)
+    resolution = 'daily'
+    dateFormat = '%Y-%m-%d'
+    label = 'Son 7 Gün'
+  } else if (period === '28d') {
+    rangeStart.setDate(rangeStart.getDate() - 27)
+    rangeStart.setHours(0, 0, 0, 0)
+    rangeEnd.setHours(23, 59, 59, 999)
+    previousEnd = new Date(rangeStart.getTime() - 1)
+    previousStart = new Date(previousEnd)
+    previousStart.setDate(previousStart.getDate() - 27)
+    previousStart.setHours(0, 0, 0, 0)
+    resolution = 'daily'
+    dateFormat = '%Y-%m-%d'
+    label = 'Son 28 Gün'
+  } else if (period === 'this_month') {
+    rangeStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+    rangeEnd.setHours(23, 59, 59, 999)
+    const prevMonthDays = Math.min(now.getDate(), new Date(now.getFullYear(), now.getMonth(), 0).getDate())
+    previousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0)
+    previousEnd = new Date(now.getFullYear(), now.getMonth() - 1, prevMonthDays, 23, 59, 59, 999)
+    resolution = 'daily'
+    dateFormat = '%Y-%m-%d'
+    label = 'Bu Ay'
+  } else if (period === 'last_month') {
+    rangeStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0)
+    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+    rangeEnd = new Date(now.getFullYear(), now.getMonth() - 1, lastDay, 23, 59, 59, 999)
+    const prevLastDay = new Date(now.getFullYear(), now.getMonth() - 1, 0).getDate()
+    previousStart = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0, 0)
+    previousEnd = new Date(now.getFullYear(), now.getMonth() - 2, prevLastDay, 23, 59, 59, 999)
+    resolution = 'daily'
+    dateFormat = '%Y-%m-%d'
+    label = 'Geçen Ay'
+  } else if (period === 'this_year') {
+    rangeStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0)
+    rangeEnd.setHours(23, 59, 59, 999)
+    previousStart = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0)
+    previousEnd = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 23, 59, 59, 999)
+    resolution = 'monthly'
+    dateFormat = '%Y-%m'
+    label = 'Bu Yıl'
+  } else if (period === 'custom') {
+    const parsedStart = new Date(dateFrom)
+    const parsedEnd = new Date(dateTo)
+    if (!Number.isNaN(parsedStart.getTime()) && !Number.isNaN(parsedEnd.getTime())) {
+      parsedStart.setHours(0, 0, 0, 0)
+      parsedEnd.setHours(23, 59, 59, 999)
+      rangeStart = parsedStart
+      rangeEnd = parsedEnd
+      const prev = buildPreviousRange(rangeStart, rangeEnd)
+      previousStart = prev.previousRangeStart
+      previousEnd = prev.previousRangeEnd
+      const diffDays = Math.max(Math.round((rangeEnd - rangeStart) / (1000 * 60 * 60 * 24)), 1)
+      if (diffDays <= 2) {
+        resolution = 'hourly'
+        dateFormat = '%Y-%m-%d %H:00'
+      } else if (diffDays > 90) {
+        resolution = 'monthly'
+        dateFormat = '%Y-%m'
+      } else {
+        resolution = 'daily'
+        dateFormat = '%Y-%m-%d'
+      }
+      label = 'Özel Aralık'
+    } else {
+      return buildOverviewDateRange('28d')
+    }
+  }
+
+  return {
+    period,
+    rangeStart,
+    rangeEnd,
+    previousStart,
+    previousEnd,
+    resolution,
+    dateFormat,
+    label,
+  }
+}
+
 const getOverview = asyncHandler(async (req, res) => {
+  const { period = '28d', dateFrom = '', dateTo = '' } = req.validated?.query || {}
+  const dateRange = buildOverviewDateRange(period, dateFrom, dateTo)
+  const { rangeStart, rangeEnd, previousStart, previousEnd, dateFormat, resolution, label } = dateRange
+
   const activeSince = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30)
   const lastSevenDays = new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
 
@@ -148,6 +273,12 @@ const getOverview = asyncHandler(async (req, res) => {
     removedLoopPosts,
     recommendationViewBreakdown,
     recommendationEventBreakdown,
+    periodNewUsers,
+    prevNewUsers,
+    periodActiveUsers,
+    prevActiveUsers,
+    periodPosts,
+    prevPosts,
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ lastLoginAt: { $gte: activeSince } }),
@@ -188,13 +319,13 @@ const getOverview = asyncHandler(async (req, res) => {
     User.aggregate([
       {
         $match: {
-          createdAt: { $gte: activeSince },
+          createdAt: { $gte: rangeStart, $lte: rangeEnd },
         },
       },
       {
         $group: {
           _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+            $dateToString: { format: dateFormat, date: '$createdAt' },
           },
           count: { $sum: 1 },
         },
@@ -247,7 +378,7 @@ const getOverview = asyncHandler(async (req, res) => {
       'moderation.visibility': 'removed',
     }),
     PostView.aggregate([
-      { $match: { createdAt: { $gte: lastSevenDays } } },
+      { $match: { createdAt: { $gte: rangeStart, $lte: rangeEnd } } },
       {
         $group: {
           _id: {
@@ -262,7 +393,7 @@ const getOverview = asyncHandler(async (req, res) => {
       },
     ]),
     RecommendationEvent.aggregate([
-      { $match: { createdAt: { $gte: lastSevenDays } } },
+      { $match: { createdAt: { $gte: rangeStart, $lte: rangeEnd } } },
       {
         $group: {
           _id: {
@@ -278,6 +409,12 @@ const getOverview = asyncHandler(async (req, res) => {
         },
       },
     ]),
+    User.countDocuments({ createdAt: { $gte: rangeStart, $lte: rangeEnd } }),
+    User.countDocuments({ createdAt: { $gte: previousStart, $lte: previousEnd } }),
+    User.countDocuments({ lastLoginAt: { $gte: rangeStart, $lte: rangeEnd } }),
+    User.countDocuments({ lastLoginAt: { $gte: previousStart, $lte: previousEnd } }),
+    Post.countDocuments({ createdAt: { $gte: rangeStart, $lte: rangeEnd } }),
+    Post.countDocuments({ createdAt: { $gte: previousStart, $lte: previousEnd } }),
   ])
 
   const recommendationBreakdownMap = new Map()
@@ -386,7 +523,35 @@ const getOverview = asyncHandler(async (req, res) => {
     ).toFixed(2),
   )
 
+  const newUsersChangePct = percentChange(periodNewUsers, prevNewUsers)
+  const activeUsersChangePct = percentChange(periodActiveUsers, prevActiveUsers)
+  const postsChangePct = percentChange(periodPosts, prevPosts)
+
   res.json({
+    dateFilter: {
+      period,
+      label,
+      resolution,
+      rangeStart: rangeStart.toISOString(),
+      rangeEnd: rangeEnd.toISOString(),
+      previousStart: previousStart.toISOString(),
+      previousEnd: previousEnd.toISOString(),
+      newUsers: {
+        current: periodNewUsers,
+        previous: prevNewUsers,
+        changePct: newUsersChangePct,
+      },
+      activeUsers: {
+        current: periodActiveUsers,
+        previous: prevActiveUsers,
+        changePct: activeUsersChangePct,
+      },
+      posts: {
+        current: periodPosts,
+        previous: prevPosts,
+        changePct: postsChangePct,
+      },
+    },
     metrics: {
       totalUsers,
       activeUsers,

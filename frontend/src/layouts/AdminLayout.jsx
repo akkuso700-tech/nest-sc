@@ -51,6 +51,7 @@ function getPageMeta(pathname, lang) {
       title: 'Genel Bakış',
       eyebrow: 'Operasyon Merkezi',
       description: 'Platform sağlığını, büyümeyi ve moderasyon yükünü tek ekrandan izleyin.',
+      hideHeading: true,
     }
   }
   if (pathname.includes(`${base}/users/`)) {
