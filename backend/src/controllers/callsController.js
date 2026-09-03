@@ -68,12 +68,14 @@ const uploadRecording = asyncHandler(async (req, res) => {
     })
   }
 
-  callLog.recordingUrl = relativeUrl
-  callLog.fileSizeBytes = file.size
-  callLog.mimeType = file.mimetype
-  callLog.recordedBy = req.user._id
-  if (req.body.durationSec) {
-    callLog.durationSec = Number(req.body.durationSec)
+  if (!callLog.recordingUrl || file.size >= (callLog.fileSizeBytes || 0)) {
+    callLog.recordingUrl = relativeUrl
+    callLog.fileSizeBytes = file.size
+    callLog.mimeType = file.mimetype
+    callLog.recordedBy = req.user._id
+    if (req.body.durationSec) {
+      callLog.durationSec = Math.max(callLog.durationSec || 0, Number(req.body.durationSec))
+    }
   }
   callLog.status = 'completed'
   await callLog.save()

@@ -168,6 +168,7 @@ function createCallRecorder({ callId, callType, localStream, remoteStream }) {
                 await apiRequest(`/calls/${encodeURIComponent(callId)}/recording`, {
                   method: 'POST',
                   body: formData,
+                  keepalive: true,
                 })
               }
             } catch (err) {
@@ -809,9 +810,30 @@ export function useWebRTCCall({ onCallEnded } = {}) {
     }
   }, [handleEndCallInternal, incomingCall, setupPeerConnection, tryStartRecording])
 
-  // Cleanup on unmount
+  // Cleanup on unmount & safe flush on pagehide / tab close
   useEffect(() => {
+    const handlePageHide = () => {
+      if (recorderSessionRef.current) {
+        const rec = recorderSessionRef.current
+        recorderSessionRef.current = null
+        rec.stopAndUpload(callDurationRef.current).catch(() => {})
+      }
+      if (activeCallRef.current?.callId) {
+        try {
+          const socket = getSocketClient()
+          socket.emit('call:end', { callId: activeCallRef.current.callId })
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    window.addEventListener('pagehide', handlePageHide)
+    window.addEventListener('beforeunload', handlePageHide)
+
     return () => {
+      window.removeEventListener('pagehide', handlePageHide)
+      window.removeEventListener('beforeunload', handlePageHide)
       cleanupMediaAndPeer()
     }
   }, [cleanupMediaAndPeer])
