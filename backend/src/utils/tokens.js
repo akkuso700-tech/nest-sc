@@ -99,6 +99,10 @@ function serializeUser(user) {
         messages: user.preferences?.emailNotifications?.messages !== false,
         mentions: user.preferences?.emailNotifications?.mentions !== false,
       },
+      calling: {
+        voiceCallEnabled: user.preferences?.calling?.voiceCallEnabled !== false,
+        videoCallEnabled: user.preferences?.calling?.videoCallEnabled !== false,
+      },
     },
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,

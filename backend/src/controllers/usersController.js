@@ -845,6 +845,16 @@ const updateMyProfile = asyncHandler(async (req, res) => {
       profile.preferences.emailNotifications.mentions = body.preferences.emailNotifications.mentions
     }
   }
+  if (body.preferences?.calling) {
+    if (!profile.preferences) profile.preferences = {}
+    if (!profile.preferences.calling) profile.preferences.calling = {}
+    if (typeof body.preferences.calling.voiceCallEnabled === 'boolean') {
+      profile.preferences.calling.voiceCallEnabled = body.preferences.calling.voiceCallEnabled
+    }
+    if (typeof body.preferences.calling.videoCallEnabled === 'boolean') {
+      profile.preferences.calling.videoCallEnabled = body.preferences.calling.videoCallEnabled
+    }
+  }
   if (hasField('isPrivate')) {
     profile.isPrivate = body.isPrivate
   }

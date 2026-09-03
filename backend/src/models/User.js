@@ -265,6 +265,10 @@ const userSchema = new mongoose.Schema(
         messages: { type: Boolean, default: true },
         mentions: { type: Boolean, default: true },
       },
+      calling: {
+        voiceCallEnabled: { type: Boolean, default: true },
+        videoCallEnabled: { type: Boolean, default: true },
+      },
     },
     lastMessageEmailSentAt: {
       type: Date,

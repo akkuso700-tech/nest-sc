@@ -147,6 +147,10 @@ const updateProfileSchema = z.object({
         messages: z.boolean().optional(),
         mentions: z.boolean().optional(),
       }).optional(),
+      calling: z.object({
+        voiceCallEnabled: z.boolean().optional(),
+        videoCallEnabled: z.boolean().optional(),
+      }).optional(),
     }).optional(),
     isPrivate: z.boolean().optional(),
   }),
