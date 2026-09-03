@@ -32,9 +32,10 @@ import {
   buildPostSharePayload,
   buildShareTargets,
   copyTextToClipboard,
-  isMobileShareSupported,
-  shareWithNative,
 } from '../../utils/postShare.js'
+import ShareMenuPopover from './ShareMenuPopover.jsx'
+import PostLikesModal from './PostLikesModal.jsx'
+import PostInsightsModal from './PostInsightsModal.jsx'
 import {
   formatRelativeTime,
   getFullName,
@@ -89,9 +90,46 @@ function InlineActionButton({
   count,
   label,
   onClick,
+  onCountClick,
   active = false,
   disabled = false,
 }) {
+  const shouldRenderCount = count !== null && typeof count !== 'undefined' && `${count}`.length > 0
+  const canClickCount = typeof onCountClick === 'function' && shouldRenderCount && Number(count) > 0
+
+  if (canClickCount) {
+    return (
+      <div
+        className={`inline-flex min-h-11 items-center rounded-lg transition ${
+          active
+            ? 'bg-nav-active text-primary'
+            : 'text-text hover:bg-secondary hover:text-text'
+        } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+      >
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+          title={label}
+          className="inline-flex min-h-11 min-w-8 items-center justify-center p-2.5 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {icon}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onCountClick()
+          }}
+          className="py-2.5 pr-2.5 -ml-1 text-xs font-semibold hover:underline cursor-pointer focus:outline-none"
+        >
+          {count}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <button
       type="button"
@@ -105,7 +143,7 @@ function InlineActionButton({
       } disabled:cursor-not-allowed disabled:opacity-60`}
     >
       {icon}
-      <span className="text-xs font-semibold">{count}</span>
+      {shouldRenderCount ? <span className="text-xs font-semibold">{count}</span> : null}
     </button>
   )
 }
@@ -115,23 +153,80 @@ function LoopVerticalActionButton({
   count,
   label,
   onClick,
-  active = false,
+  onCountClick,
   disabled = false,
+  active = false,
+  isDesktop = false,
 }) {
   const shouldRenderCount = count !== null && typeof count !== 'undefined' && `${count}`.length > 0
+  const canClickCount = typeof onCountClick === 'function' && shouldRenderCount && Number(count) > 0
+
+  if (isDesktop) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+          className={`grid size-11 place-items-center rounded-full border shadow-lg backdrop-blur-md transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+            active
+              ? 'bg-primary/20 border-primary/40 text-primary'
+              : 'bg-card/90 border-border text-text hover:bg-secondary hover:text-primary'
+          }`}
+        >
+          {icon}
+        </button>
+        {shouldRenderCount ? (
+          canClickCount ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onCountClick()
+              }}
+              className="text-xs font-bold leading-tight text-text/90 hover:text-primary hover:underline cursor-pointer py-0.5"
+              title="Beğenenleri gör"
+            >
+              {count}
+            </button>
+          ) : (
+            <span className="text-xs font-bold leading-tight text-text/90 select-none">{count}</span>
+          )
+        ) : null}
+      </div>
+    )
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className={`inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-white transition ${
-        active ? '' : ''
-      } disabled:cursor-not-allowed disabled:opacity-60`}
-    >
-      {icon}
-      {shouldRenderCount ? <span className="text-[10px] font-semibold leading-none">{count}</span> : null}
-    </button>
+    <div className="inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-white">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        className="grid size-8 place-items-center cursor-pointer transition active:scale-90 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {icon}
+      </button>
+      {shouldRenderCount ? (
+        canClickCount ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCountClick()
+            }}
+            className="text-[10px] font-semibold leading-none text-white/90 hover:text-white hover:underline cursor-pointer py-0.5"
+            title="Beğenenleri gör"
+          >
+            {count}
+          </button>
+        ) : (
+          <span className="text-[10px] font-semibold leading-none select-none">{count}</span>
+        )
+      ) : null}
+    </div>
   )
 }
 
@@ -407,7 +502,9 @@ function PostCard({
   const [isCommentSubmitting, setIsCommentSubmitting] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false)
-  const [isShareProcessing, setIsShareProcessing] = useState(false)
+  const [isLikesModalOpen, setIsLikesModalOpen] = useState(false)
+  const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false)
+  const isShareProcessing = pendingAction === 'share'
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editDraft, setEditDraft] = useState('')
   const [editMediaItems, setEditMediaItems] = useState([])
@@ -633,6 +730,7 @@ function PostCard({
   const shares = localPost.shares ?? localPost.stats?.shares ?? 0
   const views = localPost.views ?? localPost.stats?.views ?? 0
   const isOwnPost = Boolean(user && author && user.username === author.username)
+  const canViewInsights = Boolean(isOwnPost || user?.role === 'admin')
   const shouldCollapseInline = content.length > MOBILE_CONTENT_COLLAPSE_LIMIT
   const collapsedInlineContent = useMemo(
     () =>
@@ -654,8 +752,14 @@ function PostCard({
     [panelComments, commentSort],
   )
   const sharePayload = useMemo(
-    () => buildPostSharePayload({ post: localPost, postId, lang }),
-    [lang, localPost, postId],
+    () =>
+      buildPostSharePayload({
+        post: localPost,
+        postId,
+        lang,
+        isLoop: variant === 'loop',
+      }),
+    [lang, localPost, postId, variant],
   )
   const shareTargets = useMemo(
     () => buildShareTargets({ url: sharePayload.url, text: sharePayload.text }),
@@ -1598,13 +1702,6 @@ function PostCard({
     }
   }
 
-  async function handleNativeShare() {
-    setIsShareProcessing(true)
-    const result = await shareWithNative(sharePayload)
-    setIsShareProcessing(false)
-    return result
-  }
-
   async function handleShareCopyLink() {
     try {
       await copyTextToClipboard(sharePayload.url)
@@ -1632,58 +1729,8 @@ function PostCard({
     void trackShareIfPossible()
   }
 
-  async function handleShareButtonClick() {
+  function handleShareButtonClick() {
     if (!sharePayload.url || isShareProcessing) {
-      return
-    }
-
-    const viewportMobile =
-      typeof window !== 'undefined'
-        ? window.matchMedia?.('(max-width: 767px)')?.matches
-        : false
-    const uaMobile =
-      typeof navigator !== 'undefined'
-        ? MOBILE_UA_PATTERN.test(navigator.userAgent || '')
-        : false
-
-    if (viewportMobile || uaMobile) {
-      const nativeShareResult = await handleNativeShare()
-
-      if (nativeShareResult.status === 'shared') {
-        setToast({ message: t('common.shareActions.shared'), tone: 'success' })
-        setIsShareMenuOpen(false)
-        void trackShareIfPossible()
-        return
-      }
-
-      if (nativeShareResult.status === 'cancelled') {
-        setIsShareMenuOpen(false)
-        return
-      }
-
-      if (
-        nativeShareResult.status === 'unsupported' ||
-        nativeShareResult.status === 'error'
-      ) {
-        if (nativeShareResult.status === 'error') {
-          setToast({ message: t('common.shareActions.failed'), tone: 'error' })
-        }
-
-        try {
-          await copyTextToClipboard(sharePayload.url)
-          setToast({ message: t('common.shareActions.linkCopied'), tone: 'success' })
-          setIsShareMenuOpen(false)
-          void trackShareIfPossible()
-        } catch {
-          setToast({ message: t('common.shareActions.copyFailed'), tone: 'error' })
-        }
-        return
-      }
-
-      return
-    }
-
-    if (isMobileShareSupported()) {
       return
     }
 
@@ -2032,6 +2079,147 @@ function PostCard({
     onOpenAuthorStory(author.username)
   }
 
+  function renderLoopActionButtons(isDesktop) {
+    return (
+      <>
+        <LoopVerticalActionButton
+          icon={<HeartIcon filled={Boolean(localPost.likedByViewer)} />}
+          count={likes}
+          label={t('common.like')}
+          onClick={() => runPostAction('like', togglePostLike)}
+          onCountClick={() => setIsLikesModalOpen(true)}
+          active={Boolean(localPost.likedByViewer)}
+          disabled={!isAuthenticated || pendingAction === 'like'}
+          isDesktop={isDesktop}
+        />
+        <LoopVerticalActionButton
+          icon={<CommentIcon />}
+          count={comments}
+          label={t('common.comment')}
+          onClick={openQuickComments}
+          isDesktop={isDesktop}
+        />
+        <LoopVerticalActionButton
+          icon={<BookmarkIcon filled={Boolean(localPost.savedByViewer)} />}
+          count={saves}
+          label={t('common.save')}
+          onClick={() => runPostAction('save', togglePostSave)}
+          active={Boolean(localPost.savedByViewer)}
+          disabled={!isAuthenticated || pendingAction === 'save'}
+          isDesktop={isDesktop}
+        />
+        <div ref={shareMenuRef} className="relative">
+          <LoopVerticalActionButton
+            icon={<ShareIcon />}
+            count={shares}
+            label={t('common.share')}
+            onClick={handleShareButtonClick}
+            active={Boolean(localPost.sharedByViewer)}
+            disabled={isShareProcessing || pendingAction === 'share'}
+            isDesktop={isDesktop}
+          />
+          <ShareMenuPopover
+            open={isShareMenuOpen}
+            onClose={() => setIsShareMenuOpen(false)}
+            sharePayload={sharePayload}
+            shareTargets={shareTargets}
+            isMobile={isMobileViewport}
+            variant="loop"
+            onTrackShare={trackShareIfPossible}
+            onShowToast={setToast}
+            anchorRef={shareMenuRef}
+          />
+        </div>
+        <div ref={loopOptionsMenuRef} className="relative">
+          <LoopVerticalActionButton
+            icon={<MoreIcon />}
+            count=""
+            label={t('postDetail.postOptions', { defaultValue: 'Icerik secenekleri' })}
+            onClick={() => setIsLoopOptionsMenuOpen((current) => !current)}
+            disabled={!isAuthenticated}
+            isDesktop={isDesktop}
+          />
+          {isLoopOptionsMenuOpen ? (
+            <div
+              className={`absolute bottom-0 z-30 w-56 rounded-2xl border border-border bg-card/95 p-2 shadow-[0_20px_45px_rgba(15,23,42,0.22)] backdrop-blur-md ${
+                isDesktop ? 'left-full ml-2.5' : 'right-full mr-2'
+              }`}
+            >
+              {canViewInsights ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLoopOptionsMenuOpen(false)
+                    setIsInsightsModalOpen(true)
+                  }}
+                  className="mb-1 flex w-full items-center gap-2 rounded-xl cursor-pointer px-3 py-2 text-left text-sm font-semibold text-text transition hover:bg-secondary"
+                >
+                  <span className="text-base leading-none">📊</span>
+                  <span>{t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleMarkNotInterested}
+                disabled={!isAuthenticated || pendingAction === 'not-interested'}
+                className="flex w-full items-center justify-between rounded-xl cursor-pointer px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary disabled:opacity-60"
+              >
+                <span>{t('postDetail.notInterested', { defaultValue: 'Ilgilenmiyorum' })}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoopOptionsMenuOpen(false)
+                  setIsReportOpen(true)
+                }}
+                className="mt-1 flex w-full items-center justify-between rounded-xl cursor-pointer px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
+              >
+                <span>{t('postDetail.reportContent')}</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {canViewInsights ? (
+          isDesktop ? (
+            <button
+              type="button"
+              onClick={() => setIsInsightsModalOpen(true)}
+              className="grid size-11 place-items-center rounded-full border border-border bg-card/90 text-text shadow-lg backdrop-blur-md transition-all active:scale-95 cursor-pointer hover:bg-secondary hover:text-primary"
+              aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+              title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+            >
+              <EyeIcon />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsInsightsModalOpen(true)}
+              className="inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-full px-2 py-2 text-white hover:text-primary transition cursor-pointer group"
+              aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+              title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+            >
+              <EyeIcon />
+              <span className="text-[10px] font-semibold leading-none group-hover:underline">
+                {formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}
+              </span>
+            </button>
+          )
+        ) : !isDesktop ? (
+          <div
+            className="inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-full px-2 py-2 text-white/70"
+            aria-label={t('postDetail.viewCountLabel')}
+            title={t('postDetail.viewCountLabel')}
+          >
+            <EyeIcon />
+            <span className="text-[10px] font-semibold leading-none">
+              {formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}
+            </span>
+          </div>
+        ) : null}
+      </>
+    )
+  }
+
   if (localPost.deleted) {
     return null
   }
@@ -2146,6 +2334,17 @@ function PostCard({
                       <>
                         <button
                           type="button"
+                          onClick={() => {
+                            setIsMenuOpen(false)
+                            setIsInsightsModalOpen(true)
+                          }}
+                          className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-text transition hover:bg-secondary cursor-pointer"
+                        >
+                          <span className="text-base leading-none">📊</span>
+                          <span>{t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={handleEditPost}
                           className="flex w-full rounded-2xl px-3 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
                         >
@@ -2250,152 +2449,155 @@ function PostCard({
               <div className="relative">
                 {isLoopVariant && loopVideoItem ? (
                   <div
-                    className={`group relative w-full overflow-hidden bg-black ${
+                    className={`relative w-full ${
                       isLoopDesktopVariant
-                        ? 'mx-auto mb-3 mt-4 max-w-[440px] rounded-[30px] border border-white/10 shadow-[0_28px_65px_rgba(0,0,0,0.4)]'
-                        : ''
+                        ? 'mx-auto my-1 flex items-center justify-center'
+                        : 'h-[calc(100dvh-56px)] bg-black'
                     }`}
                   >
-                    {isLoopProcessing ? (
+                    <div className="relative">
+                      {/* 9:16 Video Frame */}
                       <div
-                        className={`relative grid w-full place-items-center bg-black text-white overflow-hidden ${
-                          isLoopMobileVariant
-                            ? 'h-[calc(100dvh-56px)]'
-                            : isLoopDesktopVariant
-                              ? 'h-[calc(100vh-190px)] min-h-[620px] max-h-[820px]'
-                              : 'h-[72vh] md:h-[70vh]'
+                        className={`group relative overflow-hidden bg-black ${
+                          isLoopDesktopVariant
+                            ? 'h-[min(760px,calc(100vh-175px))] aspect-[9/16] w-auto max-w-[440px] rounded-[28px] border border-white/10 shadow-[0_28px_65px_rgba(0,0,0,0.45)]'
+                            : 'h-[calc(100dvh-56px)] w-full'
                         }`}
                       >
+                        {/* Ambient Blurred Background Glow */}
                         {loopPosterUrl ? (
-                          <img
-                            src={loopPosterUrl}
-                            alt=""
+                          <div
+                            className="pointer-events-none absolute inset-0 size-full overflow-hidden"
                             aria-hidden="true"
-                            className="absolute inset-0 size-full object-cover opacity-40 blur-md scale-105"
-                          />
+                          >
+                            <img
+                              src={loopPosterUrl}
+                              alt=""
+                              className="size-full object-cover opacity-35 blur-2xl scale-125"
+                            />
+                          </div>
                         ) : null}
-                        <div className="relative z-10 px-6 text-center">
-                          <span className="mx-auto block size-9 animate-spin rounded-full border-2 border-white/25 border-t-white" />
-                          <p className="mt-4 text-sm font-semibold">Video işleniyor</p>
-                          <p className="mt-1 text-xs text-white/65">
-                            %{Math.max(0, Math.min(99, Number(loopVideoItem.processingProgress || 0)))} tamamlandı
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                    <video
-                      ref={loopVideoRef}
-                      src={loopVideoSourceUrl || undefined}
-                      poster={loopPosterUrl || undefined}
-                      className={`w-full object-cover ${
-                        isLoopMobileVariant
-                          ? 'h-[calc(100dvh-56px)]'
-                          : isLoopDesktopVariant
-                            ? 'h-[calc(100vh-190px)] min-h-[620px] max-h-[820px]'
-                            : 'h-[72vh] md:h-[70vh]'
-                      }`}
-                      muted={isLoopMuted || !isLoopInViewport}
-                      draggable={false}
-                      onContextMenu={handleLoopVideoContextMenu}
-                      onDragStart={handleLoopVideoContextMenu}
-                      playsInline
-                      style={{
-                        WebkitTouchCallout: 'none',
-                        WebkitUserSelect: 'none',
-                        WebkitUserDrag: 'none',
-                        userSelect: 'none',
-                        touchAction: 'pan-y',
-                      }}
-                      preload={
-                        reducedDataMode
-                          ? 'none'
-                          : isLoopInViewport || loopPreloadMode === 'active' || loopPreloadMode === 'next'
-                          ? 'auto'
-                          : 'none'
-                      }
-                      onClick={handleLoopVideoClick}
-                      onPointerDown={handleLoopPressStart}
-                      onPointerUp={handleLoopPressEnd}
-                      onPointerCancel={handleLoopPressEnd}
-                      onPointerLeave={handleLoopPressEnd}
-                      onTimeUpdate={handleLoopVideoTimeUpdate}
-                      onPlaying={handleLoopVideoPlaying}
-                      onPause={() => setIsLoopPlaying(false)}
-                      onWaiting={handleLoopVideoWaiting}
-                      onStalled={handleLoopVideoStalled}
-                      onError={handleLoopVideoError}
-                      onEnded={handleLoopVideoEnded}
-                    />
-                    )}
-                    {heartBursts.map((burst) => (
-                      <div
-                        key={burst.id}
-                        className="pointer-events-none absolute z-40 text-rose-500 drop-shadow-[0_8px_25px_rgba(244,63,94,0.85)] loop-heart-burst"
-                        style={{
-                          left: burst.x != null ? `${burst.x}px` : '50%',
-                          top: burst.y != null ? `${burst.y}px` : '50%',
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="size-24" aria-hidden="true">
-                          <path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z" />
-                        </svg>
-                      </div>
-                    ))}
-                    {isLoopMuteHintVisible ? (
-                      <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 grid size-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white shadow-2xl backdrop-blur-sm transition-all duration-300">
-                        {isLoopMuted ? (
-                          <VolumeOffIcon className="size-9" />
+
+                        {isLoopProcessing ? (
+                          <div className="relative grid size-full place-items-center bg-black/70 text-white overflow-hidden">
+                            <div className="relative z-10 px-6 text-center">
+                              <span className="mx-auto block size-9 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+                              <p className="mt-4 text-sm font-semibold">Video işleniyor</p>
+                              <p className="mt-1 text-xs text-white/65">
+                                %{Math.max(0, Math.min(99, Number(loopVideoItem.processingProgress || 0)))} tamamlandı
+                              </p>
+                            </div>
+                          </div>
                         ) : (
-                          <VolumeOnIcon className="size-9" />
+                          <video
+                            ref={loopVideoRef}
+                            src={loopVideoSourceUrl || undefined}
+                            poster={loopPosterUrl || undefined}
+                            className="relative size-full object-cover"
+                            muted={isLoopMuted || !isLoopInViewport}
+                            draggable={false}
+                            onContextMenu={handleLoopVideoContextMenu}
+                            onDragStart={handleLoopVideoContextMenu}
+                            playsInline
+                            style={{
+                              WebkitTouchCallout: 'none',
+                              WebkitUserSelect: 'none',
+                              WebkitUserDrag: 'none',
+                              userSelect: 'none',
+                              touchAction: 'pan-y',
+                            }}
+                            preload={
+                              reducedDataMode
+                                ? 'none'
+                                : isLoopInViewport || loopPreloadMode === 'active' || loopPreloadMode === 'next'
+                                ? 'auto'
+                                : 'none'
+                            }
+                            onClick={handleLoopVideoClick}
+                            onPointerDown={handleLoopPressStart}
+                            onPointerUp={handleLoopPressEnd}
+                            onPointerCancel={handleLoopPressEnd}
+                            onPointerLeave={handleLoopPressEnd}
+                            onTimeUpdate={handleLoopVideoTimeUpdate}
+                            onPlaying={handleLoopVideoPlaying}
+                            onPause={() => setIsLoopPlaying(false)}
+                            onWaiting={handleLoopVideoWaiting}
+                            onStalled={handleLoopVideoStalled}
+                            onError={handleLoopVideoError}
+                            onEnded={handleLoopVideoEnded}
+                          />
                         )}
-                      </div>
-                    ) : null}
-                    {!isLoopProcessing && reducedDataMode && !isLoopPlaying && !loopPlaybackError ? (
-                      <button
-                        type="button"
-                        onClick={handleLoopVideoClick}
-                        className="absolute left-1/2 top-1/2 z-30 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/25 bg-black/60 text-white shadow-xl backdrop-blur transition hover:bg-black/75"
-                        aria-label="Videoyu oynat"
-                      >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="size-8" aria-hidden="true">
-                          <path d="m9 7 8 5-8 5V7Z" />
-                        </svg>
-                      </button>
-                    ) : null}
-                    {loopPlaybackError ? (
-                      <div className="absolute inset-x-3 bottom-24 z-30 rounded-xl border border-white/20 bg-black/65 px-3 py-2.5 text-xs text-white backdrop-blur">
-                        <p>{loopPlaybackError}</p>
+
+                        {heartBursts.map((burst) => (
+                          <div
+                            key={burst.id}
+                            className="pointer-events-none absolute z-40 text-rose-500 drop-shadow-[0_8px_25px_rgba(244,63,94,0.85)] loop-heart-burst"
+                            style={{
+                              left: burst.x != null ? `${burst.x}px` : '50%',
+                              top: burst.y != null ? `${burst.y}px` : '50%',
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="size-24" aria-hidden="true">
+                              <path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z" />
+                            </svg>
+                          </div>
+                        ))}
+
+                        {isLoopMuteHintVisible ? (
+                          <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 grid size-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white shadow-2xl backdrop-blur-sm transition-all duration-300">
+                            {isLoopMuted ? (
+                              <VolumeOffIcon className="size-9" />
+                            ) : (
+                              <VolumeOnIcon className="size-9" />
+                            )}
+                          </div>
+                        ) : null}
+
+                        {!isLoopProcessing && reducedDataMode && !isLoopPlaying && !loopPlaybackError ? (
+                          <button
+                            type="button"
+                            onClick={handleLoopVideoClick}
+                            className="absolute left-1/2 top-1/2 z-30 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/25 bg-black/60 text-white shadow-xl backdrop-blur transition hover:bg-black/75"
+                            aria-label="Videoyu oynat"
+                          >
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="size-8" aria-hidden="true">
+                              <path d="m9 7 8 5-8 5V7Z" />
+                            </svg>
+                          </button>
+                        ) : null}
+
+                        {loopPlaybackError ? (
+                          <div className="absolute inset-x-3 bottom-24 z-30 rounded-xl border border-white/20 bg-black/65 px-3 py-2.5 text-xs text-white backdrop-blur">
+                            <p>{loopPlaybackError}</p>
+                            <button
+                              type="button"
+                              onClick={handleLoopManualRetry}
+                              className="mt-2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-zinc-900 transition hover:bg-white"
+                            >
+                              Tekrar dene
+                            </button>
+                          </div>
+                        ) : null}
+
                         <button
                           type="button"
-                          onClick={handleLoopManualRetry}
-                          className="mt-2 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-zinc-900 transition hover:bg-white"
+                          onClick={handleLoopMuteToggle}
+                          className={`absolute z-20 inline-flex min-h-10 min-w-10 items-center gap-2 rounded-full px-3 text-xs font-semibold border border-white/15 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 ${
+                            isLoopMobileVariant
+                              ? `left-3 top-14 ${isLoopMuteHintVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`
+                              : 'left-4 top-4'
+                          }`}
+                          aria-label={isLoopMuted ? 'Sesi aç' : 'Sesi kapat'}
                         >
-                          Tekrar dene
+                          {isLoopMuted ? <VolumeOffIcon className="size-4" /> : <VolumeOnIcon className="size-4" />}
                         </button>
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={handleLoopMuteToggle}
-                      className={`absolute z-20 inline-flex min-h-10 min-w-10 items-center gap-2 rounded-full  px-3 text-xs font-semibold border border-white/15 bg-white/10 text-white transition hover:bg-white/20  ${
-                        isLoopMobileVariant
-                          ? `left-3 top-14 ${isLoopMuteHintVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`
-                          : 'left-4 top-4'
-                      }`}
-                      aria-label={isLoopMuted ? 'Sesi ac' : 'Sesi kapat'}
-                    >
-                      {isLoopMuted ? <VolumeOffIcon className="size-4" /> : <VolumeOnIcon className="size-4" />}
-                      
-                    </button>
 
-                    {isLoopVariant ? (
-                      <>
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/90 to-transparent" />
                         <div
-                          className={`absolute left-0 right-0 z-20 pb-1.5 pt-3 ${
-                            isLoopMobileVariant ? 'bottom-[24px] pl-5 pr-15' : 'bottom-[24px] pl-5 pr-20'
+                          className={`absolute left-0 right-0 z-20 pb-2 pt-3 ${
+                            isLoopMobileVariant ? 'bottom-[20px] pl-4 pr-16' : 'bottom-[18px] pl-5 pr-5'
                           } ${
-                            isLoopCaptionExpanded ? 'bg-black/70 backdrop-blur-sm' : ''
+                            isLoopCaptionExpanded ? 'bg-black/75 backdrop-blur-sm' : ''
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -2437,9 +2639,7 @@ function PostCard({
                           </div>
                           {isLoopCaptionExpanded ? (
                             <div
-                              className={`mt-1 text-base leading-7 font-normal text-white/90 whitespace-pre-line break-words ${
-                                isLoopMobileVariant ? 'max-h-84 overflow-y-auto pr-1' : 'max-h-84 overflow-y-auto pr-1'
-                              }`}
+                              className="mt-1 text-base leading-7 font-normal text-white/90 whitespace-pre-line break-words max-h-84 overflow-y-auto pr-1"
                             >
                               {localPost?.title ? (
                                 <p className="mb-1 text-sm font-semibold tracking-tight text-white">{localPost.title}</p>
@@ -2471,114 +2671,15 @@ function PostCard({
                           )}
                         </div>
 
-                        <div className="absolute bottom-[60px] right-2 z-20 flex flex-col items-center gap-1">
-                          <LoopVerticalActionButton
-                            icon={<HeartIcon filled={Boolean(localPost.likedByViewer)} />}
-                            count={likes}
-                            label={t('common.like')}
-                            onClick={() => runPostAction('like', togglePostLike)}
-                            active={Boolean(localPost.likedByViewer)}
-                            disabled={!isAuthenticated || pendingAction === 'like'}
-                          />
-                          <LoopVerticalActionButton
-                            icon={<CommentIcon />}
-                            count={comments}
-                            label={t('common.comment')}
-                            onClick={openQuickComments}
-                          />
-                          <LoopVerticalActionButton
-                            icon={<BookmarkIcon filled={Boolean(localPost.savedByViewer)} />}
-                            count={saves}
-                            label={t('common.save')}
-                            onClick={() => runPostAction('save', togglePostSave)}
-                            active={Boolean(localPost.savedByViewer)}
-                            disabled={!isAuthenticated || pendingAction === 'save'}
-                          />
-                          <div ref={shareMenuRef} className="relative">
-                            <LoopVerticalActionButton
-                              icon={<ShareIcon />}
-                              count={shares}
-                              label={t('common.share')}
-                              onClick={handleShareButtonClick}
-                              active={Boolean(localPost.sharedByViewer)}
-                              disabled={isShareProcessing || pendingAction === 'share'}
-                            />
-                            {isShareMenuOpen ? (
-                              <div className="absolute bottom-0 right-full z-30 mr-2 w-56 rounded-lg border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.16)]">
-                                <button
-                                  type="button"
-                                  onClick={handleShareCopyLink}
-                                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                                >
-                                  <span>{t('common.shareActions.copyLink')}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareToPlatform('whatsapp')}
-                                  className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                                >
-                                  <span>{t('common.shareActions.whatsapp')}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareToPlatform('x')}
-                                  className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                                >
-                                  <span>{t('common.shareActions.x')}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleShareToPlatform('facebook')}
-                                  className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                                >
-                                  <span>{t('common.shareActions.facebook')}</span>
-                                </button>
-                              </div>
-                            ) : null}
+                        {/* Mobile Action Buttons (inside video frame) */}
+                        {isLoopMobileVariant ? (
+                          <div className="absolute bottom-[55px] right-2 z-20 flex flex-col items-center gap-1">
+                            {renderLoopActionButtons(false)}
                           </div>
-                          <div ref={loopOptionsMenuRef} className="relative">
-                            <LoopVerticalActionButton
-                              icon={<MoreIcon />}
-                              count=""
-                              label={t('postDetail.postOptions', { defaultValue: 'Icerik secenekleri' })}
-                              onClick={() => setIsLoopOptionsMenuOpen((current) => !current)}
-                              disabled={!isAuthenticated}
-                            />
-                            {isLoopOptionsMenuOpen ? (
-                              <div className="absolute bottom-0 right-full z-30 mr-2 w-56 rounded-lg border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.16)]">
-                                <button
-                                  type="button"
-                                  onClick={handleMarkNotInterested}
-                                  disabled={!isAuthenticated || pendingAction === 'not-interested'}
-                                  className="flex w-full items-center justify-between rounded-lg cursor-pointer px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary disabled:opacity-60"
-                                >
-                                  <span>{t('postDetail.notInterested', { defaultValue: 'Ilgilenmiyorum' })}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setIsLoopOptionsMenuOpen(false)
-                                    setIsReportOpen(true)
-                                  }}
-                                  className="mt-1 flex w-full items-center justify-between rounded-lg cursor-pointer px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                                >
-                                  <span>{t('postDetail.reportContent')}</span>
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                          <div
-                            className="inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-full  px-2 py-2 text-white/5"
-              aria-label={t('postDetail.viewCountLabel')}
-              title={t('postDetail.viewCountLabel')}
-                          >
-                            <EyeIcon />
-                            <span className="text-[10px] font-semibold leading-none">
-                              {formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="absolute bottom-[12px] left-3 right-3 z-20 h-1 md:hidden">
+                        ) : null}
+
+                        {/* Loop Progress Bar */}
+                        <div className="absolute bottom-[10px] left-3 right-3 z-20 h-1 md:hidden">
                           <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full bg-white/15">
                             <div
                               className="h-1 rounded-full bg-white/40 transition-[width] duration-150 ease-linear"
@@ -2599,8 +2700,15 @@ function PostCard({
                             aria-label={t('postDetail.viewCountLabel')}
                           />
                         </div>
-                      </>
-                    ) : null}
+                      </div>
+
+                      {/* Desktop Side Rail Action Buttons (outside video frame, on the right) */}
+                      {isLoopDesktopVariant ? (
+                        <div className="absolute bottom-4 left-[calc(100%+14px)] z-20 flex flex-col items-center gap-3">
+                          {renderLoopActionButtons(true)}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 ) : (
                   <Suspense fallback={null}>
@@ -2627,6 +2735,7 @@ function PostCard({
                   count={likes}
                   label={t('common.like')}
                   onClick={() => runPostAction('like', togglePostLike)}
+                  onCountClick={() => setIsLikesModalOpen(true)}
                   active={Boolean(localPost.likedByViewer)}
                   disabled={!isAuthenticated || pendingAction === 'like'}
                 />
@@ -2654,49 +2763,44 @@ function PostCard({
                     disabled={isShareProcessing || pendingAction === 'share'}
                   />
 
-                  {isShareMenuOpen ? (
-                    <div className="absolute bottom-full right-0 z-30 mb-2 w-56 rounded-2xl border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.16)]">
-                      <button
-                        type="button"
-                        onClick={handleShareCopyLink}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                      >
-                        <span>{t('common.shareActions.copyLink')}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleShareToPlatform('whatsapp')}
-                        className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                      >
-                        <span>{t('common.shareActions.whatsapp')}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleShareToPlatform('x')}
-                        className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                      >
-                        <span>{t('common.shareActions.x')}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleShareToPlatform('facebook')}
-                        className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                      >
-                        <span>{t('common.shareActions.facebook')}</span>
-                      </button>
-                    </div>
-                  ) : null}
+                  <ShareMenuPopover
+                    open={isShareMenuOpen}
+                    onClose={() => setIsShareMenuOpen(false)}
+                    sharePayload={sharePayload}
+                    shareTargets={shareTargets}
+                    isMobile={isMobileViewport}
+                    variant="feed"
+                    onTrackShare={trackShareIfPossible}
+                    onShowToast={setToast}
+                    anchorRef={shareMenuRef}
+                  />
                 </div>
               </div>
 
-              <div
-                className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
-              aria-label={t('postDetail.viewCountLabel')}
-              title={t('postDetail.viewCountLabel')}
-              >
-                <EyeIcon />
-                <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-              </div>
+              {canViewInsights ? (
+                <button
+                  type="button"
+                  onClick={() => setIsInsightsModalOpen(true)}
+                  className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
+                  aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                  title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                >
+                  <EyeIcon />
+                  <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                  <span className="hidden sm:inline text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
+                    {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
+                  </span>
+                </button>
+              ) : (
+                <div
+                  className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
+                  aria-label={t('postDetail.viewCountLabel')}
+                  title={t('postDetail.viewCountLabel')}
+                >
+                  <EyeIcon />
+                  <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                </div>
+              )}
             </div>
 
             <QuickCommentsPanel
@@ -2721,6 +2825,7 @@ function PostCard({
               savedByViewer={Boolean(localPost.savedByViewer)}
               sharedByViewer={Boolean(localPost.sharedByViewer)}
               onLikePost={() => runPostAction('like', togglePostLike)}
+              onLikeCountClick={() => setIsLikesModalOpen(true)}
               onCommentAction={focusQuickCommentInput}
               onSavePost={() => runPostAction('save', togglePostSave)}
               onShareAction={handleShareButtonClick}
@@ -2729,6 +2834,11 @@ function PostCard({
               shareProcessing={isShareProcessing}
               onShareCopyLink={handleShareCopyLink}
               onShareToPlatform={handleShareToPlatform}
+              sharePayload={sharePayload}
+              shareTargets={shareTargets}
+              onShareClose={() => setIsShareMenuOpen(false)}
+              onTrackShare={trackShareIfPossible}
+              onShowToast={setToast}
               likeDisabled={!isAuthenticated || pendingAction === 'like'}
               saveDisabled={!isAuthenticated || pendingAction === 'save'}
               shareDisabled={pendingAction === 'share'}
@@ -2839,6 +2949,27 @@ function PostCard({
         onChange={setLightboxIndex}
         onClose={() => setLightboxIndex(null)}
       />
+
+      {isLikesModalOpen ? (
+        <PostLikesModal
+          open={isLikesModalOpen}
+          onClose={() => setIsLikesModalOpen(false)}
+          postId={postId}
+          initialCount={likes}
+          isMobile={isMobileViewport}
+          lang={lang}
+        />
+      ) : null}
+
+      {isInsightsModalOpen ? (
+        <PostInsightsModal
+          open={isInsightsModalOpen}
+          onClose={() => setIsInsightsModalOpen(false)}
+          postId={postId}
+          isMobile={isMobileViewport}
+          lang={lang}
+        />
+      ) : null}
 
       <ActionToast
         toast={toast}

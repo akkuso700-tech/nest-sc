@@ -167,12 +167,25 @@ const updateCommentSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const getPostLikesSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({
+    postId: objectIdSchema,
+  }),
+  query: z.object({
+    page: z.coerce.number().int().positive().optional().default(1),
+    limit: z.coerce.number().int().positive().max(50).optional().default(20),
+    q: z.string().trim().max(100).optional().default(''),
+  }),
+})
+
 module.exports = {
   createPostSchema,
   updatePostSchema,
   feedSchema,
   trendsSchema,
   postIdSchema,
+  getPostLikesSchema,
   registerPostViewSchema,
   loopTelemetrySchema,
   createCommentSchema,

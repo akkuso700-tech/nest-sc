@@ -51,7 +51,19 @@ function encode(value) {
   return encodeURIComponent(toWellFormedText(value))
 }
 
-export function buildPostShareUrl({ postId, slug = '', lang = 'tr', origin }) {
+export function isLoopPost(post) {
+  const normalizedType = `${post?.contentType || post?.type || post?.publication?.contentType || ''}`
+    .trim()
+    .toLowerCase()
+
+  if (normalizedType === 'loop' || normalizedType === 'loopvideo' || normalizedType === 'loop_video') {
+    return true
+  }
+
+  return Boolean((post?.media || []).some((item) => item?.type === 'video' && item?.hlsUrl))
+}
+
+export function buildPostShareUrl({ postId, slug = '', lang = 'tr', isLoop = false, origin }) {
   if (!postId) {
     return ''
   }
@@ -59,25 +71,38 @@ export function buildPostShareUrl({ postId, slug = '', lang = 'tr', origin }) {
   const safeLang = `${lang || 'tr'}`.trim() || 'tr'
   const safeOrigin = getCurrentOrigin(origin)
 
+  if (isLoop) {
+    return new URL(`/${safeLang}/loop?post=${encode(postId)}`, safeOrigin).toString()
+  }
+
   const safeSlug = `${slug || ''}`.trim()
   const path = safeSlug ? `/${safeLang}/posts/${postId}/${encode(safeSlug)}` : `/${safeLang}/posts/${postId}`
   return new URL(path, safeOrigin).toString()
 }
 
-export function buildPostSharePayload({ post, postId, lang = 'tr', origin }) {
-  const shareUrl = buildPostShareUrl({ postId, slug: post?.slug || '', lang, origin })
+export function buildPostSharePayload({ post, postId, lang = 'tr', isLoop = false, origin }) {
+  const resolvedIsLoop = Boolean(isLoop || isLoopPost(post))
+  const shareUrl = buildPostShareUrl({
+    postId,
+    slug: post?.slug || '',
+    lang,
+    isLoop: resolvedIsLoop,
+    origin,
+  })
   const authorName =
     `${post?.author?.firstName || ''} ${post?.author?.lastName || ''}`.trim() ||
     post?.author?.username ||
     'Nest Social'
   const snippet = truncateText(post?.text || post?.content || '', 120)
-  const title = authorName
+  const title = resolvedIsLoop ? `${authorName} • Loop` : authorName
   const text = snippet ? `${authorName}: ${snippet}` : authorName
 
   return {
     url: shareUrl,
     title,
     text,
+    isLoop: resolvedIsLoop,
+    authorName,
   }
 }
 
@@ -90,6 +115,7 @@ export function buildShareTargets({ url, text = '' }) {
     whatsapp: `https://wa.me/?text=${combinedText}`,
     x: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+    telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
   }
 }
 
@@ -136,7 +162,7 @@ function isShareCancellationError(error) {
 }
 
 export async function shareWithNative(payload) {
-  if (!isMobileShareSupported()) {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
     return { status: 'unsupported' }
   }
 
@@ -157,38 +183,63 @@ export async function shareWithNative(payload) {
   }
 }
 
+export function triggerHapticFeedback(pattern = 35) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern)
+    }
+  } catch {
+    // Ignore unsupported vibration
+  }
+}
+
 export async function copyTextToClipboard(value) {
-  const text = `${value || ''}`
+  const text = `${value || ''}`.trim()
 
   if (!text) {
     throw new Error('No text to copy.')
   }
 
+  // 1. Modern navigator.clipboard API
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return true
+    try {
+      await navigator.clipboard.writeText(text)
+      triggerHapticFeedback()
+      return true
+    } catch {
+      // Fallback below
+    }
   }
 
-  if (typeof document === 'undefined') {
-    throw new Error('Clipboard unavailable.')
+  // 2. iOS Safari and fallback
+  if (typeof document !== 'undefined') {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    textarea.style.top = `${(typeof window !== 'undefined' ? window.pageYOffset : 0) || document.documentElement?.scrollTop || 0}px`
+    textarea.style.fontSize = '16px'
+    document.body.appendChild(textarea)
+
+    textarea.focus()
+    textarea.select()
+    textarea.setSelectionRange(0, textarea.value.length)
+
+    let copied = false
+    try {
+      copied = document.execCommand('copy')
+    } catch {
+      copied = false
+    }
+
+    document.body.removeChild(textarea)
+
+    if (copied) {
+      triggerHapticFeedback()
+      return true
+    }
   }
 
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.setAttribute('readonly', '')
-  textarea.style.position = 'fixed'
-  textarea.style.opacity = '0'
-  textarea.style.pointerEvents = 'none'
-  document.body.appendChild(textarea)
-  textarea.focus()
-  textarea.select()
-
-  const copied = document.execCommand('copy')
-  document.body.removeChild(textarea)
-
-  if (!copied) {
-    throw new Error('Copy command failed.')
-  }
-
-  return true
+  throw new Error('Clipboard unavailable.')
 }
