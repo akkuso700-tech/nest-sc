@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-do
 import { LanguageLayout, RootLanguageRedirect } from './routes/LanguageRouting.jsx'
 import AdminRoute from './routes/AdminRoute.jsx'
 import { isDemoEnvironment } from './lib/appEnvironment.js'
+import { CallProvider } from './store/CallContext.jsx'
 
 const HomePage = lazy(() => import('./pages/HomePage.jsx'))
 const LoopPage = lazy(() => import('./pages/LoopPage.jsx'))
@@ -91,7 +92,7 @@ function App() {
   const shouldNoindex = isDemoEnvironment || isPrivateOrUtilityRoute
 
   return (
-    <>
+    <CallProvider>
       {shouldNoindex ? (
         <Helmet>
           <meta name="robots" content="noindex,nofollow" />
@@ -237,7 +238,7 @@ function App() {
           </Routes>
         </Suspense>
       ) : null}
-    </>
+    </CallProvider>
   )
 }
 

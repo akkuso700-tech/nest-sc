@@ -152,6 +152,20 @@ function formatBrowserLanguage(langHeader) {
   return found ? `${found} (${primaryLang})` : primaryLang
 }
 
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+}
+
+function formatCallDuration(sec = 0) {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 function CopyButton({ text, label = 'Kopyala' }) {
   const [copied, setCopied] = useState(false)
 
@@ -346,9 +360,10 @@ function AdminUserDetailPage() {
   const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [conversationSearch, setConversationSearch] = useState('')
   const [chatFilter, setChatFilter] = useState('all') // 'all' | 'media' | 'deleted'
-  const [chatSubTab, setChatSubTab] = useState('stream') // 'stream' | 'media'
+  const [chatSubTab, setChatSubTab] = useState('stream') // 'stream' | 'media' | 'calls'
   const [messageSearch, setMessageSearch] = useState('')
   const [previewMedia, setPreviewMedia] = useState(null)
+  const [videoModalRecording, setVideoModalRecording] = useState(null)
 
   // Chat & Message Delete State
   const [conversationToDelete, setConversationToDelete] = useState(null)
@@ -569,7 +584,7 @@ function AdminUserDetailPage() {
     )
   }
 
-  const { user, posts = [], conversations = [], messages = [], locationLogs = [] } = state.data
+  const { user, posts = [], conversations = [], messages = [], locationLogs = [], callLogs = [] } = state.data
   const activity = user.activity || {}
   const discovery = user.discovery || {}
   const consent = user.signupConsent || {}
@@ -846,7 +861,7 @@ function AdminUserDetailPage() {
         </section>
 
         {/* Quick KPI Stat Ribbon */}
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
           <StatCard
             label="Gönderi & Medya"
             value={posts.length}
@@ -894,6 +909,16 @@ function AdminUserDetailPage() {
             icon={
               <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Görüşme Kayıtları"
+            value={callLogs.length}
+            subtext={`${callLogs.filter((c) => c.callType === 'video').length} Video · ${callLogs.filter((c) => c.callType === 'voice').length} Sesli`}
+            icon={
+              <svg className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             }
           />
@@ -1561,6 +1586,21 @@ function AdminUserDetailPage() {
               return hasDeleted
             }
 
+            if (chatFilter === 'calls') {
+              const hasCalls = callLogs.some((c) => {
+                const cConvId = typeof c.conversation === 'object' ? c.conversation?._id : c.conversation
+                if (cConvId && String(cConvId) === String(conv._id)) return true
+                const callerId = String(c.caller?._id || c.caller || '')
+                const recipientId = String(c.recipient?._id || c.recipient || '')
+                const otherId = String(other?._id || '')
+                return (
+                  (callerId === String(user._id) && recipientId === otherId) ||
+                  (callerId === otherId && recipientId === String(user._id))
+                )
+              })
+              return hasCalls
+            }
+
             return true
           })
 
@@ -1588,6 +1628,29 @@ function AdminUserDetailPage() {
                   return false
                 })
                 .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            : []
+
+          // Call logs for the active conversation
+          const activeConversationCallLogs = activeConversation
+            ? callLogs
+                .filter((c) => {
+                  const cConvId = typeof c.conversation === 'object' ? c.conversation?._id : c.conversation
+                  if (cConvId && activeConversation._id && String(cConvId) === String(activeConversation._id)) {
+                    return true
+                  }
+                  if (otherParticipant?._id) {
+                    const callerId = String(c.caller?._id || c.caller || '')
+                    const recipientId = String(c.recipient?._id || c.recipient || '')
+                    const otherId = String(otherParticipant._id)
+                    const currentId = String(user._id)
+                    return (
+                      (callerId === currentId && recipientId === otherId) ||
+                      (callerId === otherId && recipientId === currentId)
+                    )
+                  }
+                  return false
+                })
+                .sort((a, b) => new Date(b.startedAt || b.createdAt).getTime() - new Date(a.startedAt || a.createdAt).getTime())
             : []
 
           // Filter by messageSearch inside the active conversation
@@ -1673,6 +1736,17 @@ function AdminUserDetailPage() {
                         }`}
                       >
                         🖼️ Medyalı
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChatFilter('calls')}
+                        className={`flex-1 rounded-lg py-1.5 text-center text-[11px] font-semibold transition-all ${
+                          chatFilter === 'calls'
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                        }`}
+                      >
+                        📞 Aramalar
                       </button>
                       <button
                         type="button"
@@ -1844,6 +1918,17 @@ function AdminUserDetailPage() {
                               }`}
                             >
                               🖼️ Medya Kasası ({activeConversationMedia.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setChatSubTab('calls')}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                                chatSubTab === 'calls'
+                                  ? 'bg-slate-900 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                              }`}
+                            >
+                              📞 Görüşme Kayıtları ({activeConversationCallLogs.length})
                             </button>
                           </div>
 
@@ -2095,6 +2180,232 @@ function AdminUserDetailPage() {
                           ) : (
                             <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center text-xs text-slate-500">
                               Bu sohbette paylaşılan fotoğraf veya video bulunmuyor.
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Görünüm 3: Görüşme & Arama Kayıtları */}
+                      {chatSubTab === 'calls' && (
+                        <div className="mt-4 flex flex-1 flex-col space-y-4">
+                          {/* İstatistik Rozetleri */}
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3">
+                              <p className="text-[11px] font-semibold text-slate-500">Toplam Çağrı</p>
+                              <p className="mt-1 text-base font-bold text-slate-900">{activeConversationCallLogs.length}</p>
+                              <span className="text-[10px] text-slate-400">Bu sohbette</span>
+                            </div>
+                            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                              <p className="text-[11px] font-semibold text-blue-700">📞 Sesli Arama</p>
+                              <p className="mt-1 text-base font-bold text-blue-900">
+                                {activeConversationCallLogs.filter((c) => c.callType === 'voice').length}
+                              </p>
+                              <span className="text-[10px] text-blue-600 font-medium">
+                                {formatCallDuration(
+                                  activeConversationCallLogs
+                                    .filter((c) => c.callType === 'voice')
+                                    .reduce((acc, c) => acc + (c.durationSec || 0), 0)
+                                )} toplam
+                              </span>
+                            </div>
+                            <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-3">
+                              <p className="text-[11px] font-semibold text-purple-700">📹 Görüntülü (720p)</p>
+                              <p className="mt-1 text-base font-bold text-purple-900">
+                                {activeConversationCallLogs.filter((c) => c.callType === 'video').length}
+                              </p>
+                              <span className="text-[10px] text-purple-600 font-medium">
+                                {formatCallDuration(
+                                  activeConversationCallLogs
+                                    .filter((c) => c.callType === 'video')
+                                    .reduce((acc, c) => acc + (c.durationSec || 0), 0)
+                                )} toplam
+                              </span>
+                            </div>
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
+                              <p className="text-[11px] font-semibold text-emerald-700">💾 Ses/Video Kaydı</p>
+                              <p className="mt-1 text-base font-bold text-emerald-900">
+                                {activeConversationCallLogs.filter((c) => c.recordingUrl).length}
+                              </p>
+                              <span className="text-[10px] text-emerald-600 font-medium">Oynatılabilir</span>
+                            </div>
+                          </div>
+
+                          {/* Çağrı Listesi */}
+                          {activeConversationCallLogs.length ? (
+                            <div className="space-y-3 overflow-y-auto max-h-[520px] pr-1">
+                              {activeConversationCallLogs.map((log) => {
+                                const callerId = String(log.caller?._id || log.caller || '')
+                                const isInspectedCaller = callerId === String(user._id)
+                                const isVideo = log.callType === 'video'
+                                const isCompleted = log.status === 'completed'
+                                const isMissed = log.status === 'missed'
+                                const isDeclined = log.status === 'declined'
+
+                                return (
+                                  <div
+                                    key={log._id || log.callId}
+                                    className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition hover:border-slate-300"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      <div className="flex items-center gap-3">
+                                        <div
+                                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold shadow-2xs ${
+                                            isVideo
+                                              ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                              : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                          }`}
+                                        >
+                                          {isVideo ? '📹' : '📞'}
+                                        </div>
+
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <h4 className="text-xs font-bold text-slate-900">
+                                              {isVideo ? 'Görüntülü Görüşme (720p HD)' : 'Sesli Arama'}
+                                            </h4>
+                                            <span
+                                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                                isInspectedCaller
+                                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                  : 'bg-sky-50 text-sky-700 border border-sky-200'
+                                              }`}
+                                            >
+                                              {isInspectedCaller ? '↗ Giden Çağrı' : '↙ Gelen Çağrı'}
+                                            </span>
+                                          </div>
+
+                                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                                            <span>
+                                              Arayan:{' '}
+                                              <strong className="text-slate-700">
+                                                {isInspectedCaller ? getFullName(user) : getFullName(otherParticipant)}
+                                              </strong>
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                              📅 {new Date(log.startedAt || log.createdAt).toLocaleDateString('tr-TR', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                              })}
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                              🕒 Başlangıç: {new Date(log.startedAt || log.createdAt).toLocaleTimeString('tr-TR', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                second: '2-digit',
+                                              })}
+                                              {log.endedAt ? ` • Bitiş: ${new Date(log.endedAt).toLocaleTimeString('tr-TR', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                second: '2-digit',
+                                              })}` : ''}
+                                            </span>
+                                            {log.durationSec > 0 && (
+                                              <>
+                                                <span>•</span>
+                                                <span className="font-semibold text-slate-700">
+                                                  ⏱️ {formatCallDuration(log.durationSec)}
+                                                </span>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Durum Rozeti */}
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`rounded-full px-3 py-1 text-xs font-bold ${
+                                            isCompleted
+                                              ? 'bg-emerald-100 text-emerald-800'
+                                              : isMissed
+                                                ? 'bg-amber-100 text-amber-800'
+                                                : isDeclined
+                                                  ? 'bg-rose-100 text-rose-800'
+                                                  : 'bg-slate-100 text-slate-700'
+                                          }`}
+                                        >
+                                          {isCompleted
+                                            ? `✓ Görüşüldü (${formatCallDuration(log.durationSec)})`
+                                            : isMissed
+                                              ? '📵 Cevapsız'
+                                              : isDeclined
+                                                ? '🚫 Reddedildi'
+                                                : log.status}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Kayıt Oynatıcı / İzleme Alanı */}
+                                    {log.recordingUrl ? (
+                                      <div className="mt-3.5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2 text-[11px]">
+                                          <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-700">
+                                            <span>{isVideo ? '🎬 720p HD Video Kaydı' : '🎙️ Ses Kaydı (32kbps Opus)'}</span>
+                                            {log.fileSizeBytes && (
+                                              <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-mono text-slate-700">
+                                                {formatBytes(log.fileSizeBytes)}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <a
+                                              href={resolveMediaUrl(log.recordingUrl)}
+                                              download={`call-${log.callId}.webm`}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                            >
+                                              <span>📥</span>
+                                              <span>Kaydı İndir</span>
+                                            </a>
+                                          </div>
+                                        </div>
+
+                                        <div className="mt-2.5">
+                                          {isVideo ? (
+                                            <div className="flex flex-wrap items-center gap-3">
+                                              <button
+                                                type="button"
+                                                onClick={() => setVideoModalRecording(log)}
+                                                className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
+                                              >
+                                                <span>▶️</span>
+                                                <span>720p Video Kaydını İzle</span>
+                                              </button>
+                                              <span className="text-[11px] text-slate-500">
+                                                Düşük boyutlu 720p HD video ve çift taraflı ses kaydı.
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <audio
+                                              controls
+                                              className="h-9 w-full rounded-lg"
+                                              src={resolveMediaUrl(log.recordingUrl)}
+                                              preload="metadata"
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2 text-[11px] text-slate-400">
+                                        <span>ℹ️</span>
+                                        <span>
+                                          {isCompleted
+                                            ? 'Görüşme kaydı yüklenmedi veya kaydedilmedi.'
+                                            : 'Çağrı yanıtlanmadığı için ses/görüntü kaydı bulunmuyor.'}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center text-xs text-slate-500">
+                              Bu sohbette henüz sesli veya görüntülü görüşme kaydı bulunmuyor.
                             </div>
                           )}
                         </div>
@@ -2467,6 +2778,64 @@ function AdminUserDetailPage() {
                   className="max-h-[75vh] w-auto max-w-full rounded-2xl object-contain shadow-lg"
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 720p Video Call Recording Modal */}
+      {videoModalRecording && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md transition-all"
+          onClick={() => setVideoModalRecording(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl overflow-hidden rounded-3xl bg-slate-900 shadow-2xl border border-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/90 px-5 py-3.5 text-white">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white">📹 720p HD Görüntülü Görüşme Kaydı</span>
+                <span className="rounded-md bg-purple-500/20 border border-purple-400/30 px-2 py-0.5 text-[10px] font-bold text-purple-300">
+                  1280x720 • {formatBytes(videoModalRecording.fileSizeBytes || 0)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={resolveMediaUrl(videoModalRecording.recordingUrl)}
+                  download={`video-call-${videoModalRecording.callId}.webm`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                >
+                  İndir 📥
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setVideoModalRecording(null)}
+                  className="grid h-7 w-7 place-items-center rounded-full bg-slate-800 text-xs font-bold text-slate-300 hover:bg-slate-700 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="grid place-items-center bg-black p-4">
+              <video
+                src={resolveMediaUrl(videoModalRecording.recordingUrl)}
+                controls
+                autoPlay
+                className="max-h-[75vh] w-auto max-w-full rounded-2xl shadow-2xl"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/90 px-5 py-2.5 text-xs text-slate-400">
+              <span>
+                Kayıt Tarihi: {new Date(videoModalRecording.startedAt || videoModalRecording.createdAt).toLocaleString('tr-TR')}
+              </span>
+              <span>
+                Süre: {formatCallDuration(videoModalRecording.durationSec || 0)}
+              </span>
             </div>
           </div>
         </div>

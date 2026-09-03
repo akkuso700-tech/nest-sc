@@ -8,6 +8,7 @@ const { Conversation } = require('../models/Conversation')
 const { Report } = require('../models/Report')
 const { AuditLog } = require('../models/AuditLog')
 const { LocationConsentLog } = require('../models/LocationConsentLog')
+const { CallLog } = require('../models/CallLog')
 const { EmailVerificationToken } = require('../models/EmailVerificationToken')
 const { VerificationRequest } = require('../models/VerificationRequest')
 const { PostView } = require('../models/PostView')
@@ -945,7 +946,7 @@ const getUserDetail = asyncHandler(async (req, res) => {
     throw new AppError('Gecersiz kullanici kimligi.', 400)
   }
 
-  const [user, posts, conversations, messages, locationLogs] = await Promise.all([
+  const [user, posts, conversations, messages, locationLogs, callLogs] = await Promise.all([
     User.findById(userId)
       .select('-passwordHash')
       .populate('friendIds', 'firstName lastName username')
@@ -965,6 +966,13 @@ const getUserDetail = asyncHandler(async (req, res) => {
       .populate('recipient', 'firstName lastName username avatarUrl verification')
       .sort({ createdAt: 1 }),
     LocationConsentLog.find({ user: userId }).sort({ createdAt: -1 }).limit(20),
+    CallLog.find({
+      $or: [{ caller: userId }, { recipient: userId }],
+    })
+      .populate('caller', 'firstName lastName username avatarUrl verification')
+      .populate('recipient', 'firstName lastName username avatarUrl verification')
+      .sort({ createdAt: -1 })
+      .limit(100),
   ])
 
   if (!user) {
@@ -977,6 +985,7 @@ const getUserDetail = asyncHandler(async (req, res) => {
     conversations,
     messages,
     locationLogs,
+    callLogs,
   })
 })
 

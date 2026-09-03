@@ -27,6 +27,7 @@ import { formatClockTime, getFullName } from '../utils/social.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { compressImageToFile, formatBytes } from '../utils/imageUpload.js'
 import { playMessageNotificationSound } from '../utils/notificationSound.js'
+import { useCall } from '../store/CallContext.jsx'
 import {
   BackIcon,
   CheckIcon,
@@ -40,6 +41,7 @@ import {
   MicrophoneIcon,
   MoreIcon,
   PencilIcon,
+  PhoneIcon,
   PhotoIcon,
   PlayIcon,
   PlusIcon,
@@ -894,6 +896,80 @@ function MessagesPage() {
   }, [activePeerId])
 
   const isActivePeerOnline = Boolean(activePeerId && onlineUserIds.has(activePeerId))
+
+  const { callState, startCall } = useCall()
+
+  const handleStartVoiceCall = async () => {
+    if (!activePeer) return
+    const result = await startCall(activePeer, 'voice', activeConversationId)
+    if (!result?.ok) {
+      if (result.code === 'VOICE_DISABLED') {
+        setToast({
+          tone: 'error',
+          message: t('calling.voiceDisabled', {
+            defaultValue: 'Bu kullanıcı sesli aramaları kabul etmiyor.',
+          }),
+        })
+      } else if (result.code === 'BUSY') {
+        setToast({
+          tone: 'error',
+          message: t('calling.userBusy', {
+            defaultValue: 'Kullanıcı şu anda başka bir görüşmede.',
+          }),
+        })
+      } else if (result.code === 'OFFLINE') {
+        setToast({
+          tone: 'error',
+          message: t('calling.userOffline', {
+            defaultValue: 'Kullanıcı şu anda çevrimdışı.',
+          }),
+        })
+      } else {
+        setToast({
+          tone: 'error',
+          message: result.message || t('calling.blocked', {
+            defaultValue: 'Arama gerçekleştirilemedi.',
+          }),
+        })
+      }
+    }
+  }
+
+  const handleStartVideoCall = async () => {
+    if (!activePeer) return
+    const result = await startCall(activePeer, 'video', activeConversationId)
+    if (!result?.ok) {
+      if (result.code === 'VIDEO_DISABLED') {
+        setToast({
+          tone: 'error',
+          message: t('calling.videoDisabled', {
+            defaultValue: 'Bu kullanıcı görüntülü aramaları kabul etmiyor.',
+          }),
+        })
+      } else if (result.code === 'BUSY') {
+        setToast({
+          tone: 'error',
+          message: t('calling.userBusy', {
+            defaultValue: 'Kullanıcı şu anda başka bir görüşmede.',
+          }),
+        })
+      } else if (result.code === 'OFFLINE') {
+        setToast({
+          tone: 'error',
+          message: t('calling.userOffline', {
+            defaultValue: 'Kullanıcı şu anda çevrimdışı.',
+          }),
+        })
+      } else {
+        setToast({
+          tone: 'error',
+          message: result.message || t('calling.blocked', {
+            defaultValue: 'Arama gerçekleştirilemedi.',
+          }),
+        })
+      }
+    }
+  }
 
   useEffect(
     () => () => {
@@ -2623,6 +2699,28 @@ function MessagesPage() {
                             </div>
                           </Link>
 
+                          <button
+                            type="button"
+                            onClick={handleStartVoiceCall}
+                            disabled={callState !== 'idle'}
+                            className="grid size-9 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={t('calling.voiceCall', { defaultValue: 'Sesli Arama' })}
+                            title={t('calling.voiceCall', { defaultValue: 'Sesli Arama' })}
+                          >
+                            <PhoneIcon className="size-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleStartVideoCall}
+                            disabled={callState !== 'idle'}
+                            className="grid size-9 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={t('calling.videoCall', { defaultValue: 'Görüntülü Arama' })}
+                            title={t('calling.videoCall', { defaultValue: 'Görüntülü Arama' })}
+                          >
+                            <VideoIcon className="size-4" />
+                          </button>
+
                           <div className="relative">
                             <button
                               type="button"
@@ -2720,6 +2818,28 @@ function MessagesPage() {
                               </p>
                             </div>
                           </Link>
+
+                          <button
+                            type="button"
+                            onClick={handleStartVoiceCall}
+                            disabled={callState !== 'idle'}
+                            className="grid size-11 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={t('calling.voiceCall', { defaultValue: 'Sesli Arama' })}
+                            title={t('calling.voiceCall', { defaultValue: 'Sesli Arama' })}
+                          >
+                            <PhoneIcon className="size-5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleStartVideoCall}
+                            disabled={callState !== 'idle'}
+                            className="grid size-11 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={t('calling.videoCall', { defaultValue: 'Görüntülü Arama' })}
+                            title={t('calling.videoCall', { defaultValue: 'Görüntülü Arama' })}
+                          >
+                            <VideoIcon className="size-5" />
+                          </button>
 
                           <button
                             type="button"
@@ -3270,6 +3390,7 @@ function MessagesPage() {
         onNavigate={handleNavigateLightbox}
         t={t}
       />
+
       <ActionToast toast={toast} onClose={() => setToast(null)} />
     </>
   )

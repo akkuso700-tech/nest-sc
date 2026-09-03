@@ -31,6 +31,8 @@ function buildInitialForm(profile) {
       city: profile?.user?.location?.city || '',
       country: profile?.user?.location?.country || '',
     },
+    voiceCallEnabled: profile?.user?.preferences?.calling?.voiceCallEnabled !== false,
+    videoCallEnabled: profile?.user?.preferences?.calling?.videoCallEnabled !== false,
   }
 }
 
@@ -219,6 +221,17 @@ function buildProfileUpdatePayload(form, locationInputValue, initialSnapshot) {
     payload.location = nextLocation
   }
 
+  const hasVoiceChanged = Boolean(form.voiceCallEnabled) !== Boolean(initialForm.voiceCallEnabled)
+  const hasVideoChanged = Boolean(form.videoCallEnabled) !== Boolean(initialForm.videoCallEnabled)
+  if (hasVoiceChanged || hasVideoChanged) {
+    payload.preferences = {
+      calling: {
+        voiceCallEnabled: Boolean(form.voiceCallEnabled),
+        videoCallEnabled: Boolean(form.videoCallEnabled),
+      },
+    }
+  }
+
   return payload
 }
 
@@ -308,6 +321,7 @@ function EditProfilePage() {
     isSubmitting: false,
     error: '',
   })
+  const [isCallingOpen, setIsCallingOpen] = useState(false)
   const [isPasswordOpen, setIsPasswordOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false)
@@ -892,6 +906,74 @@ function EditProfilePage() {
                   </button>
                 </div>
               </SectionCard>
+
+              <AccordionSection
+                title={t('profile.edit.callingSectionTitle')}
+                description={t('profile.edit.callingSectionDescription')}
+                open={isCallingOpen}
+                onToggle={() => setIsCallingOpen((current) => !current)}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/50 p-4 transition">
+                    <div className="pr-4">
+                      <p className="text-sm font-semibold text-text">
+                        {t('profile.edit.allowVoiceCalls')}
+                      </p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {t('profile.edit.allowVoiceCallsDescription')}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formState.voiceCallEnabled}
+                        onChange={(e) =>
+                          setFormState((prev) => ({ ...prev, voiceCallEnabled: e.target.checked }))
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/50 p-4 transition">
+                    <div className="pr-4">
+                      <p className="text-sm font-semibold text-text">
+                        {t('profile.edit.allowVideoCalls')}
+                      </p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {t('profile.edit.allowVideoCallsDescription')}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formState.videoCallEnabled}
+                        onChange={(e) =>
+                          setFormState((prev) => ({ ...prev, videoCallEnabled: e.target.checked }))
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveProfile}
+                      disabled={!hasProfileChanges || saveState.isSubmitting}
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover cursor-pointer disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+                    >
+                      {saveState.isSubmitting
+                        ? t('profile.edit.saving')
+                        : showSavedState
+                          ? t('profile.edit.saved')
+                          : t('common.save')}
+                    </button>
+                  </div>
+                </div>
+              </AccordionSection>
 
               <AccordionSection
                 title={t('profile.edit.passwordSectionTitle')}
