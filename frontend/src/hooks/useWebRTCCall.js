@@ -206,6 +206,8 @@ export function useWebRTCCall({ onCallEnded } = {}) {
   const [isPeerMuted, setIsPeerMuted] = useState(false)
   const [isPeerVideoOff, setIsPeerVideoOff] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
+  const [facingMode, setFacingMode] = useState('user') // 'user' | 'environment'
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const [errorMessage, setErrorMessage] = useState(null)
   const [localStream, setLocalStream] = useState(null)
   const [remoteStream, setRemoteStream] = useState(null)
@@ -281,6 +283,8 @@ export function useWebRTCCall({ onCallEnded } = {}) {
     setIsVideoOff(false)
     setIsPeerMuted(false)
     setIsPeerVideoOff(false)
+    setIsSpeakerOn(true)
+    setFacingMode('user')
   }, [])
 
   const handleEndCallInternal = useCallback(
@@ -564,6 +568,83 @@ export function useWebRTCCall({ onCallEnded } = {}) {
     setIsMinimized((prev) => !prev)
   }, [])
 
+  const toggleSpeaker = useCallback((remoteElement) => {
+    setIsSpeakerOn((prev) => {
+      const next = !prev
+      if (remoteElement) {
+        if (typeof remoteElement.setSinkId === 'function') {
+          navigator.mediaDevices?.enumerateDevices?.().then((devices) => {
+            const outputs = devices.filter((d) => d.kind === 'audiooutput')
+            if (outputs.length > 1) {
+              const target = next ? outputs[0]?.deviceId : (outputs[1]?.deviceId || outputs[0]?.deviceId)
+              remoteElement.setSinkId(target).catch(() => {})
+            }
+          }).catch(() => {})
+        }
+        remoteElement.volume = next ? 1.0 : 0.25
+      }
+      return next
+    })
+  }, [])
+
+  const switchCamera = useCallback(async () => {
+    if (!localStreamRef.current || !activeCallRef.current || activeCallRef.current.callType !== 'video') return
+
+    const nextFacing = facingMode === 'user' ? 'environment' : 'user'
+
+    try {
+      let newStream = null
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { exact: nextFacing },
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            frameRate: { ideal: 24, max: 30 },
+          },
+        })
+      } catch {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: nextFacing },
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            frameRate: { ideal: 24, max: 30 },
+          },
+        })
+      }
+
+      const newVideoTrack = newStream?.getVideoTracks?.()[0]
+      if (!newVideoTrack) return
+
+      // Replace track on WebRTC PeerConnection
+      if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find((s) => s.track && s.track.kind === 'video')
+        if (sender) {
+          await sender.replaceTrack(newVideoTrack)
+        }
+      }
+
+      // Stop old video track
+      const oldVideoTrack = localStreamRef.current.getVideoTracks()[0]
+      if (oldVideoTrack) {
+        oldVideoTrack.stop()
+      }
+
+      // Rebuild local MediaStream
+      const currentAudioTrack = localStreamRef.current.getAudioTracks()[0]
+      const updatedStream = new MediaStream()
+      if (currentAudioTrack) updatedStream.addTrack(currentAudioTrack)
+      updatedStream.addTrack(newVideoTrack)
+
+      localStreamRef.current = updatedStream
+      setLocalStream(updatedStream)
+      setFacingMode(nextFacing)
+    } catch (err) {
+      console.warn('Could not switch camera:', err)
+    }
+  }, [facingMode])
+
   // Setup socket event listeners
   useEffect(() => {
     const socket = getSocketClient()
@@ -738,5 +819,9 @@ export function useWebRTCCall({ onCallEnded } = {}) {
     toggleMute,
     toggleVideo,
     toggleMinimize,
+    facingMode,
+    isSpeakerOn,
+    toggleSpeaker,
+    switchCamera,
   }
 }
