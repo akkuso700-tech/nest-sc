@@ -634,7 +634,7 @@ function QuickCommentsPanel({
                 active={Boolean(savedByViewer)}
                 disabled={saveDisabled}
               />
-              <div ref={shareMenuRef} className="relative">
+              <div data-share-menu="true" className="relative">
                 <InlineActionButton
                   icon={<ShareIcon />}
                   count={shareCount}
@@ -652,7 +652,6 @@ function QuickCommentsPanel({
                   variant="feed"
                   onTrackShare={onTrackShare}
                   onShowToast={onShowToast}
-                  anchorRef={shareMenuRef}
                 />
               </div>
             </div>

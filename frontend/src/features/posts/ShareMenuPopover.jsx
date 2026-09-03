@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { copyTextToClipboard, shareWithNative, triggerHapticFeedback } from '../../utils/postShare.js'
 
@@ -72,7 +73,6 @@ export default function ShareMenuPopover({
   variant = 'feed', // 'feed' | 'loop'
   onTrackShare,
   onShowToast,
-  anchorRef,
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -169,17 +169,27 @@ export default function ShareMenuPopover({
 
   // --- MOBILE BOTTOM SHEET ---
   if (isMobile) {
-    return (
+    const mobileSheet = (
       <div
-        className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity"
+        data-share-menu="true"
+        className="fixed inset-0 z-[140] flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose?.()
+          }
+          e.stopPropagation()
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={titleText}
       >
         <div
+          data-share-menu="true"
           className="w-full max-w-lg rounded-t-[28px] border-t border-border bg-card p-5 pb-8 shadow-[0_-20px_50px_rgba(0,0,0,0.35)] transition-transform duration-300"
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Top Handle */}
           <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-border-strong" />
@@ -311,19 +321,26 @@ export default function ShareMenuPopover({
         </div>
       </div>
     )
+
+    if (typeof document !== 'undefined') {
+      return createPortal(mobileSheet, document.body)
+    }
+    return mobileSheet
   }
 
   // --- DESKTOP POPOVER ---
   const popoverPositionClass =
     variant === 'loop'
-      ? 'absolute bottom-0 right-full z-30 mr-2.5'
-      : 'absolute bottom-full right-0 z-30 mb-2.5'
+      ? 'absolute bottom-0 right-full z-50 mr-3'
+      : 'absolute bottom-full right-0 z-50 mb-2.5'
 
   return (
     <div
-      ref={anchorRef}
-      className={`${popoverPositionClass} w-72 rounded-2xl border border-border bg-card/95 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.22)] backdrop-blur-md animate-[scaleIn_160ms_ease-out]`}
+      data-share-menu="true"
+      className={`${popoverPositionClass} w-72 rounded-2xl border border-border bg-card/95 p-3 shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur-md animate-[scaleIn_160ms_ease-out]`}
       onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       role="menu"
       aria-label={titleText}
     >

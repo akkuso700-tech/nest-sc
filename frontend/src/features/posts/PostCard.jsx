@@ -591,18 +591,26 @@ function PostCard({
     }
 
     function handlePointerDown(event) {
-      if (!menuRef.current?.contains(event.target)) {
+      const target = event.target
+
+      if (!menuRef.current?.contains(target)) {
         setIsMenuOpen(false)
       }
 
-      if (!shareMenuRef.current?.contains(event.target)) {
+      const isInsideShareMenu = Boolean(
+        target?.closest?.('[data-share-menu]') || shareMenuRef.current?.contains(target)
+      )
+      if (!isInsideShareMenu) {
         setIsShareMenuOpen(false)
       }
-      if (!loopOptionsMenuRef.current?.contains(event.target)) {
+
+      const isInsideLoopOptions = Boolean(
+        target?.closest?.('[data-loop-options-menu]') || loopOptionsMenuRef.current?.contains(target)
+      )
+      if (!isInsideLoopOptions) {
         setIsLoopOptionsMenuOpen(false)
       }
 
-      const target = event.target
       const clickedCommentMenu = target?.closest?.('[data-comment-menu]')
       const clickedCommentMenuTrigger = target?.closest?.('[data-comment-menu-trigger]')
       if (!clickedCommentMenu && !clickedCommentMenuTrigger) {
@@ -2108,7 +2116,7 @@ function PostCard({
           disabled={!isAuthenticated || pendingAction === 'save'}
           isDesktop={isDesktop}
         />
-        <div ref={shareMenuRef} className="relative">
+        <div ref={shareMenuRef} data-share-menu="true" className="relative">
           <LoopVerticalActionButton
             icon={<ShareIcon />}
             count={shares}
@@ -2127,10 +2135,9 @@ function PostCard({
             variant="loop"
             onTrackShare={trackShareIfPossible}
             onShowToast={setToast}
-            anchorRef={shareMenuRef}
           />
         </div>
-        <div ref={loopOptionsMenuRef} className="relative">
+        <div ref={loopOptionsMenuRef} data-loop-options-menu="true" className="relative">
           <LoopVerticalActionButton
             icon={<MoreIcon />}
             count=""
@@ -2728,80 +2735,81 @@ function PostCard({
               </div>
             ) : null}
 
-            <div className={`flex items-center justify-between gap-3 py-1 px-4 ${isLoopVariant ? 'hidden' : ''}`}>
-              <div className="flex flex-wrap items-center gap-1">
-                <InlineActionButton
-                  icon={<HeartIcon filled={Boolean(localPost.likedByViewer)} />}
-                  count={likes}
-                  label={t('common.like')}
-                  onClick={() => runPostAction('like', togglePostLike)}
-                  onCountClick={() => setIsLikesModalOpen(true)}
-                  active={Boolean(localPost.likedByViewer)}
-                  disabled={!isAuthenticated || pendingAction === 'like'}
-                />
-                <InlineActionButton
-                  icon={<CommentIcon />}
-                  count={comments}
-                  label={t('common.comment')}
-                  onClick={openQuickComments}
-                />
-                <InlineActionButton
-                  icon={<BookmarkIcon filled={Boolean(localPost.savedByViewer)} />}
-                  count={saves}
-                  label={t('common.save')}
-                  onClick={() => runPostAction('save', togglePostSave)}
-                  active={Boolean(localPost.savedByViewer)}
-                  disabled={!isAuthenticated || pendingAction === 'save'}
-                />
-                <div ref={shareMenuRef} className="relative">
+            {!isLoopVariant ? (
+              <div className="flex items-center justify-between gap-3 py-1 px-4">
+                <div className="flex flex-wrap items-center gap-1">
                   <InlineActionButton
-                    icon={<ShareIcon />}
-                    count={shares}
-                    label={t('common.share')}
-                    onClick={handleShareButtonClick}
-                    active={Boolean(localPost.sharedByViewer)}
-                    disabled={isShareProcessing || pendingAction === 'share'}
+                    icon={<HeartIcon filled={Boolean(localPost.likedByViewer)} />}
+                    count={likes}
+                    label={t('common.like')}
+                    onClick={() => runPostAction('like', togglePostLike)}
+                    onCountClick={() => setIsLikesModalOpen(true)}
+                    active={Boolean(localPost.likedByViewer)}
+                    disabled={!isAuthenticated || pendingAction === 'like'}
                   />
+                  <InlineActionButton
+                    icon={<CommentIcon />}
+                    count={comments}
+                    label={t('common.comment')}
+                    onClick={openQuickComments}
+                  />
+                  <InlineActionButton
+                    icon={<BookmarkIcon filled={Boolean(localPost.savedByViewer)} />}
+                    count={saves}
+                    label={t('common.save')}
+                    onClick={() => runPostAction('save', togglePostSave)}
+                    active={Boolean(localPost.savedByViewer)}
+                    disabled={!isAuthenticated || pendingAction === 'save'}
+                  />
+                  <div ref={shareMenuRef} data-share-menu="true" className="relative">
+                    <InlineActionButton
+                      icon={<ShareIcon />}
+                      count={shares}
+                      label={t('common.share')}
+                      onClick={handleShareButtonClick}
+                      active={Boolean(localPost.sharedByViewer)}
+                      disabled={isShareProcessing || pendingAction === 'share'}
+                    />
 
-                  <ShareMenuPopover
-                    open={isShareMenuOpen}
-                    onClose={() => setIsShareMenuOpen(false)}
-                    sharePayload={sharePayload}
-                    shareTargets={shareTargets}
-                    isMobile={isMobileViewport}
-                    variant="feed"
-                    onTrackShare={trackShareIfPossible}
-                    onShowToast={setToast}
-                    anchorRef={shareMenuRef}
-                  />
+                    <ShareMenuPopover
+                      open={isShareMenuOpen}
+                      onClose={() => setIsShareMenuOpen(false)}
+                      sharePayload={sharePayload}
+                      shareTargets={shareTargets}
+                      isMobile={isMobileViewport}
+                      variant="feed"
+                      onTrackShare={trackShareIfPossible}
+                      onShowToast={setToast}
+                    />
+                  </div>
                 </div>
+
+                {canViewInsights ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsInsightsModalOpen(true)}
+                    className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
+                    aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                    title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                  >
+                    <EyeIcon />
+                    <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                    <span className="hidden sm:inline text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
+                      {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
+                    aria-label={t('postDetail.viewCountLabel')}
+                    title={t('postDetail.viewCountLabel')}
+                  >
+                    <EyeIcon />
+                    <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                  </div>
+                )}
               </div>
-
-              {canViewInsights ? (
-                <button
-                  type="button"
-                  onClick={() => setIsInsightsModalOpen(true)}
-                  className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
-                  aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
-                  title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
-                >
-                  <EyeIcon />
-                  <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                  <span className="hidden sm:inline text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
-                    {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
-                  </span>
-                </button>
-              ) : (
-                <div
-                  className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
-                  aria-label={t('postDetail.viewCountLabel')}
-                  title={t('postDetail.viewCountLabel')}
-                >
-                  <EyeIcon />
-                  <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                </div>
-              )}
-            </div>
+            ) : null}
 
             <QuickCommentsPanel
               open={isCommentsOpen}
