@@ -622,6 +622,9 @@ function PostDetailModal() {
 
   useEffect(() => {
     function handlePointerDown(event) {
+      if (event.target.closest?.('[data-share-menu]')) {
+        return
+      }
       const clickedMobileMenu = mobileShareMenuRef.current?.contains(event.target)
       const clickedDesktopMenu = desktopShareMenuRef.current?.contains(event.target)
 
@@ -1256,7 +1259,7 @@ function PostDetailModal() {
                       disabled={!isAuthenticated || postAction === 'save'}
                       onClick={() => runPostAction('save', togglePostSave)}
                     />
-                    <div ref={mobileShareMenuRef} className="relative">
+                    <div ref={mobileShareMenuRef} data-share-menu="true" className="relative">
                       <InlineActionButton
                         icon={<ShareIcon className="size-4.5" />}
                         count={post?.stats?.shares ?? 0}
@@ -1274,7 +1277,6 @@ function PostDetailModal() {
                       variant={post?.contentType === 'loop' ? 'loop' : 'feed'}
                       onTrackShare={trackShareIfPossible}
                       onShowToast={setToast}
-                      anchorRef={mobileShareMenuRef}
                     />
                     </div>
                   </div>
@@ -1407,7 +1409,7 @@ function PostDetailModal() {
                       />
                       <InlineActionButton icon={<CommentIcon />} label={t('common.comment')} count={post?.stats?.comments ?? 0} onClick={() => commentTextareaRef.current?.focus()} />
                       <InlineActionButton icon={<BookmarkIcon filled={Boolean(post?.savedByViewer)} />} label={t('common.save')} count={post?.stats?.saves ?? 0} active={Boolean(post?.savedByViewer)} disabled={!isAuthenticated || postAction === 'save'} onClick={() => runPostAction('save', togglePostSave)} />
-                      <div ref={desktopShareMenuRef} className="relative">
+                      <div ref={desktopShareMenuRef} data-share-menu="true" className="relative">
                         <InlineActionButton
                           icon={<ShareIcon />}
                           label={t('common.share')}
@@ -1425,7 +1427,6 @@ function PostDetailModal() {
                           variant={post?.contentType === 'loop' ? 'loop' : 'feed'}
                           onTrackShare={trackShareIfPossible}
                           onShowToast={setToast}
-                          anchorRef={desktopShareMenuRef}
                         />
                       </div>
                       {canViewInsights ? (
@@ -1578,7 +1579,7 @@ function PostDetailModal() {
                     disabled={!isAuthenticated || postAction === 'save'}
                     onClick={() => runPostAction('save', togglePostSave)}
                   />
-                  <div ref={mobileShareMenuRef} className="relative">
+                  <div ref={mobileShareMenuRef} data-share-menu="true" className="relative">
                     <InlineActionButton
                       icon={<ShareIcon className="size-4.5" />}
                       count={post?.stats?.shares ?? 0}
@@ -1596,7 +1597,6 @@ function PostDetailModal() {
                       variant={post?.contentType === 'loop' ? 'loop' : 'feed'}
                       onTrackShare={trackShareIfPossible}
                       onShowToast={setToast}
-                      anchorRef={mobileShareMenuRef}
                     />
                   </div>
                 </div>
