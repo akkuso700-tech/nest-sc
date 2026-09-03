@@ -14,6 +14,8 @@ const {
   registerPostView,
   recordLoopTelemetry,
   createComment,
+  getPostLikes,
+  getPostInsights,
   togglePostLike,
   togglePostSave,
   togglePostShare,
@@ -32,6 +34,7 @@ const {
   feedSchema,
   trendsSchema,
   postIdSchema,
+  getPostLikesSchema,
   registerPostViewSchema,
   loopTelemetrySchema,
   commentIdParamsSchema,
@@ -89,6 +92,18 @@ postsRouter.post(
   authenticateOptional,
   validateRequest(loopTelemetrySchema),
   recordLoopTelemetry,
+)
+postsRouter.get(
+  '/:postId/likes',
+  authenticateOptional,
+  validateRequest(getPostLikesSchema),
+  getPostLikes,
+)
+postsRouter.get(
+  '/:postId/insights',
+  authenticate,
+  validateRequest(postIdSchema),
+  getPostInsights,
 )
 postsRouter.post(
   '/:postId/like',

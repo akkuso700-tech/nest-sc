@@ -410,6 +410,34 @@ function LoopPage() {
     }
   }, [isMobileViewport, visiblePosts.length])
 
+  useEffect(() => {
+    if (isMobileViewport) return undefined
+
+    function handleKeyDown(e) {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+        return
+      }
+
+      const scroller = desktopScrollerRef.current
+      if (!scroller || !visiblePosts.length) return
+
+      const viewportHeight = Math.max(1, scroller.clientHeight || 1)
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault()
+        const nextIndex = Math.min(activeLoopIndex + 1, visiblePosts.length - 1)
+        scroller.scrollTo({ top: nextIndex * viewportHeight, behavior: 'smooth' })
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault()
+        const prevIndex = Math.max(activeLoopIndex - 1, 0)
+        scroller.scrollTo({ top: prevIndex * viewportHeight, behavior: 'smooth' })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeLoopIndex, isMobileViewport, visiblePosts.length])
+
   const storyRailsByUsername = useMemo(() => {
     const map = new Map()
 
@@ -739,7 +767,7 @@ function LoopPage() {
                 {visiblePosts.map((post, index) => (
                   <div
                     key={post._id || post.id}
-                    className="snap-start min-h-[calc(100vh-154px)]"
+                    className="snap-start min-h-[calc(100vh-154px)] flex items-center justify-center"
                     style={{ scrollSnapStop: 'always' }}
                   >
                     {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (

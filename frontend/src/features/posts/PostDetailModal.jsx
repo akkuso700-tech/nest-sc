@@ -10,10 +10,11 @@ import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js
 import {
   buildPostSharePayload,
   buildShareTargets,
-  copyTextToClipboard,
-  isMobileShareSupported,
-  shareWithNative,
 } from '../../utils/postShare.js'
+import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery.js'
+import ShareMenuPopover from './ShareMenuPopover.jsx'
+import PostLikesModal from './PostLikesModal.jsx'
+import PostInsightsModal from './PostInsightsModal.jsx'
 import {
   createComment,
   deleteComment,
@@ -300,7 +301,43 @@ function HeaderActionWithBadge({ to, icon, label, count = 0 }) {
   )
 }
 
-function InlineActionButton({ icon, label, count = 0, active = false, onClick, disabled = false }) {
+function InlineActionButton({ icon, label, count = 0, active = false, onClick, onCountClick, disabled = false }) {
+  const shouldRenderCount = count !== null && typeof count !== 'undefined' && `${count}`.length > 0
+  const canClickCount = typeof onCountClick === 'function' && shouldRenderCount && Number(count) > 0
+
+  if (canClickCount) {
+    return (
+      <div
+        className={`inline-flex min-h-11 items-center rounded-lg transition ${
+          active
+            ? 'bg-nav-active text-primary'
+            : 'text-text hover:bg-secondary hover:text-text'
+        } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+      >
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+          title={label}
+          className="inline-flex min-h-11 min-w-8 items-center justify-center p-2.5 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {icon}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onCountClick()
+          }}
+          className="py-2.5 pr-2.5 -ml-1 text-xs font-semibold hover:underline cursor-pointer focus:outline-none"
+        >
+          {count}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <button
       type="button"
@@ -315,7 +352,7 @@ function InlineActionButton({ icon, label, count = 0, active = false, onClick, d
       } disabled:cursor-not-allowed disabled:opacity-60`}
     >
       {icon}
-      <span className="text-xs font-semibold">{count}</span>
+      {shouldRenderCount ? <span className="text-xs font-semibold">{count}</span> : null}
     </button>
   )
 }
@@ -433,9 +470,12 @@ function PostDetailModal() {
   const [isCurrentMediaUnavailable, setIsCurrentMediaUnavailable] = useState(false)
   const [currentMediaCandidateIndex, setCurrentMediaCandidateIndex] = useState(0)
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false)
-  const [isShareProcessing, setIsShareProcessing] = useState(false)
+  const [isLikesModalOpen, setIsLikesModalOpen] = useState(false)
+  const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false)
+  const isShareProcessing = postAction === 'share'
   const [toast, setToast] = useState({ message: '', tone: 'success' })
   const [isMobileCommentsOpen, setIsMobileCommentsOpen] = useState(false)
+  const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
   const [activeCommentMenuId, setActiveCommentMenuId] = useState(null)
   const [reportTarget, setReportTarget] = useState({ kind: 'post', id: null })
   const [pendingDeleteComment, setPendingDeleteComment] = useState(null)
@@ -656,6 +696,8 @@ function PostDetailModal() {
   const postTitle = `${post?.title || ''}`.trim()
   const viewerUserId = user?._id?.toString?.() || user?.id?.toString?.() || ''
   const postAuthorId = author?._id?.toString?.() || author?.id?.toString?.() || ''
+  const isOwnPost = Boolean(user && author && (viewerUserId === postAuthorId || user.username === author.username))
+  const canViewInsights = Boolean(isOwnPost || user?.role === 'admin')
   const sortedComments = useMemo(() => sortCommentsTree(detailState.comments, commentSort), [detailState.comments, commentSort])
   const replyTarget = useMemo(() => (replyTargetId ? findCommentById(detailState.comments, replyTargetId) : null), [detailState.comments, replyTargetId])
   const editingComment = useMemo(() => (editingCommentId ? findCommentById(detailState.comments, editingCommentId) : null), [detailState.comments, editingCommentId])
@@ -826,88 +868,8 @@ function PostDetailModal() {
     }
   }
 
-  async function handleNativeShare() {
-    setIsShareProcessing(true)
-    const result = await shareWithNative(sharePayload)
-    setIsShareProcessing(false)
-    return result
-  }
-
-  async function handleShareCopyLink() {
-    try {
-      await copyTextToClipboard(sharePayload.url)
-      setToast({ message: t('common.shareActions.linkCopied'), tone: 'success' })
-      setIsShareMenuOpen(false)
-      void trackShareIfPossible()
-    } catch {
-      setToast({ message: t('common.shareActions.copyFailed'), tone: 'error' })
-    }
-  }
-
-  function handleShareToPlatform(platformKey) {
-    const targetUrl = shareTargets[platformKey]
-
-    if (!targetUrl) {
-      return
-    }
-
-    if (typeof window !== 'undefined') {
-      window.open(targetUrl, '_blank', 'noopener,noreferrer')
-    }
-
-    setToast({ message: t('common.shareActions.platformOpened'), tone: 'success' })
-    setIsShareMenuOpen(false)
-    void trackShareIfPossible()
-  }
-
-  async function handleShareButtonClick() {
+  function handleShareButtonClick() {
     if (!sharePayload.url || isShareProcessing) {
-      return
-    }
-
-    const viewportMobile = typeof window !== 'undefined'
-      ? window.matchMedia?.('(max-width: 767px)')?.matches
-      : false
-    const uaMobile = typeof navigator !== 'undefined'
-      ? MOBILE_UA_PATTERN.test(navigator.userAgent || '')
-      : false
-
-    if (viewportMobile || uaMobile) {
-      const nativeShareResult = await handleNativeShare()
-
-      if (nativeShareResult.status === 'shared') {
-        setToast({ message: t('common.shareActions.shared'), tone: 'success' })
-        setIsShareMenuOpen(false)
-        void trackShareIfPossible()
-        return
-      }
-
-      if (nativeShareResult.status === 'cancelled') {
-        setIsShareMenuOpen(false)
-        return
-      }
-
-      if (nativeShareResult.status === 'unsupported' || nativeShareResult.status === 'error') {
-        if (nativeShareResult.status === 'error') {
-          setToast({ message: t('common.shareActions.failed'), tone: 'error' })
-        }
-
-        try {
-          await copyTextToClipboard(sharePayload.url)
-          setToast({ message: t('common.shareActions.linkCopied'), tone: 'success' })
-          setIsShareMenuOpen(false)
-          void trackShareIfPossible()
-        } catch {
-          setToast({ message: t('common.shareActions.copyFailed'), tone: 'error' })
-          setIsShareMenuOpen((current) => !current)
-        }
-        return
-      }
-
-      return
-    }
-
-    if (isMobileShareSupported()) {
       return
     }
 
@@ -1278,6 +1240,7 @@ function PostDetailModal() {
                       active={Boolean(post?.likedByViewer)}
                       disabled={!isAuthenticated || postAction === 'like'}
                       onClick={() => runPostAction('like', togglePostLike)}
+                      onCountClick={() => setIsLikesModalOpen(true)}
                     />
                     <InlineActionButton
                       icon={<CommentIcon className="size-4.5" />}
@@ -1302,48 +1265,43 @@ function PostDetailModal() {
                         disabled={isShareProcessing || postAction === 'share'}
                         onClick={handleShareButtonClick}
                       />
-                    {isShareMenuOpen ? (
-                      <div className="absolute bottom-full right-0 z-30 mb-2 w-56 rounded-2xl border border-white/20 bg-zinc-900/96 p-2 shadow-[0_20px_45px_rgba(0,0,0,0.4)]">
-                        <button
-                          type="button"
-                          onClick={handleShareCopyLink}
-                          className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-white transition hover:bg-white/10"
-                        >
-                          <span>{t('common.shareActions.copyLink')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareToPlatform('whatsapp')}
-                          className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-white transition hover:bg-white/10"
-                        >
-                          <span>{t('common.shareActions.whatsapp')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareToPlatform('x')}
-                          className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-white transition hover:bg-white/10"
-                        >
-                          <span>{t('common.shareActions.x')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareToPlatform('facebook')}
-                          className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-white transition hover:bg-white/10"
-                        >
-                          <span>{t('common.shareActions.facebook')}</span>
-                        </button>
-                      </div>
-                    ) : null}
+                    <ShareMenuPopover
+                      open={isShareMenuOpen}
+                      onClose={() => setIsShareMenuOpen(false)}
+                      sharePayload={sharePayload}
+                      shareTargets={shareTargets}
+                      isMobile={isMobileViewport}
+                      variant={post?.contentType === 'loop' ? 'loop' : 'feed'}
+                      onTrackShare={trackShareIfPossible}
+                      onShowToast={setToast}
+                      anchorRef={mobileShareMenuRef}
+                    />
                     </div>
                   </div>
-                  <div
-                    className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
-                    aria-label={t('postDetail.viewCountLabel')}
-                    title={t('postDetail.viewCountLabel')}
-                  >
-                    <EyeIcon />
-                    <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                  </div>
+                  {canViewInsights ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsInsightsModalOpen(true)}
+                      className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
+                      aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                      title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                    >
+                      <EyeIcon />
+                      <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                      <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
+                        {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
+                      </span>
+                    </button>
+                  ) : (
+                    <div
+                      className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
+                      aria-label={t('postDetail.viewCountLabel')}
+                      title={t('postDetail.viewCountLabel')}
+                    >
+                      <EyeIcon />
+                      <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1438,7 +1396,15 @@ function PostDetailModal() {
                     ) : null}
 
                     <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2 xl:border-zinc-100 dark:xl:border-zinc-800">
-                      <InlineActionButton icon={<HeartIcon filled={Boolean(post?.likedByViewer)} />} label={t('common.like')} count={post?.stats?.likes ?? 0} active={Boolean(post?.likedByViewer)} disabled={!isAuthenticated || postAction === 'like'} onClick={() => runPostAction('like', togglePostLike)} />
+                      <InlineActionButton
+                        icon={<HeartIcon filled={Boolean(post?.likedByViewer)} />}
+                        label={t('common.like')}
+                        count={post?.stats?.likes ?? 0}
+                        active={Boolean(post?.likedByViewer)}
+                        disabled={!isAuthenticated || postAction === 'like'}
+                        onClick={() => runPostAction('like', togglePostLike)}
+                        onCountClick={() => setIsLikesModalOpen(true)}
+                      />
                       <InlineActionButton icon={<CommentIcon />} label={t('common.comment')} count={post?.stats?.comments ?? 0} onClick={() => commentTextareaRef.current?.focus()} />
                       <InlineActionButton icon={<BookmarkIcon filled={Boolean(post?.savedByViewer)} />} label={t('common.save')} count={post?.stats?.saves ?? 0} active={Boolean(post?.savedByViewer)} disabled={!isAuthenticated || postAction === 'save'} onClick={() => runPostAction('save', togglePostSave)} />
                       <div ref={desktopShareMenuRef} className="relative">
@@ -1450,47 +1416,42 @@ function PostDetailModal() {
                           disabled={isShareProcessing || postAction === 'share'}
                           onClick={handleShareButtonClick}
                         />
-                        {isShareMenuOpen ? (
-                          <div className="absolute bottom-full right-0 z-30 mb-2 w-56 rounded-2xl border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.16)]">
-                            <button
-                              type="button"
-                              onClick={handleShareCopyLink}
-                              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                            >
-                              <span>{t('common.shareActions.copyLink')}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleShareToPlatform('whatsapp')}
-                              className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                            >
-                              <span>{t('common.shareActions.whatsapp')}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleShareToPlatform('x')}
-                              className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                            >
-                              <span>{t('common.shareActions.x')}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleShareToPlatform('facebook')}
-                              className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                            >
-                              <span>{t('common.shareActions.facebook')}</span>
-                            </button>
-                          </div>
-                        ) : null}
+                        <ShareMenuPopover
+                          open={isShareMenuOpen}
+                          onClose={() => setIsShareMenuOpen(false)}
+                          sharePayload={sharePayload}
+                          shareTargets={shareTargets}
+                          isMobile={isMobileViewport}
+                          variant={post?.contentType === 'loop' ? 'loop' : 'feed'}
+                          onTrackShare={trackShareIfPossible}
+                          onShowToast={setToast}
+                          anchorRef={desktopShareMenuRef}
+                        />
                       </div>
-                      <div
-                        className="inline-flex shrink-0 items-center gap-1.5 px-2 text-xs font-semibold text-muted"
-                        aria-label={t('postDetail.viewCountLabel')}
-                        title={t('postDetail.viewCountLabel')}
-                      >
-                        <EyeIcon />
-                        <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                      </div>
+                      {canViewInsights ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsInsightsModalOpen(true)}
+                          className="inline-flex shrink-0 items-center gap-1.5 px-2 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
+                          aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                          title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                        >
+                          <EyeIcon />
+                          <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                          <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
+                            {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
+                          </span>
+                        </button>
+                      ) : (
+                        <div
+                          className="inline-flex shrink-0 items-center gap-1.5 px-2 text-xs font-semibold text-muted"
+                          aria-label={t('postDetail.viewCountLabel')}
+                          title={t('postDetail.viewCountLabel')}
+                        >
+                          <EyeIcon />
+                          <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1601,6 +1562,7 @@ function PostDetailModal() {
                     active={Boolean(post?.likedByViewer)}
                     disabled={!isAuthenticated || postAction === 'like'}
                     onClick={() => runPostAction('like', togglePostLike)}
+                    onCountClick={() => setIsLikesModalOpen(true)}
                   />
                   <InlineActionButton
                     icon={<CommentIcon className="size-4.5" />}
@@ -1625,45 +1587,40 @@ function PostDetailModal() {
                       disabled={isShareProcessing || postAction === 'share'}
                       onClick={handleShareButtonClick}
                     />
-                    {isShareMenuOpen ? (
-                      <div className="absolute bottom-full right-0 z-30 mb-2 w-56 rounded-2xl border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.16)]">
-                        <button
-                          type="button"
-                          onClick={handleShareCopyLink}
-                          className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                        >
-                          <span>{t('common.shareActions.copyLink')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareToPlatform('whatsapp')}
-                          className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                        >
-                          <span>{t('common.shareActions.whatsapp')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareToPlatform('x')}
-                          className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                        >
-                          <span>{t('common.shareActions.x')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareToPlatform('facebook')}
-                          className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                        >
-                          <span>{t('common.shareActions.facebook')}</span>
-                        </button>
-                      </div>
-                    ) : null}
+                    <ShareMenuPopover
+                      open={isShareMenuOpen}
+                      onClose={() => setIsShareMenuOpen(false)}
+                      sharePayload={sharePayload}
+                      shareTargets={shareTargets}
+                      isMobile={isMobileViewport}
+                      variant={post?.contentType === 'loop' ? 'loop' : 'feed'}
+                      onTrackShare={trackShareIfPossible}
+                      onShowToast={setToast}
+                      anchorRef={mobileShareMenuRef}
+                    />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted">
-                    <EyeIcon />
-                    <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                  </div>
+                  {canViewInsights ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsInsightsModalOpen(true)}
+                      className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
+                      aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                      title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
+                    >
+                      <EyeIcon />
+                      <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                      <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
+                        {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted">
+                      <EyeIcon />
+                      <span>{formatViewCount(postViews, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsMobileCommentsOpen(false)}
@@ -1808,6 +1765,25 @@ function PostDetailModal() {
             }}
           />
         </Suspense>
+      ) : null}
+      {isLikesModalOpen ? (
+        <PostLikesModal
+          open={isLikesModalOpen}
+          onClose={() => setIsLikesModalOpen(false)}
+          postId={postId}
+          initialCount={post?.stats?.likes ?? 0}
+          isMobile={isMobileViewport}
+          lang={lang}
+        />
+      ) : null}
+      {isInsightsModalOpen ? (
+        <PostInsightsModal
+          open={isInsightsModalOpen}
+          onClose={() => setIsInsightsModalOpen(false)}
+          postId={postId}
+          isMobile={isMobileViewport}
+          lang={lang}
+        />
       ) : null}
       <ActionToast
         toast={toast}

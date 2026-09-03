@@ -16,6 +16,7 @@ import {
   ShareIcon,
 } from './PostCardIcons.jsx'
 import { PhotoIcon } from './PostComposerIcons.jsx'
+import ShareMenuPopover from './ShareMenuPopover.jsx'
 const ReplyComposer = lazy(() => import('./ReplyComposer.jsx'))
 const MediaGallery = lazy(() => import('./MediaGallery.jsx'))
 
@@ -24,9 +25,46 @@ function InlineActionButton({
   count,
   label,
   onClick,
+  onCountClick,
   active = false,
   disabled = false,
 }) {
+  const shouldRenderCount = count !== null && typeof count !== 'undefined' && `${count}`.length > 0
+  const canClickCount = typeof onCountClick === 'function' && shouldRenderCount && Number(count) > 0
+
+  if (canClickCount) {
+    return (
+      <div
+        className={`inline-flex min-h-11 items-center rounded-lg transition ${
+          active
+            ? 'bg-nav-active text-primary'
+            : 'text-text hover:bg-secondary hover:text-text'
+        } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
+      >
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+          title={label}
+          className="inline-flex min-h-11 min-w-8 items-center justify-center p-2.5 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {icon}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onCountClick()
+          }}
+          className="py-2.5 pr-2.5 -ml-1 text-xs font-semibold hover:underline cursor-pointer focus:outline-none"
+        >
+          {count}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <button
       type="button"
@@ -40,7 +78,7 @@ function InlineActionButton({
       } disabled:cursor-not-allowed disabled:opacity-60`}
     >
       {icon}
-      <span className="text-xs font-semibold">{count}</span>
+      {shouldRenderCount ? <span className="text-xs font-semibold">{count}</span> : null}
     </button>
   )
 }
@@ -380,6 +418,7 @@ function QuickCommentsPanel({
   savedByViewer,
   sharedByViewer,
   onLikePost,
+  onLikeCountClick,
   onCommentAction,
   onSavePost,
   onShareAction,
@@ -388,6 +427,11 @@ function QuickCommentsPanel({
   shareProcessing,
   onShareCopyLink,
   onShareToPlatform,
+  sharePayload,
+  shareTargets,
+  onShareClose,
+  onTrackShare,
+  onShowToast,
   likeDisabled,
   saveDisabled,
   shareDisabled,
@@ -572,6 +616,7 @@ function QuickCommentsPanel({
                 count={likeCount}
                 label={t('common.like')}
                 onClick={onLikePost}
+                onCountClick={onLikeCountClick}
                 active={Boolean(likedByViewer)}
                 disabled={likeDisabled}
               />
@@ -598,38 +643,17 @@ function QuickCommentsPanel({
                   active={Boolean(sharedByViewer)}
                   disabled={shareProcessing || shareDisabled}
                 />
-                {shareMenuOpen ? (
-                  <div className="absolute bottom-full right-0 z-30 mb-2 w-56 rounded-2xl border border-border bg-card p-2 shadow-[0_20px_45px_rgba(15,23,42,0.16)]">
-                    <button
-                      type="button"
-                      onClick={onShareCopyLink}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                    >
-                      <span>{t('common.shareActions.copyLink')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onShareToPlatform('whatsapp')}
-                      className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                    >
-                      <span>{t('common.shareActions.whatsapp')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onShareToPlatform('x')}
-                      className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                    >
-                      <span>{t('common.shareActions.x')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onShareToPlatform('facebook')}
-                      className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-text transition hover:bg-secondary"
-                    >
-                      <span>{t('common.shareActions.facebook')}</span>
-                    </button>
-                  </div>
-                ) : null}
+                <ShareMenuPopover
+                  open={shareMenuOpen}
+                  onClose={onShareClose || (() => {})}
+                  sharePayload={sharePayload}
+                  shareTargets={shareTargets}
+                  isMobile={isMobile}
+                  variant="feed"
+                  onTrackShare={onTrackShare}
+                  onShowToast={onShowToast}
+                  anchorRef={shareMenuRef}
+                />
               </div>
             </div>
             <div

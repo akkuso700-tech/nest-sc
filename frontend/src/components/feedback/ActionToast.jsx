@@ -9,8 +9,12 @@ function ActionToast({ toast, onClose }) {
       : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/70 dark:text-emerald-200'
 
   return (
-    <div className="fixed bottom-5 right-5 z-[95] animate-[toast-in_220ms_ease-out]" role="status" aria-live="polite">
-      <div className={`min-w-[280px] max-w-[calc(100vw-2.5rem)] rounded-xl border px-4 py-3 shadow-[0_20px_40px_rgba(15,23,42,0.16)] backdrop-blur ${toneClasses}`}>
+    <div
+      className="pointer-events-none fixed bottom-[72px] inset-x-4 z-[140] flex justify-center sm:inset-x-auto sm:bottom-6 sm:right-6 sm:justify-end animate-[toast-in_220ms_ease-out]"
+      role="status"
+      aria-live="polite"
+    >
+      <div className={`pointer-events-auto min-w-[280px] max-w-[calc(100vw-2rem)] rounded-2xl border px-4 py-3 shadow-[0_20px_40px_rgba(15,23,42,0.18)] backdrop-blur-md ${toneClasses}`}>
         <div className="flex items-start justify-between gap-4">
           <p className="text-sm font-medium">{toast.message}</p>
           <button

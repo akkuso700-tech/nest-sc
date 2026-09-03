@@ -251,6 +251,19 @@ export function createComment(postId, payload) {
   })
 }
 
+export function getPostLikes(postId, { page = 1, limit = 20, q = '' } = {}) {
+  const query = new URLSearchParams()
+  if (page) query.set('page', String(page))
+  if (limit) query.set('limit', String(limit))
+  if (q) query.set('q', String(q))
+
+  return apiRequest(`/posts/${postId}/likes${query.toString() ? `?${query.toString()}` : ''}`)
+}
+
+export function getPostInsights(postId) {
+  return apiRequest(`/posts/${postId}/insights`)
+}
+
 export function togglePostLike(postId, recommendation = null) {
   return apiRequest(`/posts/${postId}/like`, {
     method: 'POST',

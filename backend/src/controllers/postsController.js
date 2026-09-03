@@ -28,6 +28,7 @@ const {
   serializeCommentForViewer,
 } = require('../utils/socialSerializers')
 const { normalizeUserMedia } = require('../utils/mediaUrls')
+const { serializeUser } = require('../utils/tokens')
 const { sanitizeTitle, slugifyTitle } = require('../utils/postSeo')
 const { env } = require('../config/env')
 const { enqueueLoopVideo } = require('../services/videoProcessingQueueService')
@@ -2944,6 +2945,221 @@ const createComment = asyncHandler(async (req, res) => {
   }
 })
 
+function buildViewerRelationshipState(targetUser, viewer) {
+  const isOwnProfile =
+    Boolean(viewer) && targetUser._id.toString() === viewer._id.toString()
+
+  return {
+    canFollow: Boolean(viewer) && !isOwnProfile,
+    isFollowing:
+      Boolean(viewer) &&
+      !isOwnProfile &&
+      (viewer.friendIds || []).some(
+        (friendId) => friendId.toString() === targetUser._id.toString(),
+      ),
+    followsViewer:
+      Boolean(viewer) &&
+      !isOwnProfile &&
+      (targetUser.friendIds || []).some(
+        (friendId) => friendId.toString() === viewer._id.toString(),
+      ),
+  }
+}
+
+const getPostLikes = asyncHandler(async (req, res) => {
+  const post = await getAccessiblePost(req.validated.params.postId, req.user)
+  const page = Math.max(1, Number(req.validated.query.page) || 1)
+  const limit = Math.min(50, Math.max(1, Number(req.validated.query.limit) || 20))
+  const search = (req.validated.query.q || '').trim()
+
+  const likedIds = post.likedByUserIds || []
+  if (!likedIds.length) {
+    return res.json({
+      users: [],
+      totalLikes: 0,
+      pagination: {
+        page,
+        limit,
+        totalItems: 0,
+        totalPages: 0,
+        hasMore: false,
+      },
+    })
+  }
+
+  const userQuery = {
+    _id: { $in: likedIds },
+    accountStatus: { $ne: 'suspended' },
+  }
+
+  if (search) {
+    const escapedSearch = escapeRegex(search)
+    userQuery.$or = [
+      { username: { $regex: escapedSearch, $options: 'i' } },
+      { firstName: { $regex: escapedSearch, $options: 'i' } },
+      { lastName: { $regex: escapedSearch, $options: 'i' } },
+    ]
+  }
+
+  const totalItems = await User.countDocuments(userQuery)
+  const totalPages = Math.ceil(totalItems / limit) || 0
+  const skip = (page - 1) * limit
+
+  const users = await User.find(userQuery)
+    .select(
+      'firstName lastName username email birthDate location role accountStatus moderation bio avatarUrl coverUrl isPrivate lastLoginAt createdAt friendIds verification',
+    )
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+
+  const viewer = req.user || null
+  const serializedUsers = users.map((u) => ({
+    user: serializeUser(u),
+    viewerState: buildViewerRelationshipState(u, viewer),
+  }))
+
+  res.json({
+    users: serializedUsers,
+    totalLikes: post.stats?.likes || likedIds.length,
+    pagination: {
+      page,
+      limit,
+      totalItems,
+      totalPages,
+      hasMore: page < totalPages,
+    },
+  })
+})
+
+const getPostInsights = asyncHandler(async (req, res) => {
+  const post = await Post.findById(req.validated.params.postId).populate(
+    'author',
+    'firstName lastName username avatarUrl verification',
+  )
+
+  if (!post) {
+    throw new AppError('Post not found.', 404)
+  }
+
+  const authorId = post.author?._id || post.author
+  const isAuthor =
+    req.user && authorId && authorId.toString() === req.user._id.toString()
+  const isAdmin = req.user && req.user.role === 'admin'
+
+  if (!isAuthor && !isAdmin) {
+    throw new AppError('You are not authorized to view insights for this post.', 403)
+  }
+
+  const views = post.stats?.views || 0
+  const likes = post.stats?.likes ?? post.likedByUserIds?.length ?? 0
+  const comments = post.stats?.comments || 0
+  const saves = post.stats?.saves ?? post.savedByUserIds?.length ?? 0
+  const shares = post.stats?.shares ?? post.sharedByUserIds?.length ?? 0
+  const totalInteractions = likes + comments + saves + shares
+
+  const engagementRate =
+    views > 0 ? Number(((totalInteractions / views) * 100).toFixed(1)) : 0
+
+  // Video / Loop metrics
+  const isVideoOrLoop =
+    post.contentType === 'loop' ||
+    (post.media || []).some((m) => m.type === 'video')
+  const loopSignalsCount = post.stats?.loopSignalsCount || 0
+  const loopCompletions = post.stats?.loopCompletions || 0
+  const loopReplays = post.stats?.loopReplays || 0
+
+  const completionRate =
+    views > 0 ? Math.min(100, Math.round((loopCompletions / views) * 100)) : 0
+  const averageWatchRatio =
+    loopSignalsCount > 0
+      ? Math.min(
+          100,
+          Math.round(((post.stats?.loopWatchRatioSum || 0) / loopSignalsCount) * 100),
+        )
+      : 0
+  const averageWatchSeconds =
+    loopSignalsCount > 0
+      ? Number(
+          ((post.stats?.loopVisibleMsSum || 0) / loopSignalsCount / 1000).toFixed(1),
+        )
+      : 0
+
+  // Aggregate last 7 days from PostView
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6)
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0)
+
+  let trend = []
+  try {
+    const viewAggregation = await PostView.aggregate([
+      {
+        $match: {
+          post: post._id,
+          dayBucket: { $gte: sevenDaysAgo },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$dayBucket' } },
+          count: { $sum: 1 },
+        },
+      },
+    ])
+
+    const countsByDay = new Map()
+    for (const item of viewAggregation) {
+      countsByDay.set(item._id, item.count)
+    }
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setUTCDate(d.getUTCDate() - i)
+      const dateStr = d.toISOString().slice(0, 10)
+      trend.push({
+        date: dateStr,
+        views: countsByDay.get(dateStr) || 0,
+      })
+    }
+  } catch {
+    trend = []
+  }
+
+  res.json({
+    post: {
+      id: post._id,
+      title: post.title || '',
+      text: post.text || '',
+      contentType: post.contentType,
+      media: post.media || [],
+      createdAt: post.createdAt,
+      author: post.author,
+    },
+    kpi: {
+      views,
+      totalInteractions,
+      engagementRate,
+    },
+    interactions: {
+      likes,
+      comments,
+      saves,
+      shares,
+    },
+    videoMetrics: isVideoOrLoop
+      ? {
+          isVideo: true,
+          completionRate,
+          averageWatchRatio,
+          averageWatchSeconds,
+          loopReplays,
+          loopCompletions,
+        }
+      : { isVideo: false },
+    trend,
+  })
+})
+
 const togglePostLike = asyncHandler(async (req, res) => {
   const io = req.app.locals.io || null
   const post = await getAccessiblePost(req.validated.params.postId, req.user)
@@ -3394,6 +3610,8 @@ module.exports = {
   registerPostView,
   recordLoopTelemetry,
   createComment,
+  getPostLikes,
+  getPostInsights,
   togglePostLike,
   togglePostSave,
   togglePostShare,
