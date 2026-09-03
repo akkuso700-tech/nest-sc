@@ -33,6 +33,8 @@ export function CallProvider({ children }) {
     isPeerMuted,
     isPeerVideoOff,
     isMinimized,
+    facingMode,
+    isSpeakerOn,
     errorMessage: callErrorMessage,
     setErrorMessage: setCallErrorMessage,
     localStream,
@@ -43,6 +45,8 @@ export function CallProvider({ children }) {
     toggleMute,
     toggleVideo,
     toggleMinimize,
+    toggleSpeaker,
+    switchCamera,
   } = callManager
 
   useEffect(() => {
@@ -76,11 +80,15 @@ export function CallProvider({ children }) {
           isPeerMuted={isPeerMuted}
           isPeerVideoOff={isPeerVideoOff}
           isMinimized={isMinimized}
+          facingMode={facingMode}
+          isSpeakerOn={isSpeakerOn}
           localStream={localStream}
           remoteStream={remoteStream}
           onToggleMute={toggleMute}
           onToggleVideo={toggleVideo}
           onToggleMinimize={toggleMinimize}
+          onToggleSpeaker={toggleSpeaker}
+          onSwitchCamera={switchCamera}
           onEndCall={endCall}
         />
       ) : null}
