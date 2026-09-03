@@ -14,6 +14,12 @@ const ICE_SERVERS = [
   { urls: 'stun:stun2.l.google.com:19302' },
 ]
 
+const DEFAULT_AUDIO_CONSTRAINTS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+}
+
 export function parseMediaError(err, callType) {
   if (typeof window !== 'undefined' && !window.isSecureContext) {
     return {
@@ -320,17 +326,15 @@ export function useWebRTCCall({ onCallEnded } = {}) {
       }
 
       pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          const stream = event.streams[0]
-          remoteStreamRef.current = stream
-          setRemoteStream(stream)
-          if (onRemoteStreamUpdate) {
-            onRemoteStreamUpdate(stream)
-          }
+        const stream = (event.streams && event.streams[0]) || new MediaStream([event.track])
+        remoteStreamRef.current = stream
+        setRemoteStream(stream)
+        if (onRemoteStreamUpdate) {
+          onRemoteStreamUpdate(stream)
+        }
 
-          if (activeCallRef.current?.callId) {
-            tryStartRecording(activeCallRef.current.callId, activeCallRef.current.callType, stream)
-          }
+        if (activeCallRef.current?.callId) {
+          tryStartRecording(activeCallRef.current.callId, activeCallRef.current.callType, stream)
         }
       }
 
@@ -367,10 +371,17 @@ export function useWebRTCCall({ onCallEnded } = {}) {
             }
           : false
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: videoConstraints,
-        })
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: DEFAULT_AUDIO_CONSTRAINTS,
+            video: videoConstraints,
+          })
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: videoConstraints,
+          })
+        }
         localStreamRef.current = stream
         setLocalStream(stream)
       } catch (err) {
@@ -451,10 +462,17 @@ export function useWebRTCCall({ onCallEnded } = {}) {
           }
         : false
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: videoConstraints,
-      })
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: DEFAULT_AUDIO_CONSTRAINTS,
+          video: videoConstraints,
+        })
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: videoConstraints,
+        })
+      }
       localStreamRef.current = stream
       setLocalStream(stream)
     } catch (err) {
