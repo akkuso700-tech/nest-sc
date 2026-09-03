@@ -50,14 +50,38 @@ export default function CallModal({
   }, [localStream, isPiPSwapped])
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream
+    const videoEl = remoteVideoRef.current
+    if (!videoEl) return
+
+    if (remoteStream) {
+      videoEl.srcObject = remoteStream
+      const p = videoEl.play()
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {})
+      }
     }
   }, [remoteStream, isPiPSwapped])
 
   useEffect(() => {
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream
+    const audioEl = remoteAudioRef.current
+    if (!audioEl) return
+
+    if (remoteStream) {
+      audioEl.srcObject = remoteStream
+      const attemptPlay = () => {
+        const p = audioEl.play()
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {})
+        }
+      }
+      attemptPlay()
+      audioEl.onloadedmetadata = attemptPlay
+    } else {
+      audioEl.srcObject = null
+    }
+
+    return () => {
+      audioEl.onloadedmetadata = null
     }
   }, [remoteStream])
 
@@ -169,9 +193,22 @@ export default function CallModal({
     )
   }
 
-  // Voice Call Hidden Audio Element for reliable playback
-  const voiceAudioElement = !isVideo && remoteStream ? (
-    <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+  // Persistent Audio Element for Voice Calls (offscreen active, never display:none)
+  const voiceAudioElement = !isVideo ? (
+    <audio
+      ref={remoteAudioRef}
+      autoPlay
+      playsInline
+      style={{
+        position: 'fixed',
+        top: -9999,
+        left: -9999,
+        width: '1px',
+        height: '1px',
+        opacity: 0.001,
+        pointerEvents: 'none',
+      }}
+    />
   ) : null
 
   return (
