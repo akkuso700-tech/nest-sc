@@ -15,8 +15,8 @@ function buildQuery(params = {}) {
   return query ? `?${query}` : ''
 }
 
-export function getAdminOverview() {
-  return apiRequest('/admin/overview')
+export function getAdminOverview(params = {}) {
+  return apiRequest(`/admin/overview${buildQuery(params)}`)
 }
 
 export function getAdminPerformanceSummary(params = {}) {
