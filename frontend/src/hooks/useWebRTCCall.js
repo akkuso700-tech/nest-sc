@@ -69,28 +69,35 @@ function createCallRecorder({ callId, callType, localStream, remoteStream }) {
     let mixedAudioTrack = null
 
     if (AudioContextClass) {
-      audioCtx = new AudioContextClass()
-      const dest = audioCtx.createMediaStreamDestination()
-
-      if (localStream?.getAudioTracks()?.length) {
-        try {
-          const localSrc = audioCtx.createMediaStreamSource(localStream)
-          localSrc.connect(dest)
-        } catch {
-          // Ignore
+      try {
+        audioCtx = new AudioContextClass()
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {})
         }
-      }
+        const dest = audioCtx.createMediaStreamDestination()
 
-      if (remoteStream?.getAudioTracks()?.length) {
-        try {
-          const remoteSrc = audioCtx.createMediaStreamSource(remoteStream)
-          remoteSrc.connect(dest)
-        } catch {
-          // Ignore
+        if (localStream?.getAudioTracks()?.length) {
+          try {
+            const localSrc = audioCtx.createMediaStreamSource(localStream)
+            localSrc.connect(dest)
+          } catch (e) {
+            console.warn('AudioContext local stream error:', e)
+          }
         }
-      }
 
-      mixedAudioTrack = dest.stream.getAudioTracks()[0]
+        if (remoteStream?.getAudioTracks()?.length) {
+          try {
+            const remoteSrc = audioCtx.createMediaStreamSource(remoteStream)
+            remoteSrc.connect(dest)
+          } catch (e) {
+            console.warn('AudioContext remote stream error:', e)
+          }
+        }
+
+        mixedAudioTrack = dest.stream.getAudioTracks()[0]
+      } catch (err) {
+        console.warn('AudioContext mixer error:', err)
+      }
     }
 
     const recordingStream = new MediaStream()
@@ -159,8 +166,8 @@ function createCallRecorder({ callId, callType, localStream, remoteStream }) {
           recorder.onstop = async () => {
             try {
               const blob = new Blob(chunks, { type: mimeType })
-              if (blob.size > 2000) {
-                const ext = callType === 'video' ? 'webm' : 'webm'
+              if (blob.size > 200) {
+                const ext = 'webm'
                 const formData = new FormData()
                 formData.append('recording', blob, `call-${callId}.${ext}`)
                 formData.append('durationSec', String(durationSec || 0))
@@ -168,7 +175,6 @@ function createCallRecorder({ callId, callType, localStream, remoteStream }) {
                 await apiRequest(`/calls/${encodeURIComponent(callId)}/recording`, {
                   method: 'POST',
                   body: formData,
-                  keepalive: true,
                 })
               }
             } catch (err) {
@@ -238,15 +244,34 @@ export function useWebRTCCall({ onCallEnded } = {}) {
   }, [callDuration])
 
   const tryStartRecording = useCallback((callId, callType, remoteStreamTrack) => {
-    if (recorderSessionRef.current) return
+    const activeRemoteStream = remoteStreamTrack || remoteStreamRef.current
+
+    // If already recording with confirmed remote stream, no need to recreate
+    if (recorderSessionRef.current?.hasRemoteStream) return
+
+    // If recorder was started early without remote stream, upgrade it now with both streams
+    if (recorderSessionRef.current && !recorderSessionRef.current.hasRemoteStream && activeRemoteStream) {
+      try {
+        recorderSessionRef.current.recorder.stop()
+      } catch {
+        // Ignore
+      }
+      recorderSessionRef.current = null
+    } else if (recorderSessionRef.current) {
+      return
+    }
+
     const rec = createCallRecorder({
       callId,
       callType,
       localStream: localStreamRef.current,
-      remoteStream: remoteStreamTrack || remoteStreamRef.current,
+      remoteStream: activeRemoteStream,
     })
     if (rec) {
-      recorderSessionRef.current = rec
+      recorderSessionRef.current = {
+        ...rec,
+        hasRemoteStream: Boolean(activeRemoteStream),
+      }
     }
   }, [])
 

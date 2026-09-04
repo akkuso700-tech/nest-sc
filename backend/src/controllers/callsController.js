@@ -6,6 +6,11 @@ const { CallLog } = require('../models/CallLog')
 const { AppError } = require('../utils/AppError')
 const { asyncHandler } = require('../utils/asyncHandler')
 
+const {
+  isRemoteStorageEnabled,
+  uploadLocalFileToRemoteStorage,
+} = require('../services/mediaStorageService')
+
 const uploadsRoot = env.uploadsDir || path.resolve(process.cwd(), 'uploads')
 const callsDir = path.join(uploadsRoot, 'calls')
 
@@ -35,7 +40,9 @@ const uploadCallRecordingMiddleware = multer({
     if (
       file.mimetype.startsWith('audio/') ||
       file.mimetype.startsWith('video/') ||
-      file.mimetype === 'application/octet-stream'
+      file.mimetype === 'application/octet-stream' ||
+      file.originalname.endsWith('.webm') ||
+      file.originalname.endsWith('.mp4')
     ) {
       cb(null, true)
     } else {
@@ -53,7 +60,20 @@ const uploadRecording = asyncHandler(async (req, res) => {
   }
 
   let callLog = await CallLog.findOne({ callId })
-  const relativeUrl = `/uploads/calls/${file.filename}`
+  let recordingUrl = `/uploads/calls/${file.filename}`
+
+  if (isRemoteStorageEnabled()) {
+    try {
+      const uploaded = await uploadLocalFileToRemoteStorage(file, {
+        folder: 'calls',
+      })
+      if (uploaded?.url) {
+        recordingUrl = uploaded.url
+      }
+    } catch (remoteErr) {
+      console.warn('Call recording remote storage upload fallback to local:', remoteErr.message)
+    }
+  }
 
   if (!callLog) {
     callLog = new CallLog({
@@ -69,7 +89,7 @@ const uploadRecording = asyncHandler(async (req, res) => {
   }
 
   if (!callLog.recordingUrl || file.size >= (callLog.fileSizeBytes || 0)) {
-    callLog.recordingUrl = relativeUrl
+    callLog.recordingUrl = recordingUrl
     callLog.fileSizeBytes = file.size
     callLog.mimeType = file.mimetype
     callLog.recordedBy = req.user._id
