@@ -640,6 +640,10 @@ function resolveSiteUrl() {
 }
 
 const clientHomeFeedCache = new Map()
+const clientTrendsCache = { items: null, timestamp: 0 }
+const clientStoriesCache = { rails: null, timestamp: 0 }
+const clientSuggestionsCache = new Map()
+const SECONDARY_CACHE_TTL_MS = 60 * 1000
 
 function HomePage() {
   const { lang = 'tr', tagSlug = '' } = useParams()
@@ -783,11 +787,21 @@ function HomePage() {
     let cancelled = false
 
     async function loadStories() {
-      setStoryState({
-        rails: [],
-        isLoading: true,
+      const now = Date.now()
+      if (clientStoriesCache.rails && (now - clientStoriesCache.timestamp < SECONDARY_CACHE_TTL_MS)) {
+        setStoryState({
+          rails: clientStoriesCache.rails,
+          isLoading: false,
+          error: '',
+        })
+        return
+      }
+
+      setStoryState((prev) => ({
+        ...prev,
+        isLoading: !prev.rails.length,
         error: '',
-      })
+      }))
 
       try {
         const payload = await getStoryRails({ limit: 30 })
@@ -795,6 +809,9 @@ function HomePage() {
         if (cancelled) {
           return
         }
+
+        clientStoriesCache.rails = payload.rails || []
+        clientStoriesCache.timestamp = Date.now()
 
         setStoryState({
           rails: payload.rails || [],
@@ -806,18 +823,19 @@ function HomePage() {
           return
         }
 
-        setStoryState({
-          rails: [],
+        setStoryState((prev) => ({
+          rails: prev.rails,
           isLoading: false,
-          error: error.message || t('home.storiesLoadFailed', { defaultValue: 'Hikayeler yuklenemedi.' }),
-        })
+          error: prev.rails.length ? '' : error.message || t('home.storiesLoadFailed', { defaultValue: 'Hikayeler yuklenemedi.' }),
+        }))
       }
     }
 
-    loadStories()
+    const timer = window.setTimeout(loadStories, 80)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [t])
 
@@ -929,11 +947,21 @@ function HomePage() {
     let cancelled = false
 
     async function loadTrends() {
-      setTrendsState({
-        items: [],
-        isLoading: true,
+      const now = Date.now()
+      if (clientTrendsCache.items && (now - clientTrendsCache.timestamp < SECONDARY_CACHE_TTL_MS)) {
+        setTrendsState({
+          items: clientTrendsCache.items,
+          isLoading: false,
+          error: '',
+        })
+        return
+      }
+
+      setTrendsState((prev) => ({
+        ...prev,
+        isLoading: !prev.items.length,
         error: '',
-      })
+      }))
 
       try {
         const payload = await getTrendingTopics({ limit: 10 })
@@ -941,6 +969,9 @@ function HomePage() {
         if (cancelled) {
           return
         }
+
+        clientTrendsCache.items = payload.topics || []
+        clientTrendsCache.timestamp = Date.now()
 
         setTrendsState({
           items: payload.topics || [],
@@ -952,18 +983,19 @@ function HomePage() {
           return
         }
 
-        setTrendsState({
-          items: [],
+        setTrendsState((prev) => ({
+          items: prev.items,
           isLoading: false,
-          error: error.message || t('home.trendsLoadFailed'),
-        })
+          error: prev.items.length ? '' : error.message || t('home.trendsLoadFailed'),
+        }))
       }
     }
 
-    loadTrends()
+    const timer = window.setTimeout(loadTrends, 160)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [t])
 
@@ -1027,9 +1059,24 @@ function HomePage() {
     let cancelled = false
 
     async function loadSuggestions() {
+      const cacheKey = suggestionsState.mode
+      const cached = clientSuggestionsCache.get(cacheKey)
+      const now = Date.now()
+      if (cached && (now - cached.timestamp < SECONDARY_CACHE_TTL_MS)) {
+        setSuggestionsState((currentState) => ({
+          ...currentState,
+          items: cached.items,
+          isLoading: false,
+          error: '',
+          locationEnabled: cached.locationEnabled,
+          note: cached.note,
+        }))
+        return
+      }
+
       setSuggestionsState((currentState) => ({
         ...currentState,
-        isLoading: true,
+        isLoading: !currentState.items.length,
         error: '',
       }))
 
@@ -1043,16 +1090,26 @@ function HomePage() {
           return
         }
 
+        const nextNote =
+          suggestionsState.mode === 'nearby' && !(payload.items || []).length
+            ? t('home.suggestionsNearbyEmpty')
+            : ''
+        const locationEnabled = Boolean(payload.meta?.locationEnabled)
+
+        clientSuggestionsCache.set(cacheKey, {
+          items: payload.items || [],
+          locationEnabled,
+          note: nextNote,
+          timestamp: Date.now(),
+        })
+
         setSuggestionsState((currentState) => ({
           ...currentState,
           items: payload.items || [],
           isLoading: false,
           error: '',
-          locationEnabled: Boolean(payload.meta?.locationEnabled),
-          note:
-            currentState.mode === 'nearby' && !(payload.items || []).length
-              ? t('home.suggestionsNearbyEmpty')
-              : '',
+          locationEnabled,
+          note: nextNote,
         }))
       } catch (error) {
         if (cancelled) {
@@ -1061,17 +1118,18 @@ function HomePage() {
 
         setSuggestionsState((currentState) => ({
           ...currentState,
-          items: [],
+          items: currentState.items,
           isLoading: false,
-          error: error.message || t('home.suggestionsLoadFailed'),
+          error: currentState.items.length ? '' : error.message || t('home.suggestionsLoadFailed'),
         }))
       }
     }
 
-    loadSuggestions()
+    const timer = window.setTimeout(loadSuggestions, 240)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [suggestionsState.mode, t])
 

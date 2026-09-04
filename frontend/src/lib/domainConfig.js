@@ -10,12 +10,14 @@
 const DOMAIN_MAP = {
   'demo.nest-sc.com': {
     env: 'demo',
-    api: 'https://api-demo.nest-sc.com/api/v1',
+    api: 'https://demo.nest-sc.com/api/v1',
+    fallbackApi: 'https://api-demo.nest-sc.com/api/v1',
     upload: 'https://upload-demo.nest-sc.com',
   },
   'nest-sc.com': {
     env: 'live',
-    api: 'https://api.nest-sc.com/api/v1',
+    api: 'https://nest-sc.com/api/v1',
+    fallbackApi: 'https://api.nest-sc.com/api/v1',
     upload: 'https://upload.nest-sc.com',
   },
 }
@@ -31,8 +33,11 @@ function getNormalizedHost() {
 const normalizedHost = getNormalizedHost()
 const domainEntry = DOMAIN_MAP[normalizedHost] || null
 
-/** Pinned API base URL (e.g. "https://api.nest-sc.com/api/v1") or empty string. */
+/** Pinned API base URL (e.g. "https://nest-sc.com/api/v1") or empty string. */
 export const pinnedApiUrl = domainEntry?.api || ''
+
+/** Pinned fallback API URL (e.g. "https://api.nest-sc.com/api/v1") or empty string. */
+export const pinnedFallbackApiUrl = domainEntry?.fallbackApi || ''
 
 /** Pinned upload CDN origin (e.g. "https://upload.nest-sc.com") or empty string. */
 export const pinnedUploadOrigin = domainEntry?.upload || ''

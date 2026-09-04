@@ -1,4 +1,7 @@
-import { pinnedApiUrl as configPinnedApiUrl } from './domainConfig.js'
+import {
+  pinnedApiUrl as configPinnedApiUrl,
+  pinnedFallbackApiUrl as configPinnedFallbackApiUrl,
+} from './domainConfig.js'
 
 function buildDefaultApiUrl() {
   if (typeof window === 'undefined') {
@@ -58,6 +61,7 @@ const effectiveEnvApiUrl = shouldUseEnvApiUrl(envApiUrl) ? envApiUrl : ''
 const apiBaseUrl = (pinnedApiUrl || effectiveEnvApiUrl || defaultApiUrl).replace(/\/$/, '')
 const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/, '')
 const requestApiBaseCandidates = resolveApiBaseCandidates(apiBaseUrl, {
+  fallbackBaseUrl: configPinnedFallbackApiUrl,
   lockToPrimary: Boolean(pinnedApiUrl),
 })
 const configuredRequestTimeoutMs = Number(import.meta.env?.VITE_API_TIMEOUT_MS)
@@ -83,9 +87,12 @@ function pushUnique(target, value) {
 }
 
 function resolveApiBaseCandidates(primaryBaseUrl, options = {}) {
-  const { lockToPrimary = false } = options
+  const { fallbackBaseUrl = '', lockToPrimary = false } = options
   const candidates = []
   pushUnique(candidates, primaryBaseUrl)
+  if (fallbackBaseUrl) {
+    pushUnique(candidates, fallbackBaseUrl)
+  }
 
   if (lockToPrimary) {
     return candidates

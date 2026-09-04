@@ -2,10 +2,20 @@ const { env } = require('../config/env')
 
 const accessTokenCookieName = 'accessToken'
 const refreshTokenCookieName = 'refreshToken'
+const sessionMarkerCookieName = 'nest_session'
 
 function buildBaseCookieOptions() {
   return {
     httpOnly: true,
+    secure: env.isProduction,
+    sameSite: env.isProduction ? 'none' : 'lax',
+    path: '/',
+  }
+}
+
+function buildMarkerCookieOptions() {
+  return {
+    httpOnly: false,
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
@@ -48,6 +58,14 @@ function setAuthCookies(res, tokens, options = {}) {
     tokens.refreshToken,
     buildSessionCookieOptions(buildRefreshCookieOptions(), rememberMe),
   )
+  res.cookie(
+    sessionMarkerCookieName,
+    '1',
+    buildSessionCookieOptions({
+      ...buildMarkerCookieOptions(),
+      maxAge: env.jwt.refreshExpiresMs,
+    }, rememberMe),
+  )
 }
 
 function clearAuthCookies(res) {
@@ -57,6 +75,10 @@ function clearAuthCookies(res) {
   })
   res.clearCookie(refreshTokenCookieName, {
     ...buildRefreshCookieOptions(),
+    maxAge: undefined,
+  })
+  res.clearCookie(sessionMarkerCookieName, {
+    ...buildMarkerCookieOptions(),
     maxAge: undefined,
   })
 }

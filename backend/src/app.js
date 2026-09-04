@@ -325,13 +325,17 @@ function createApp() {
         setHeaders: (res, filePath) => {
           const normalizedPath = String(filePath || '').replace(/\\/g, '/')
           const fileName = path.basename(normalizedPath)
+          const isDynamicDoc =
+            fileName === 'index.html' || fileName === 'robots.txt' || fileName === 'sitemap.xml'
           const isHashedAsset =
-            normalizedPath.includes('/assets/') && /\-[A-Za-z0-9_-]{6,}\./.test(fileName)
+            normalizedPath.includes('/assets/') || /\-[A-Za-z0-9_-]{6,}\./.test(fileName)
 
-          if (isHashedAsset) {
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-          } else if (fileName === 'index.html') {
+          if (isDynamicDoc) {
             res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
+          } else if (isHashedAsset) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+          } else if (/\.(png|jpg|jpeg|gif|webp|avif|svg|ico|woff2|woff|ttf)$/i.test(fileName)) {
+            res.setHeader('Cache-Control', 'public, max-age=2592000')
           }
         },
         index: 'index.html',
