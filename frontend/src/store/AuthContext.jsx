@@ -24,13 +24,17 @@ export function hasLikelySession() {
 export function markSessionActive() {
   try {
     window.localStorage?.setItem(SESSION_STORAGE_KEY, '1')
-  } catch {}
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 export function markSessionInactive() {
   try {
     window.localStorage?.removeItem(SESSION_STORAGE_KEY)
-  } catch {}
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 const AuthContext = createContext(null)
