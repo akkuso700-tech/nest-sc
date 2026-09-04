@@ -1,13 +1,45 @@
-﻿import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { apiRequest, refreshSession } from '../lib/apiClient.js'
+
+const SESSION_STORAGE_KEY = 'nest_has_session'
+
+export function hasLikelySession() {
+  if (typeof window === 'undefined') return false
+  try {
+    if (window.localStorage?.getItem(SESSION_STORAGE_KEY) === '1') {
+      return true
+    }
+    if (window.location?.search && /[?&]google=success\b/.test(window.location.search)) {
+      return true
+    }
+    if (typeof document !== 'undefined' && /(?:^|;\s*)nest_session=1(?:\s*;|$)/.test(document.cookie)) {
+      return true
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+
+export function markSessionActive() {
+  try {
+    window.localStorage?.setItem(SESSION_STORAGE_KEY, '1')
+  } catch {}
+}
+
+export function markSessionInactive() {
+  try {
+    window.localStorage?.removeItem(SESSION_STORAGE_KEY)
+  } catch {}
+}
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [authState, setAuthState] = useState({
-    status: 'loading',
+  const [authState, setAuthState] = useState(() => ({
+    status: hasLikelySession() ? 'loading' : 'guest',
     user: null,
-  })
+  }))
   const bootstrapRef = useRef(false)
 
   useEffect(() => {
@@ -17,15 +49,21 @@ export function AuthProvider({ children }) {
 
     bootstrapRef.current = true
 
+    if (!hasLikelySession()) {
+      return
+    }
+
     async function bootstrapAuth() {
       try {
         const payload = await refreshSession()
+        markSessionActive()
 
         setAuthState({
           status: 'authenticated',
           user: payload.user,
         })
       } catch {
+        markSessionInactive()
         setAuthState({
           status: 'guest',
           user: null,
@@ -50,6 +88,7 @@ export function AuthProvider({ children }) {
           { skipRefreshRetry: true },
         )
 
+        markSessionActive()
         setAuthState({
           status: 'authenticated',
           user: payload.user,
@@ -67,6 +106,7 @@ export function AuthProvider({ children }) {
           { skipRefreshRetry: true },
         )
 
+        markSessionActive()
         setAuthState({
           status: 'authenticated',
           user: response.user,
@@ -75,22 +115,26 @@ export function AuthProvider({ children }) {
         return response
       },
       async logout() {
-        await apiRequest(
-          '/auth/logout',
-          {
-            method: 'POST',
-          },
-          { skipRefreshRetry: true },
-        )
-
-        setAuthState({
-          status: 'guest',
-          user: null,
-        })
+        markSessionInactive()
+        try {
+          await apiRequest(
+            '/auth/logout',
+            {
+              method: 'POST',
+            },
+            { skipRefreshRetry: true },
+          )
+        } finally {
+          setAuthState({
+            status: 'guest',
+            user: null,
+          })
+        }
       },
       async refreshUser() {
         const payload = await apiRequest('/auth/me')
 
+        markSessionActive()
         setAuthState({
           status: 'authenticated',
           user: payload.user,
@@ -99,6 +143,11 @@ export function AuthProvider({ children }) {
         return payload.user
       },
       setUser(user) {
+        if (user) {
+          markSessionActive()
+        } else {
+          markSessionInactive()
+        }
         setAuthState({
           status: user ? 'authenticated' : 'guest',
           user: user || null,
