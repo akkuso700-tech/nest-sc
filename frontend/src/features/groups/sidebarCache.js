@@ -26,3 +26,12 @@ export function removeGroupFromSidebarCache(groupId) {
   }
   return groupsSidebarCache
 }
+
+export function clearGroupsSidebarCache() {
+  groupsSidebarCache = {
+    managed: [],
+    joined: [],
+    suggested: [],
+  }
+  return groupsSidebarCache
+}

@@ -223,9 +223,12 @@ async function refreshSession() {
       '/auth/refresh',
       {
         method: 'POST',
+        cache: 'no-store',
         credentials: 'include',
         headers: {
           Accept: 'application/json',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
         },
       },
       { retry: true },
@@ -255,9 +258,12 @@ export async function apiRequest(path, options = {}, config = {}) {
   const response = await fetchWithApiFallback(
     path,
     {
+      cache: 'no-store',
       credentials: 'include',
       headers: {
         Accept: 'application/json',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
         ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
       },

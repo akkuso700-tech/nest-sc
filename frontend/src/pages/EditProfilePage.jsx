@@ -298,7 +298,8 @@ function EditProfilePage() {
   const { lang } = useParams()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { status, isAuthenticated, setUser } = useAuth()
+  const { status, isAuthenticated, user, setUser } = useAuth()
+  const authUserId = user?._id || user?.id || ''
   const [profileState, setProfileState] = useState({
     isLoading: true,
     error: '',
@@ -374,12 +375,25 @@ function EditProfilePage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
+      setProfileState({
+        isLoading: false,
+        error: '',
+      })
+      setFormState(buildInitialForm(null))
+      setLocationInput('')
       return
     }
 
     let cancelled = false
 
     async function loadProfile() {
+      setProfileState({
+        isLoading: true,
+        error: '',
+      })
+      setFormState(buildInitialForm(null))
+      setLocationInput('')
+
       try {
         const payload = await getMyProfile()
 
@@ -419,7 +433,7 @@ function EditProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, t])
+  }, [authUserId, isAuthenticated, t])
 
   useEffect(() => {
     function handlePointerDown(event) {

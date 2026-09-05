@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import Seo from '../components/seo/Seo.jsx'
 import ActionToast from '../components/feedback/ActionToast.jsx'
@@ -121,7 +121,8 @@ function ConnectionCard({ item, lang, isAuthenticated, onToggleFollow, pendingUs
 
 function ConnectionsPage({ connectionType }) {
   const { lang, username } = useParams()
-  const { isAuthenticated, status } = useAuth()
+  const { isAuthenticated, status, user } = useAuth()
+  const authUserId = user?._id || user?.id || ''
   const [pageState, setPageState] = useState({
     data: null,
     isLoading: true,
@@ -172,11 +173,11 @@ function ConnectionsPage({ connectionType }) {
     let cancelled = false
 
     async function loadConnections() {
-      setPageState((current) => ({
-        ...current,
+      setPageState({
+        data: null,
         isLoading: true,
         error: '',
-      }))
+      })
 
       try {
         const payload = username
@@ -210,7 +211,7 @@ function ConnectionsPage({ connectionType }) {
     return () => {
       cancelled = true
     }
-  }, [connectionType, isAuthenticated, status, username])
+  }, [authUserId, connectionType, isAuthenticated, status, username])
 
   const pageTitle = connectionType === 'followers' ? 'Takipciler' : 'Takip Edilenler'
   const profileUser = pageState.data?.user
