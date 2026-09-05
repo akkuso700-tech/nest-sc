@@ -49,33 +49,91 @@ function RouteFallback({ overlay = false }) {
   if (overlay) {
     return (
       <div
-        className="fixed inset-0 z-50 bg-zinc-950/45 px-4 py-4 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
         role="status"
         aria-live="polite"
       >
-        <div className="mx-auto flex h-full w-full max-w-[min(1200px,calc(100vw-2rem))] items-center justify-center rounded-[32px] border border-white/10 bg-white/92 shadow-2xl dark:border-white/10 dark:bg-zinc-950/92">
-          <div className="flex items-center gap-3 text-sm font-medium text-zinc-500 dark:text-zinc-300">
-            <span className="size-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-white" />
-            Yükleniyor...
-          </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-card/90 px-5 py-3 shadow-xl backdrop-blur-md">
+          <span className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+          <span className="text-xs font-medium text-text/80">Yükleniyor...</span>
         </div>
       </div>
     )
   }
 
   return (
-    <main
-      className="min-h-screen bg-zinc-50 px-4 py-10 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
+    <div
+      className="min-h-screen bg-bg text-text transition-colors"
       aria-busy="true"
       aria-live="polite"
     >
-      <div className="mx-auto flex max-w-3xl items-center justify-center rounded-[32px] border border-zinc-200 bg-white/90 px-6 py-20 shadow-sm dark:border-white/10 dark:bg-zinc-900/85">
-        <div className="flex items-center gap-3 text-sm font-medium text-zinc-500 dark:text-zinc-300">
-          <span className="size-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900 dark:border-zinc-700 dark:border-t-white" />
-          Sayfa hazırlanıyor...
+      <div className="mx-auto max-w-[1500px] px-3 md:px-5">
+        <div className="flex gap-6 pt-3 md:pt-4">
+          {/* Desktop Left Sidebar Skeleton */}
+          <aside className="hidden w-[240px] shrink-0 space-y-4 py-3 md:block">
+            <div className="h-10 w-32 animate-pulse rounded-xl bg-secondary/80" />
+            <div className="space-y-2 pt-2">
+              <div className="h-11 w-full animate-pulse rounded-xl bg-secondary/60" />
+              <div className="h-11 w-full animate-pulse rounded-xl bg-secondary/60" />
+              <div className="h-11 w-full animate-pulse rounded-xl bg-secondary/60" />
+              <div className="h-11 w-full animate-pulse rounded-xl bg-secondary/60" />
+              <div className="h-11 w-full animate-pulse rounded-xl bg-secondary/60" />
+            </div>
+          </aside>
+
+          {/* Center Content Skeleton */}
+          <main className="min-w-0 flex-1 max-w-[700px] space-y-4 py-3">
+            {/* Story Rail Skeleton */}
+            <div className="flex gap-3 overflow-hidden rounded-2xl border border-border/60 bg-card/50 p-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-1.5 shrink-0">
+                  <div className="size-14 animate-pulse rounded-full bg-secondary" />
+                  <div className="h-2.5 w-10 animate-pulse rounded bg-secondary/70" />
+                </div>
+              ))}
+            </div>
+
+            {/* Post Skeleton Cards */}
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="size-10 animate-pulse rounded-full bg-secondary" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3.5 w-28 animate-pulse rounded bg-secondary" />
+                  <div className="h-2.5 w-16 animate-pulse rounded bg-secondary/60" />
+                </div>
+              </div>
+              <div className="space-y-2 pt-1">
+                <div className="h-3 w-full animate-pulse rounded bg-secondary/70" />
+                <div className="h-3 w-4/5 animate-pulse rounded bg-secondary/70" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-secondary/70" />
+              </div>
+              <div className="h-48 w-full animate-pulse rounded-xl bg-secondary/40 pt-2" />
+            </div>
+
+            <div className="rounded-2xl border border-border/60 bg-card/60 p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="size-10 animate-pulse rounded-full bg-secondary" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3.5 w-24 animate-pulse rounded bg-secondary" />
+                  <div className="h-2.5 w-20 animate-pulse rounded bg-secondary/60" />
+                </div>
+              </div>
+              <div className="space-y-2 pt-1">
+                <div className="h-3 w-full animate-pulse rounded bg-secondary/70" />
+                <div className="h-3 w-3/4 animate-pulse rounded bg-secondary/70" />
+              </div>
+            </div>
+          </main>
+
+          {/* Right Rail Skeleton */}
+          <aside className="hidden w-[310px] shrink-0 space-y-4 py-3 xl:block">
+            <div className="h-11 w-full animate-pulse rounded-xl bg-secondary/60" />
+            <div className="h-56 w-full animate-pulse rounded-2xl border border-border/60 bg-card/50 p-4" />
+            <div className="h-64 w-full animate-pulse rounded-2xl border border-border/60 bg-card/50 p-4" />
+          </aside>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
 

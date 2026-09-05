@@ -43,16 +43,82 @@
         }
       })()
     </script>
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f1f7ff;
+        z-index: 99999;
+      }
+      html.dark #app-splash {
+        background-color: #020617;
+      }
+      .splash-logo {
+        width: 68px;
+        height: 68px;
+        animation: splash-pulse 1.6s ease-in-out infinite;
+        filter: drop-shadow(0 10px 25px rgba(37, 99, 235, 0.35));
+      }
+      @keyframes splash-pulse {
+        0%, 100% {
+          transform: scale(0.95);
+          opacity: 0.85;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 1;
+        }
+      }
+    </style>
     <title>Nest Social</title>
-    <script type="module" crossorigin src="/assets/index-cNMSZhBl.js"></script>
+    <script type="module" crossorigin src="/assets/index-LuPUTfNR.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-Dw2cE7zH.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-C34bX_wd.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-B4xG22Wt.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-router-R6uWsmh-.js">
-    <link rel="modulepreload" crossorigin href="/assets/domainConfig-DXAL0hyY.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-VEcBNYIG.css">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-CPXRRGF7.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-router-Dt_QSQby.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-i18n-BXF8fWk1.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-CX0dJNc6.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-seo-B9Xunqba.js">
+    <link rel="modulepreload" crossorigin href="/assets/apiClient-CGS58aS1.js">
+    <link rel="modulepreload" crossorigin href="/assets/media-B5B09-zK.js">
+    <link rel="modulepreload" crossorigin href="/assets/social-YKwc1UhQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/UserAvatar-DpnHOvpY.js">
+    <link rel="modulepreload" crossorigin href="/assets/VerifiedBadge-D09bDNXd.js">
+    <link rel="modulepreload" crossorigin href="/assets/ActionToast-B_1VdZBG.js">
+    <link rel="modulepreload" crossorigin href="/assets/Seo-BLYNjQ_M.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-realtime--6Tge0en.js">
+    <link rel="modulepreload" crossorigin href="/assets/PostCardIcons-CNJNE4eO.js">
+    <link rel="modulepreload" crossorigin href="/assets/PostComposerIcons-BzotMxWN.js">
+    <link rel="modulepreload" crossorigin href="/assets/useAdaptiveVideoSource-Cual_jeo.js">
+    <link rel="modulepreload" crossorigin href="/assets/useMediaQuery-YTXlhzQx.js">
+    <link rel="modulepreload" crossorigin href="/assets/AuthContext-DVKpyb1R.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CuvIXhaK.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-splash" aria-hidden="true">
+        <svg class="splash-logo" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="splashBg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#60A5FA"/>
+              <stop offset="50%" stop-color="#2563EB"/>
+              <stop offset="100%" stop-color="#1D4ED8"/>
+            </linearGradient>
+            <linearGradient id="splashShape" x1="78" y1="68" x2="178" y2="188" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#FFFFFF"/>
+              <stop offset="100%" stop-color="#DBEAFE"/>
+            </linearGradient>
+          </defs>
+          <rect x="24" y="24" width="208" height="208" rx="56" fill="url(#splashBg)"/>
+          <circle cx="128" cy="128" r="54" stroke="rgba(255,255,255,0.22)" stroke-width="10"/>
+          <path d="M82 174V86C82 79.373 87.373 74 94 74C98.293 74 102.24 76.284 104.39 80L128 121L151.61 80C153.76 76.284 157.707 74 162 74C168.627 74 174 79.373 174 86V174H153V120L136.66 148.58C132.89 155.17 123.11 155.17 119.34 148.58L103 120V174H82Z" fill="url(#splashShape)"/>
+          <circle cx="70" cy="94" r="8" fill="#BFDBFE" fill-opacity="0.9"/>
+          <circle cx="188" cy="162" r="6" fill="#93C5FD" fill-opacity="0.85"/>
+          <circle cx="194" cy="92" r="5" fill="#DBEAFE" fill-opacity="0.85"/>
+        </svg>
+      </div>
+    </div>
   </body>
 </html>
