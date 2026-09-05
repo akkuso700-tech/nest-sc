@@ -69,18 +69,12 @@ function setAuthCookies(res, tokens, options = {}) {
 }
 
 function clearAuthCookies(res) {
-  res.clearCookie(accessTokenCookieName, {
-    ...buildAccessCookieOptions(),
-    maxAge: undefined,
-  })
-  res.clearCookie(refreshTokenCookieName, {
-    ...buildRefreshCookieOptions(),
-    maxAge: undefined,
-  })
-  res.clearCookie(sessionMarkerCookieName, {
-    ...buildMarkerCookieOptions(),
-    maxAge: undefined,
-  })
+  const baseOptions = buildBaseCookieOptions()
+  const markerOptions = buildMarkerCookieOptions()
+
+  res.clearCookie(accessTokenCookieName, baseOptions)
+  res.clearCookie(refreshTokenCookieName, baseOptions)
+  res.clearCookie(sessionMarkerCookieName, markerOptions)
 }
 
 function parseCookieHeader(cookieHeader = '') {

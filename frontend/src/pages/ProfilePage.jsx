@@ -422,6 +422,8 @@ function ProfilePage() {
     }
   }, [toast])
 
+  const authUserId = user?._id || user?.id || ''
+
   useEffect(() => {
     if (status === 'loading') {
       return
@@ -439,11 +441,11 @@ function ProfilePage() {
     let cancelled = false
 
     async function loadProfile() {
-      setProfileState((currentState) => ({
-        ...currentState,
+      setProfileState({
+        profile: null,
         isLoading: true,
         error: '',
-      }))
+      })
 
       try {
         const payload = username
@@ -477,7 +479,7 @@ function ProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, status, t, username])
+  }, [authUserId, isAuthenticated, status, t, username])
 
   useEffect(() => {
     let cancelled = false
@@ -511,7 +513,7 @@ function ProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [t])
+  }, [authUserId, isAuthenticated, t])
 
   const profilePayload = profileState.profile
   const profileUser = profilePayload?.user
@@ -523,10 +525,19 @@ function ProfilePage() {
     likes: 0,
     saved: 0,
   }
-  const isOwnProfile =
-    profilePayload?.isOwnProfile ||
-    (!username && !!user) ||
-    (user && profileUser && user.username === profileUser.username)
+  const currentUserId = user?._id || user?.id || ''
+  const profileUserId = profileUser?._id || profileUser?.id || ''
+  const isMatchingAuthUser = Boolean(
+    user &&
+      profileUser &&
+      ((currentUserId && profileUserId && String(currentUserId) === String(profileUserId)) ||
+        (user.username &&
+          profileUser.username &&
+          user.username.toLowerCase() === profileUser.username.toLowerCase())),
+  )
+  const isOwnProfile = Boolean(
+    isMatchingAuthUser || (profilePayload?.isOwnProfile && isMatchingAuthUser),
+  )
 
   const resolvedCoverUrl = resolveMediaUrl(profileUser?.coverUrl || '')
   const resolvedAvatarUrl = resolveMediaUrl(profileUser?.avatarUrl || '')
@@ -1021,7 +1032,7 @@ function ProfilePage() {
             <ProfileSkeleton />
           ) : null}
 
-          {profileUser ? (
+          {!profileState.isLoading && profileUser ? (
             <>
               <section className="relative z-20 bg-card shadow-sm md:mt-2 md:rounded-lg md:border md:border-border">
                 <div className="relative h-32 overflow-hidden bg-[linear-gradient(135deg,#dbeafe_0%,#bfdbfe_48%,#fde68a_100%)] sm:h-48 md:h-60 md:rounded-t-lg">

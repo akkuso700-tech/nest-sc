@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { apiRequest, refreshSession } from '../lib/apiClient.js'
+import { clearGroupsSidebarCache } from '../features/groups/sidebarCache.js'
+import { clearClientLoopFeedCache } from '../pages/LoopPage.jsx'
+import { disconnectSocketClient } from '../services/socketClient.js'
 
 const SESSION_STORAGE_KEY = 'nest_has_session'
 
@@ -120,6 +123,21 @@ export function AuthProvider({ children }) {
       },
       async logout() {
         markSessionInactive()
+        try {
+          clearGroupsSidebarCache()
+        } catch {
+          // Ignore cache clear error
+        }
+        try {
+          clearClientLoopFeedCache()
+        } catch {
+          // Ignore cache clear error
+        }
+        try {
+          disconnectSocketClient()
+        } catch {
+          // Ignore socket disconnect error
+        }
         try {
           await apiRequest(
             '/auth/logout',

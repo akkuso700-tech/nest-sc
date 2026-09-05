@@ -68,6 +68,10 @@ function PlusIcon() {
 
 const clientLoopFeedCache = new Map()
 
+export function clearClientLoopFeedCache() {
+  clientLoopFeedCache.clear()
+}
+
 function LoopPage() {
   const { lang = 'tr' } = useParams()
   const navigate = useNavigate()

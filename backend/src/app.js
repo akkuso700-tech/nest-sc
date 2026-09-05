@@ -254,7 +254,14 @@ function createApp() {
   app.use('/api/v1/auth/password-reset/request', authPasswordResetLimiter)
   app.use('/api/v1/posts/:postId/view', telemetryLimiter)
   app.use('/api/v1/posts/:postId/loop-telemetry', telemetryLimiter)
-  app.use('/api/v1/stories/:storyId/view', telemetryLimiter)
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.setHeader('Pragma', 'no-cache')
+    res.setHeader('Expires', '0')
+    res.setHeader('Surrogate-Control', 'no-store')
+    next()
+  })
+
   app.use('/api/v1', enforceCookieCsrfProtection)
   app.use('/api/v1', apiWriteLimiter, apiRouter)
 
