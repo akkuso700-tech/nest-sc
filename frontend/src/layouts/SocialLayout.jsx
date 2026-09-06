@@ -1502,6 +1502,7 @@ function SocialLayout({
       return [
         { key: 'home', to: `/${lang}/`, label: t('nav.home'), iconKey: 'home' },
         { key: 'loop', to: `/${lang}/loop`, label: t('nav.loop'), iconKey: 'loop' },
+        { key: 'hiddenProfile', to: `/${lang}/hidden-profile`, label: t('nav.hiddenProfile'), iconKey: 'hiddenProfile' },
         { key: 'login', to: `/${lang}/login`, label: t('common.login'), iconKey: 'login' },
       ]
     }

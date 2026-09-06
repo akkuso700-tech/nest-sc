@@ -126,6 +126,24 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    anonymousProfile: {
+      alias: { type: String, trim: true, default: '' },
+      avatarKey: { type: String, trim: true, default: 'avatar-1' },
+      gender: {
+        type: String,
+        enum: ['unspecified', 'female', 'male'],
+        default: 'unspecified',
+      },
+      ageRange: {
+        type: String,
+        enum: ['unspecified', '18-24', '25-34', '35-44', '45+'],
+        default: 'unspecified',
+      },
+      status: { type: String, trim: true, maxlength: 80, default: '' },
+      isOnlineInLounge: { type: Boolean, default: false },
+      blockedAnonymousIds: { type: [String], default: [] },
+      lastActiveAt: { type: Date, default: null },
+    },
     lastLoginAt: {
       type: Date,
       default: null,
