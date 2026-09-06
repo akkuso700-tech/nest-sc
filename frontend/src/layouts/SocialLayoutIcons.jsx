@@ -316,3 +316,38 @@ export function ArrowLeftIcon({ className = 'size-6' }) {
     </Icon>
   )
 }
+
+export function ChevronRightIcon({ className = 'size-4' }) {
+  return (
+    <Icon className={className} strokeWidth={2}>
+      <path d="m9 18 6-6-6-6" />
+    </Icon>
+  )
+}
+
+export function ShieldIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Icon>
+  )
+}
+
+export function LogOutIcon({ className = 'size-5' }) {
+  return (
+    <Icon className={className} strokeWidth={1.9}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </Icon>
+  )
+}
+
+export function CheckIcon({ className = 'size-4' }) {
+  return (
+    <Icon className={className} strokeWidth={2.4}>
+      <polyline points="20 6 9 17 4 12" />
+    </Icon>
+  )
+}
+

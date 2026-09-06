@@ -36,6 +36,8 @@ const AdminVerificationRequestsPage = lazy(
   () => import('./pages/AdminVerificationRequestsPage.jsx'),
 )
 const SimpleInfoPage = lazy(() => import('./pages/SimpleInfoPage.jsx'))
+const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
+const ContactPage = lazy(() => import('./pages/ContactPage.jsx'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
 const PostDetailModal = lazy(() => import('./features/posts/PostDetailModal.jsx'))
 const AdminLayout = lazy(() => import('./layouts/AdminLayout.jsx'))
@@ -237,23 +239,11 @@ function App() {
             />
             <Route
               path="about"
-              element={
-                <SimpleInfoPage
-                  pageKey="about"
-                  title="About"
-                  description="Company story, mission, and platform overview content will be listed here."
-                />
-              }
+              element={<AboutPage />}
             />
             <Route
               path="contact"
-              element={
-                <SimpleInfoPage
-                  pageKey="contact"
-                  title="Contact"
-                  description="Support, business, and general contact channels will be gathered here."
-                />
-              }
+              element={<ContactPage />}
             />
             <Route
               path="ads"
