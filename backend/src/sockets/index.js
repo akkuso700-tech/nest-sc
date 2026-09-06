@@ -12,6 +12,7 @@ const {
   createMessageAndNotify,
   markConversationAsRead,
 } = require('../services/messagingService')
+const { registerAnonymousSockets } = require('./anonymousSockets')
 
 const initiateCallSchema = z.object({
   recipientId: z.string().min(1),
@@ -136,6 +137,9 @@ function initSocketServer(server) {
 
     // Yeni bağlanan kullanıcıya mevcut tüm online kullanıcı listesini gönder
     socket.emit('users:online', Array.from(onlineUsers.keys()))
+
+    // Anonymous lounge & chat real-time handlers
+    registerAnonymousSockets(io, socket)
 
     socket.on('new_message', async (payload, acknowledgment) => {
       try {

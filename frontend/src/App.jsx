@@ -36,6 +36,7 @@ const AdminVerificationRequestsPage = lazy(
   () => import('./pages/AdminVerificationRequestsPage.jsx'),
 )
 const SimpleInfoPage = lazy(() => import('./pages/SimpleInfoPage.jsx'))
+const AnonymousLoungePage = lazy(() => import('./pages/AnonymousLoungePage.jsx'))
 const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
 const ContactPage = lazy(() => import('./pages/ContactPage.jsx'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
@@ -219,13 +220,7 @@ function App() {
             />
             <Route
               path="hidden-profile"
-              element={
-                <SimpleInfoPage
-                  pageKey="hiddenProfile"
-                  title="Hidden Profile"
-                  description="This page will hold privacy visibility controls and account discovery options."
-                />
-              }
+              element={<AnonymousLoungePage />}
             />
             <Route
               path="monetization"

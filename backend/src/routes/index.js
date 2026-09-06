@@ -12,6 +12,7 @@ const { storiesRouter } = require('./stories.routes')
 const { groupsRouter } = require('./groups.routes')
 const { callsRouter } = require('./calls.routes')
 const { performanceRouter } = require('./performance.routes')
+const { anonymousRouter } = require('./anonymous.routes')
 const { getHealth } = require('../controllers/healthController')
 
 const apiRouter = express.Router()
@@ -30,5 +31,6 @@ apiRouter.use('/search', searchRouter)
 apiRouter.use('/stories', storiesRouter)
 apiRouter.use('/groups', groupsRouter)
 apiRouter.use('/performance', performanceRouter)
+apiRouter.use('/anonymous', anonymousRouter)
 
 module.exports = { apiRouter }
