@@ -17,6 +17,7 @@ import { resolveMediaUrl } from '../utils/media.js'
 import { normalizeSearchText } from '../utils/searchText.js'
 import UserAvatar from '../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
+import ProfileDropdown from './ProfileDropdown.jsx'
 import { appEnvironmentLabel, isDemoEnvironment } from '../lib/appEnvironment.js'
 import {
   AboutIcon,
@@ -1156,7 +1157,7 @@ function SocialLayout({
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const { isAuthenticated, status, user, logout } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, setTheme, toggleTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
@@ -1510,10 +1511,10 @@ function SocialLayout({
       { key: 'loop', to: `/${lang}/loop`, label: t('nav.loop'), iconKey: 'loop' },
       { key: 'messages', to: `/${lang}/messages`, label: t('nav.messages'), iconKey: 'messages' },
       { key: 'notifications', to: `/${lang}/notifications`, label: t('nav.notifications'), iconKey: 'notifications' },
-      { key: 'groups', to: `/${lang}/groups`, label: 'Gruplar', iconKey: 'groups' },
+      { key: 'groups', to: `/${lang}/groups`, label: t('nav.groups'), iconKey: 'groups' },
       { key: 'profile', to: `/${lang}/profile`, label: t('nav.profile'), iconKey: 'profile' },
       ...(user?.role === 'admin'
-        ? [{ key: 'admin', to: `/${lang}/admin`, label: 'Admin', iconKey: 'settings' }]
+        ? [{ key: 'admin', to: `/${lang}/admin`, label: t('nav.admin'), iconKey: 'settings' }]
         : []),
       { key: 'hiddenProfile', to: `/${lang}/hidden-profile`, label: t('nav.hiddenProfile'), iconKey: 'hiddenProfile' },
       { key: 'monetization', to: `/${lang}/monetization`, label: t('nav.monetization'), iconKey: 'monetization' },
@@ -2054,65 +2055,22 @@ function SocialLayout({
                       />
                     )}
                   </HeaderIconButton>
-                  <DropdownPanel
+                  <ProfileDropdown
                     open={openDropdown === 'profile'}
-                    title={user?.username ? `@${user.username}` : t('nav.profile')}
-                  >
-                    <ProfileMenuLink
-                      to={`/${lang}/profile`}
-                      label={getFullName(user)}
-                      onNavigate={() => setOpenDropdown('')}
-                      icon={
-                        <UserAvatar
-                          user={user}
-                          className="size-5 bg-transparent text-current dark:bg-transparent dark:text-current"
-                          textClassName="text-[10px] font-semibold"
-                        />
-                      }
-                    />
-                    <ProfileMenuLink
-                      to={`/${lang}/messages`}
-                      label={t('nav.messages')}
-                      onNavigate={() => setOpenDropdown('')}
-                      icon={<MessageIcon />}
-                      badgeCount={messageUnreadCount}
-                    />
-                    <ProfileMenuLink
-                      to={`/${lang}/notifications`}
-                      label={t('nav.notifications')}
-                      onNavigate={() => setOpenDropdown('')}
-                      icon={<BellIcon />}
-                      badgeCount={notificationUnreadCount}
-                    />
-                    <ProfileMenuLink
-                      to={`/${lang}/profile?tab=saved`}
-                      label={t('profile.saved')}
-                      onNavigate={() => setOpenDropdown('')}
-                      icon={<BookmarkIcon />}
-                    />
-                    <ProfileMenuLink
-                      to={`/${lang}/groups`}
-                      label="Gruplar"
-                      onNavigate={() => setOpenDropdown('')}
-                      icon={<GroupsIcon />}
-                    />
-                    <ProfileMenuLink
-                      to={`/${lang}/settings`}
-                      label={t('nav.settings')}
-                      onNavigate={() => setOpenDropdown('')}
-                      icon={<SettingsIcon />}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
-                    >
-                      <span className="text-current">
-                        <LoginIcon />
-                      </span>
-                      <span>Oturumu Kapat</span>
-                    </button>
-                  </DropdownPanel>
+                    onClose={() => setOpenDropdown('')}
+                    user={user}
+                    lang={lang}
+                    t={t}
+                    theme={theme}
+                    setTheme={setTheme}
+                    onLanguageChange={(nextLang) => {
+                      setOpenDropdown('')
+                      handleLanguageChange(nextLang)
+                    }}
+                    onLogout={handleLogout}
+                    messageUnreadCount={messageUnreadCount}
+                    notificationUnreadCount={notificationUnreadCount}
+                  />
                 </div>
               </>
             ) : (

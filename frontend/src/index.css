@@ -103,6 +103,18 @@
   border-color: rgb(var(--color-border-strong));
 }
 
+@utility divide-border {
+  & > :not(:last-child) {
+    border-color: rgb(var(--color-border));
+  }
+}
+
+@utility divide-border-soft {
+  & > :not(:last-child) {
+    border-color: rgb(var(--color-border-soft));
+  }
+}
+
 @utility text-muted {
   color: rgb(var(--color-muted));
 }
@@ -112,6 +124,10 @@
 }
 
 @utility text-inverse {
+  color: rgb(var(--color-text-inverse));
+}
+
+@utility text-text-inverse {
   color: rgb(var(--color-text-inverse));
 }
 

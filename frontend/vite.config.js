@@ -16,6 +16,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('/src/i18n/')) {
+            return 'app-i18n'
+          }
           if (!id.includes('node_modules')) return undefined
           if (id.includes('react-router') || id.includes('@remix-run/router')) {
             return 'vendor-router'
