@@ -13,6 +13,12 @@ const {
   blockAnonymousUser,
   unblockAnonymousUser,
   getLoungeSummary,
+  listDirectChats,
+  getDirectChatMessages,
+  deleteDirectChatForUser,
+  saveDirectChatMessage,
+  getOrCreateDirectChat,
+  markDirectChatAsRead,
 } = require('../services/anonymousService')
 const {
   createUploadMiddleware,
@@ -195,6 +201,78 @@ anonymousRouter.get('/blocked', authenticate, async (req, res, next) => {
   try {
     const blocked = req.user.anonymousProfile?.blockedAnonymousIds || []
     res.json({ success: true, blockedAnonymousIds: blocked })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/anonymous/direct-chats - List all persistent direct chats of the user
+anonymousRouter.get('/direct-chats', authenticate, async (req, res, next) => {
+  try {
+    const chats = await listDirectChats(req.user)
+    res.json({ success: true, chats })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/direct-chats - Get or create a direct chat with target anonymous user
+anonymousRouter.post('/direct-chats', authenticate, async (req, res, next) => {
+  try {
+    const { targetAnonymousId, targetProfileData } = req.body
+    const chat = await getOrCreateDirectChat(req.user, targetAnonymousId, targetProfileData)
+    res.status(201).json({ success: true, chat })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/anonymous/direct-chats/:chatKey/messages - Get persistent message history of direct chat
+anonymousRouter.get('/direct-chats/:chatKey/messages', authenticate, async (req, res, next) => {
+  try {
+    const { chatKey } = req.params
+    const limit = Math.min(Number(req.query.limit) || 50, 100)
+    const messages = await getDirectChatMessages(req.user, chatKey, limit)
+    res.json({ success: true, messages })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/direct-chats/:chatKey/messages - Send message to direct chat
+anonymousRouter.post('/direct-chats/:chatKey/messages', authenticate, async (req, res, next) => {
+  try {
+    const { chatKey } = req.params
+    const { text, media } = req.body
+    const message = await saveDirectChatMessage({
+      chatKey,
+      user: req.user,
+      text: text || '',
+      media: Array.isArray(media) ? media : [],
+    })
+    res.status(201).json({ success: true, message })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/direct-chats/:chatKey/read - Mark direct chat as read
+anonymousRouter.post('/direct-chats/:chatKey/read', authenticate, async (req, res, next) => {
+  try {
+    const { chatKey } = req.params
+    const result = await markDirectChatAsRead(req.user, chatKey)
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/anonymous/direct-chats/:chatKey - Remove/hide direct chat from user's view
+anonymousRouter.delete('/direct-chats/:chatKey', authenticate, async (req, res, next) => {
+  try {
+    const { chatKey } = req.params
+    const result = await deleteDirectChatForUser(req.user, chatKey)
+    res.json(result)
   } catch (error) {
     next(error)
   }

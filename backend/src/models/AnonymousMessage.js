@@ -42,6 +42,20 @@ const anonymousMessageSchema = new mongoose.Schema(
         durationSeconds: { type: Number, default: 0 },
       },
     ],
+    status: {
+      type: String,
+      enum: ['sent', 'delivered', 'read'],
+      default: 'sent',
+      index: true,
+    },
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+    readAt: {
+      type: Date,
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -49,7 +63,7 @@ const anonymousMessageSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      default: () => new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // Auto-expire messages after 3 days
+      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Auto-expire messages after 30 days
       index: { expires: 0 },
     },
   },

@@ -2,6 +2,7 @@ const crypto = require('crypto')
 const { User } = require('../models/User')
 const { AnonymousRoom } = require('../models/AnonymousRoom')
 const { AnonymousMessage } = require('../models/AnonymousMessage')
+const { AnonymousDirectChat } = require('../models/AnonymousDirectChat')
 const { AppError } = require('../utils/AppError')
 
 const ADJECTIVES = [
@@ -364,6 +365,308 @@ async function unblockAnonymousUser(user, targetAnonymousId) {
   }
 }
 
+function getDirectChatKey(id1, id2) {
+  if (!id1 || !id2) return null
+  return [String(id1), String(id2)].sort().join('_')
+}
+
+function serializeDirectChat(chat, myAnonId) {
+  const partnerAnonId = chat.participants.find((id) => id !== myAnonId)
+  let partnerProfile = null
+
+  if (chat.participantProfiles) {
+    if (chat.participantProfiles instanceof Map) {
+      partnerProfile = chat.participantProfiles.get(partnerAnonId)
+    } else if (typeof chat.participantProfiles === 'object') {
+      partnerProfile = chat.participantProfiles[partnerAnonId]
+    }
+  }
+
+  let unreadCount = 0
+  if (chat.unreadCounts) {
+    if (chat.unreadCounts instanceof Map) {
+      unreadCount = chat.unreadCounts.get(myAnonId) || 0
+    } else if (typeof chat.unreadCounts === 'object') {
+      unreadCount = chat.unreadCounts[myAnonId] || 0
+    }
+  }
+
+  return {
+    id: chat._id.toString(),
+    chatKey: chat.chatKey,
+    sessionId: chat.chatKey,
+    partner: {
+      anonymousId: partnerAnonId,
+      alias: partnerProfile?.alias || 'Gölge Gezgin',
+      avatarKey: partnerProfile?.avatarKey || 'avatar-1',
+      gender: partnerProfile?.gender || 'unspecified',
+      ageRange: partnerProfile?.ageRange || 'unspecified',
+      status: partnerProfile?.status || '',
+    },
+    lastMessage: chat.lastMessage || null,
+    lastMessageAt: chat.lastMessageAt || chat.updatedAt || chat.createdAt,
+    unreadCount,
+    hasUnread: unreadCount > 0,
+    createdAt: chat.createdAt,
+  }
+}
+
+async function getOrCreateDirectChat(user, targetAnonymousId, targetProfileData = null) {
+  const myProfile = await getOrCreateAnonymousProfile(user)
+  const myAnonId = myProfile.anonymousId
+
+  if (!targetAnonymousId || myAnonId === targetAnonymousId) {
+    throw new AppError('Geçersiz sohbet hedefi.', 400)
+  }
+
+  const chatKey = getDirectChatKey(myAnonId, targetAnonymousId)
+  let chat = await AnonymousDirectChat.findOne({ chatKey })
+
+  if (!chat) {
+    chat = new AnonymousDirectChat({
+      chatKey,
+      participants: [myAnonId, targetAnonymousId],
+      participantProfiles: new Map(),
+    })
+  }
+
+  // Update current user's profile in the chat record
+  chat.participantProfiles.set(myAnonId, {
+    alias: myProfile.alias,
+    avatarKey: myProfile.avatarKey,
+    gender: myProfile.gender,
+    ageRange: myProfile.ageRange,
+    status: myProfile.status,
+  })
+
+  // If target profile data is provided, save or update it
+  if (targetProfileData && typeof targetProfileData === 'object') {
+    chat.participantProfiles.set(targetAnonymousId, {
+      alias: targetProfileData.alias || 'Gölge Gezgin',
+      avatarKey: targetProfileData.avatarKey || 'avatar-1',
+      gender: targetProfileData.gender || 'unspecified',
+      ageRange: targetProfileData.ageRange || 'unspecified',
+      status: targetProfileData.status || '',
+    })
+  }
+
+  // If previously deleted by current user, restore it
+  if (chat.deletedBy && chat.deletedBy.includes(myAnonId)) {
+    chat.deletedBy = chat.deletedBy.filter((id) => id !== myAnonId)
+  }
+
+  await chat.save()
+
+  return serializeDirectChat(chat, myAnonId)
+}
+
+async function listDirectChats(user) {
+  const myProfile = await getOrCreateAnonymousProfile(user)
+  const myAnonId = myProfile.anonymousId
+
+  const chats = await AnonymousDirectChat.find({
+    participants: myAnonId,
+    deletedBy: { $ne: myAnonId },
+  }).sort({ lastMessageAt: -1 })
+
+  return chats.map((chat) => serializeDirectChat(chat, myAnonId))
+}
+
+async function getDirectChatMessages(user, chatKey, limit = 50) {
+  const myProfile = await getOrCreateAnonymousProfile(user)
+  const myAnonId = myProfile.anonymousId
+
+  const chat = await AnonymousDirectChat.findOne({ chatKey })
+  if (!chat || !chat.participants.includes(myAnonId)) {
+    throw new AppError('Sohbet bulunamadı veya yetkiniz yok.', 404)
+  }
+
+  // Automatically mark partner's messages as read
+  const now = new Date()
+  await AnonymousMessage.updateMany(
+    {
+      conversationId: chatKey,
+      senderAnonymousId: { $ne: myAnonId },
+      status: { $ne: 'read' },
+    },
+    {
+      $set: { status: 'read', readAt: now },
+    },
+  )
+
+  if (chat.unreadCounts) {
+    if (chat.unreadCounts instanceof Map) {
+      chat.unreadCounts.set(myAnonId, 0)
+    } else if (typeof chat.unreadCounts === 'object') {
+      chat.unreadCounts[myAnonId] = 0
+    }
+    await chat.save()
+  }
+
+  const messages = await AnonymousMessage.find({ conversationId: chatKey })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean()
+
+  return messages.reverse().map((msg) => ({
+    id: msg._id.toString(),
+    sessionId: chatKey,
+    conversationId: chatKey,
+    senderAnonymousId: msg.senderAnonymousId,
+    senderAlias: msg.senderAlias,
+    senderAvatar: msg.senderAvatar,
+    text: msg.text,
+    media: Array.isArray(msg.media) ? msg.media : [],
+    status: msg.status || 'sent',
+    deliveredAt: msg.deliveredAt || null,
+    readAt: msg.readAt || null,
+    createdAt: msg.createdAt,
+  }))
+}
+
+async function saveDirectChatMessage({ chatKey, user, text, media = [], status = 'sent' }) {
+  const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : ''
+  const cleanMedia = Array.isArray(media) ? media : []
+
+  if (!cleanText && cleanMedia.length === 0) {
+    throw new AppError('Mesaj metni veya medya gereklidir.', 400)
+  }
+
+  const myProfile = await getOrCreateAnonymousProfile(user)
+  const myAnonId = myProfile.anonymousId
+
+  let chat = await AnonymousDirectChat.findOne({ chatKey })
+  if (!chat || !chat.participants.includes(myAnonId)) {
+    throw new AppError('Sohbet bulunamadı veya yetkiniz yok.', 404)
+  }
+
+  const partnerAnonId = chat.participants.find((id) => id !== myAnonId)
+  if (myProfile.blockedAnonymousIds?.includes(partnerAnonId)) {
+    throw new AppError('Bu kullanıcı engellenmiş.', 403)
+  }
+
+  const initialStatus = ['sent', 'delivered', 'read'].includes(status) ? status : 'sent'
+  const now = new Date()
+
+  // Create message
+  const message = await AnonymousMessage.create({
+    conversationId: chatKey,
+    roomId: null,
+    senderAnonymousId: myAnonId,
+    senderAlias: myProfile.alias,
+    senderAvatar: myProfile.avatarKey,
+    text: cleanText,
+    media: cleanMedia,
+    status: initialStatus,
+    deliveredAt: initialStatus === 'delivered' || initialStatus === 'read' ? now : null,
+    readAt: initialStatus === 'read' ? now : null,
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  })
+
+  // Update chat
+  chat.lastMessage = {
+    text: cleanText || (cleanMedia.length > 0 ? (cleanMedia[0].type === 'audio' ? '🎤 Sesli Mesaj' : '📷 Fotoğraf') : ''),
+    senderAnonymousId: myAnonId,
+    senderAlias: myProfile.alias,
+    hasMedia: cleanMedia.length > 0,
+    mediaType: cleanMedia[0]?.type || '',
+    createdAt: message.createdAt,
+  }
+  chat.lastMessageAt = message.createdAt
+  // Un-hide chat for anyone who had deleted it previously
+  chat.deletedBy = []
+  chat.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+  // Increment unread count for partner if message is not read immediately
+  if (!chat.unreadCounts) chat.unreadCounts = new Map()
+  if (initialStatus !== 'read') {
+    const currentUnread =
+      (chat.unreadCounts instanceof Map
+        ? chat.unreadCounts.get(partnerAnonId)
+        : chat.unreadCounts[partnerAnonId]) || 0
+    if (chat.unreadCounts instanceof Map) {
+      chat.unreadCounts.set(partnerAnonId, currentUnread + 1)
+    } else {
+      chat.unreadCounts[partnerAnonId] = currentUnread + 1
+    }
+  }
+
+  // Ensure current user's profile is up to date in the chat
+  chat.participantProfiles.set(myAnonId, {
+    alias: myProfile.alias,
+    avatarKey: myProfile.avatarKey,
+    gender: myProfile.gender,
+    ageRange: myProfile.ageRange,
+    status: myProfile.status,
+  })
+
+  await chat.save()
+
+  return {
+    id: message._id.toString(),
+    sessionId: chatKey,
+    conversationId: chatKey,
+    senderAnonymousId: myAnonId,
+    senderAlias: myProfile.alias,
+    senderAvatar: myProfile.avatarKey,
+    text: message.text,
+    media: message.media || [],
+    status: message.status,
+    deliveredAt: message.deliveredAt,
+    readAt: message.readAt,
+    createdAt: message.createdAt,
+  }
+}
+
+async function markDirectChatAsRead(user, chatKey) {
+  const myProfile = await getOrCreateAnonymousProfile(user)
+  const myAnonId = myProfile.anonymousId
+
+  const chat = await AnonymousDirectChat.findOne({ chatKey })
+  if (!chat || !chat.participants.includes(myAnonId)) {
+    throw new AppError('Sohbet bulunamadı.', 404)
+  }
+
+  const now = new Date()
+  await AnonymousMessage.updateMany(
+    {
+      conversationId: chatKey,
+      senderAnonymousId: { $ne: myAnonId },
+      status: { $ne: 'read' },
+    },
+    {
+      $set: { status: 'read', readAt: now },
+    },
+  )
+
+  if (!chat.unreadCounts) chat.unreadCounts = new Map()
+  if (chat.unreadCounts instanceof Map) {
+    chat.unreadCounts.set(myAnonId, 0)
+  } else {
+    chat.unreadCounts[myAnonId] = 0
+  }
+  await chat.save()
+
+  return { success: true, chatKey, readAt: now }
+}
+
+async function deleteDirectChatForUser(user, chatKey) {
+  const myProfile = await getOrCreateAnonymousProfile(user)
+  const myAnonId = myProfile.anonymousId
+
+  const chat = await AnonymousDirectChat.findOne({ chatKey })
+  if (!chat || !chat.participants.includes(myAnonId)) {
+    throw new AppError('Sohbet bulunamadı.', 404)
+  }
+
+  if (!chat.deletedBy.includes(myAnonId)) {
+    chat.deletedBy.push(myAnonId)
+    await chat.save()
+  }
+
+  return { success: true, chatKey }
+}
+
 module.exports = {
   generateRandomAlias,
   getAnonymousId,
@@ -380,4 +683,11 @@ module.exports = {
   blockAnonymousUser,
   unblockAnonymousUser,
   getLoungeSummary,
+  getDirectChatKey,
+  getOrCreateDirectChat,
+  listDirectChats,
+  getDirectChatMessages,
+  saveDirectChatMessage,
+  deleteDirectChatForUser,
+  markDirectChatAsRead,
 }

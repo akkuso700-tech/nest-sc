@@ -103,3 +103,35 @@ export async function uploadAnonymousMedia(formData) {
   })
   return res.media || []
 }
+
+export async function getAnonymousDirectChats() {
+  const res = await apiRequest('/anonymous/direct-chats')
+  return res.chats || []
+}
+
+export async function getOrCreateAnonymousDirectChat(targetAnonymousId, targetProfileData = null) {
+  const res = await apiRequest('/anonymous/direct-chats', {
+    method: 'POST',
+    body: JSON.stringify({ targetAnonymousId, targetProfileData }),
+  })
+  return res.chat
+}
+
+export async function getDirectChatMessages(chatKey, limit = 50) {
+  const res = await apiRequest(`/anonymous/direct-chats/${chatKey}/messages?limit=${limit}`)
+  return res.messages || []
+}
+
+export async function deleteAnonymousDirectChat(chatKey) {
+  return apiRequest(`/anonymous/direct-chats/${chatKey}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function markAnonymousDirectChatRead(chatKey) {
+  return apiRequest(`/anonymous/direct-chats/${chatKey}/read`, {
+    method: 'POST',
+  })
+}
+
+
