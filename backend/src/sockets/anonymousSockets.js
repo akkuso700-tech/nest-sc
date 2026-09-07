@@ -5,6 +5,11 @@ const {
   deleteRoomMessage,
   deleteCustomRoom,
   blockAnonymousUser,
+  getDirectChatKey,
+  getOrCreateDirectChat,
+  saveDirectChatMessage,
+  deleteDirectChatForUser,
+  markDirectChatAsRead,
 } = require('../services/anonymousService')
 
 // In-memory state for anonymous realtime interactions
@@ -14,8 +19,25 @@ const activeAnonUsers = new Map()
 const userToAnonMap = new Map()
 // Queue for Omegle-style quick match: [anonymousId, ...]
 const quickMatchQueue = []
-// active direct sessions: sessionId -> { p1: anonymousId, p2: anonymousId, p1Revealed: bool, p2Revealed: bool }
+// active direct sessions: sessionId -> { p1: anonymousId, p2: anonymousId, p1Revealed: bool, p2Revealed: bool, messageCount: number }
 const activeDirectSessions = new Map()
+
+function getOrCreateActiveSession(sessionId) {
+  let session = activeDirectSessions.get(sessionId)
+  if (!session) {
+    const parts = String(sessionId).split('_')
+    session = {
+      sessionId,
+      p1: parts[0] || '',
+      p2: parts[1] || '',
+      p1Revealed: false,
+      p2Revealed: false,
+      messageCount: 0,
+    }
+    activeDirectSessions.set(sessionId, session)
+  }
+  return session
+}
 
 function getCleanAnonUserList(currentAnonId) {
   const currentUserData = activeAnonUsers.get(currentAnonId)
@@ -247,7 +269,7 @@ function registerAnonymousSockets(io, socket) {
   })
 
   // 7. DIRECT CHAT ACCEPT
-  socket.on('anon:direct_accept', ({ requesterAnonymousId }, ack) => {
+  socket.on('anon:direct_accept', async ({ requesterAnonymousId }, ack) => {
     try {
       const myAnonId = userToAnonMap.get(userId)
       const myData = activeAnonUsers.get(myAnonId)
@@ -258,14 +280,13 @@ function registerAnonymousSockets(io, socket) {
         return
       }
 
-      const sessionId = `direct_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-      activeDirectSessions.set(sessionId, {
-        p1: requesterAnonymousId,
-        p2: myAnonId,
-        p1Revealed: false,
-        p2Revealed: false,
-        messageCount: 0,
-      })
+      // Persist or fetch direct chat in database
+      const chat = await getOrCreateDirectChat(socket.user, requesterAnonymousId, requesterData)
+      const sessionId = chat.chatKey
+
+      const session = getOrCreateActiveSession(sessionId)
+      session.p1 = requesterAnonymousId
+      session.p2 = myAnonId
 
       myData.directSessionId = sessionId
       requesterData.directSessionId = sessionId
@@ -280,6 +301,7 @@ function registerAnonymousSockets(io, socket) {
       // Notify both
       socket.emit('anon:direct_started', {
         sessionId,
+        chatKey: sessionId,
         partner: {
           anonymousId: requesterAnonymousId,
           alias: requesterData.alias,
@@ -293,6 +315,7 @@ function registerAnonymousSockets(io, socket) {
       if (requesterSocket) {
         requesterSocket.emit('anon:direct_started', {
           sessionId,
+          chatKey: sessionId,
           partner: {
             anonymousId: myAnonId,
             alias: myData.alias,
@@ -320,6 +343,64 @@ function registerAnonymousSockets(io, socket) {
     }
   })
 
+  // 7.1 JOIN DIRECT CHAT ROOM (When opening existing chat from list)
+  socket.on('anon:join_direct', async ({ sessionId, chatKey }, ack) => {
+    try {
+      const targetKey = chatKey || sessionId
+      if (!targetKey) return
+      const myAnonId = userToAnonMap.get(userId)
+      if (!myAnonId) return
+
+      const sessionRoom = `anon_direct:${targetKey}`
+      socket.join(sessionRoom)
+
+      getOrCreateActiveSession(targetKey)
+
+      const myData = activeAnonUsers.get(myAnonId)
+      if (myData) {
+        myData.directSessionId = targetKey
+      }
+
+      // Mark unread messages as read upon entering chat
+      if (socket.user) {
+        await markDirectChatAsRead(socket.user, targetKey)
+        io.to(sessionRoom).emit('anon:messages_read', {
+          sessionId: targetKey,
+          chatKey: targetKey,
+          readBy: myAnonId,
+          readAt: new Date().toISOString(),
+        })
+      }
+
+      if (typeof ack === 'function') ack({ success: true, targetKey })
+    } catch (err) {
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 7.2 MARK MESSAGES READ EXPLICITLY
+  socket.on('anon:mark_messages_read', async ({ sessionId, chatKey }, ack) => {
+    try {
+      const targetKey = chatKey || sessionId
+      if (!targetKey || !socket.user) return
+      const myAnonId = userToAnonMap.get(userId)
+      if (!myAnonId) return
+
+      await markDirectChatAsRead(socket.user, targetKey)
+
+      io.to(`anon_direct:${targetKey}`).emit('anon:messages_read', {
+        sessionId: targetKey,
+        chatKey: targetKey,
+        readBy: myAnonId,
+        readAt: new Date().toISOString(),
+      })
+
+      if (typeof ack === 'function') ack({ success: true })
+    } catch (err) {
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
   // 8. DIRECT CHAT REJECT
   socket.on('anon:direct_reject', ({ requesterAnonymousId }) => {
     const requesterData = activeAnonUsers.get(requesterAnonymousId)
@@ -331,11 +412,10 @@ function registerAnonymousSockets(io, socket) {
   })
 
   // 9. DIRECT MESSAGE
-  socket.on('anon:send_direct_message', ({ sessionId, text, media }, ack) => {
+  socket.on('anon:send_direct_message', async ({ sessionId, text, media }, ack) => {
     try {
-      const session = activeDirectSessions.get(sessionId)
-      if (!session) {
-        if (typeof ack === 'function') ack({ success: false, error: 'Sohbet oturumu sonlanmış.' })
+      if (!socket.user) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Oturum açmalısınız.' })
         return
       }
 
@@ -351,23 +431,44 @@ function registerAnonymousSockets(io, socket) {
         return
       }
 
-      session.messageCount = (session.messageCount || 0) + 1
+      // Check partner presence for delivery & read status
+      const parts = String(sessionId).split('_')
+      const partnerAnonId = parts.find((p) => p !== myAnonId)
+      const partnerData = partnerAnonId ? activeAnonUsers.get(partnerAnonId) : null
 
-      const msg = {
-        id: `dir_msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        sessionId,
-        senderAnonymousId: myAnonId,
-        senderAlias: myData.alias,
-        senderAvatar: myData.avatarKey,
-        text: cleanText,
-        media: cleanMedia,
-        createdAt: new Date().toISOString(),
-        totalMessageCount: session.messageCount,
+      let msgStatus = 'sent'
+      if (partnerData) {
+        if (partnerData.directSessionId === sessionId) {
+          msgStatus = 'read'
+        } else {
+          msgStatus = 'delivered'
+        }
       }
 
-      io.to(`anon_direct:${sessionId}`).emit('anon:new_direct_message', msg)
+      // Persist to MongoDB with real delivery status
+      const savedMsg = await saveDirectChatMessage({
+        chatKey: sessionId,
+        user: socket.user,
+        text: cleanText,
+        media: cleanMedia,
+        status: msgStatus,
+      })
 
-      if (typeof ack === 'function') ack({ success: true, message: msg })
+      const session = getOrCreateActiveSession(sessionId)
+      session.messageCount = (session.messageCount || 0) + 1
+      savedMsg.totalMessageCount = session.messageCount
+
+      io.to(`anon_direct:${sessionId}`).emit('anon:new_direct_message', savedMsg)
+
+      // Notify partner directly if online in lounge
+      if (partnerData && partnerData.socketId) {
+        io.to(partnerData.socketId).emit('anon:direct_message_notification', {
+          sessionId,
+          message: savedMsg,
+        })
+      }
+
+      if (typeof ack === 'function') ack({ success: true, message: savedMsg })
     } catch (err) {
       if (typeof ack === 'function') ack({ success: false, error: err.message })
     }
@@ -376,7 +477,7 @@ function registerAnonymousSockets(io, socket) {
   // 9.1 ANONYMOUS 1-ON-1 VOICE CALL SIGNALING
   socket.on('anon:call_start', ({ sessionId, offer }) => {
     try {
-      const session = activeDirectSessions.get(sessionId)
+      const session = getOrCreateActiveSession(sessionId)
       if (!session) return
 
       const myAnonId = userToAnonMap.get(userId)
@@ -397,7 +498,7 @@ function registerAnonymousSockets(io, socket) {
 
   socket.on('anon:call_answer', ({ sessionId, answer }) => {
     try {
-      const session = activeDirectSessions.get(sessionId)
+      const session = getOrCreateActiveSession(sessionId)
       if (!session) return
 
       socket.to(`anon_direct:${sessionId}`).emit('anon:call_answered', {
@@ -411,7 +512,7 @@ function registerAnonymousSockets(io, socket) {
 
   socket.on('anon:call_ice_candidate', ({ sessionId, candidate }) => {
     try {
-      const session = activeDirectSessions.get(sessionId)
+      const session = getOrCreateActiveSession(sessionId)
       if (!session) return
 
       socket.to(`anon_direct:${sessionId}`).emit('anon:call_ice_candidate', {
@@ -425,7 +526,7 @@ function registerAnonymousSockets(io, socket) {
 
   socket.on('anon:call_end', ({ sessionId, reason }) => {
     try {
-      const session = activeDirectSessions.get(sessionId)
+      const session = getOrCreateActiveSession(sessionId)
       if (!session) return
 
       io.to(`anon_direct:${sessionId}`).emit('anon:call_ended', {
@@ -439,7 +540,7 @@ function registerAnonymousSockets(io, socket) {
 
   // 10. REVEAL IDENTITY (Maskeyi Düşür)
   socket.on('anon:reveal_identity_request', ({ sessionId }) => {
-    const session = activeDirectSessions.get(sessionId)
+    const session = getOrCreateActiveSession(sessionId)
     if (!session) return
 
     const myAnonId = userToAnonMap.get(userId)
@@ -478,13 +579,42 @@ function registerAnonymousSockets(io, socket) {
     }
   })
 
-  // 11. LEAVE DIRECT CHAT
+  // 11. LEAVE DIRECT CHAT (Back to rooms/chats list, DOES NOT delete chat or wipe messages)
   socket.on('anon:leave_direct', ({ sessionId }) => {
-    endDirectSession(sessionId, io)
+    const myAnonId = userToAnonMap.get(userId)
+    const myData = activeAnonUsers.get(myAnonId)
+    if (myData) {
+      myData.directSessionId = null
+      io.to('lounge_global').emit('anon:user_status_changed', {
+        anonymousId: myAnonId,
+        isBusy: false,
+      })
+    }
+    if (sessionId) {
+      socket.leave(`anon_direct:${sessionId}`)
+    }
+  })
+
+  // 11.1 DELETE DIRECT CHAT (Remove from user's list)
+  socket.on('anon:delete_direct_chat', async ({ chatKey, sessionId }, ack) => {
+    try {
+      const targetKey = chatKey || sessionId
+      if (!socket.user || !targetKey) return
+      await deleteDirectChatForUser(socket.user, targetKey)
+      socket.leave(`anon_direct:${targetKey}`)
+      const myAnonId = userToAnonMap.get(userId)
+      const myData = activeAnonUsers.get(myAnonId)
+      if (myData && myData.directSessionId === targetKey) {
+        myData.directSessionId = null
+      }
+      if (typeof ack === 'function') ack({ success: true, targetKey })
+    } catch (err) {
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
   })
 
   // 12. QUICK MATCH (Rastgele Eşleş)
-  socket.on('anon:quick_match', (payload, ack) => {
+  socket.on('anon:quick_match', async (payload, ack) => {
     const myAnonId = userToAnonMap.get(userId)
     const myData = activeAnonUsers.get(myAnonId)
 
@@ -512,14 +642,12 @@ function registerAnonymousSockets(io, socket) {
         }
 
         // MATCH FOUND!
-        const sessionId = `direct_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-        activeDirectSessions.set(sessionId, {
-          p1: candidateId,
-          p2: myAnonId,
-          p1Revealed: false,
-          p2Revealed: false,
-          messageCount: 0,
-        })
+        const sessionId = getDirectChatKey(myAnonId, candidateId)
+        await getOrCreateDirectChat(socket.user, candidateId, candidateData)
+
+        const session = getOrCreateActiveSession(sessionId)
+        session.p1 = candidateId
+        session.p2 = myAnonId
 
         myData.directSessionId = sessionId
         candidateData.directSessionId = sessionId
@@ -533,6 +661,7 @@ function registerAnonymousSockets(io, socket) {
 
         socket.emit('anon:direct_started', {
           sessionId,
+          chatKey: sessionId,
           partner: {
             anonymousId: candidateId,
             alias: candidateData.alias,
@@ -546,6 +675,7 @@ function registerAnonymousSockets(io, socket) {
         if (candidateSocket) {
           candidateSocket.emit('anon:direct_started', {
             sessionId,
+            chatKey: sessionId,
             partner: {
               anonymousId: myAnonId,
               alias: myData.alias,
@@ -671,9 +801,9 @@ function registerAnonymousSockets(io, socket) {
       const qIdx = quickMatchQueue.indexOf(myAnonId)
       if (qIdx !== -1) quickMatchQueue.splice(qIdx, 1)
 
-      // End direct session if in one
+      // Direct sessions are persistent in MongoDB - do NOT destroy session or messages on disconnect!
       if (myData.directSessionId) {
-        endDirectSession(myData.directSessionId, io)
+        myData.directSessionId = null
       }
 
       // Leave room if in one

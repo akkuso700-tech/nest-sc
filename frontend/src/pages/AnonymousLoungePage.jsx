@@ -14,6 +14,10 @@ import {
   deleteRoomMessage,
   blockAnonymousUser,
   uploadAnonymousMedia,
+  getAnonymousDirectChats,
+  getDirectChatMessages,
+  deleteAnonymousDirectChat,
+  markAnonymousDirectChatRead,
 } from '../services/anonymousService.js'
 import { compressImageToFile } from '../utils/imageUpload.js'
 import { resolveMediaUrl } from '../utils/media.js'
@@ -110,6 +114,19 @@ export default function AnonymousLoungePage() {
   const [sideTab, setSideTab] = useState('rooms') // 'rooms', 'chats', 'radar'
   const [mobileTab, setMobileTab] = useState('rooms') // 'rooms', 'radar', 'chat'
 
+  // Derived state: Unread direct chats & notification counts
+  const unreadDirectChats = useMemo(() => {
+    return directChats.filter((c) => (c.unreadCount && c.unreadCount > 0) || c.hasUnread)
+  }, [directChats])
+
+  const totalUnreadDirectCount = useMemo(() => {
+    return directChats.reduce((sum, c) => sum + (c.unreadCount || (c.hasUnread ? 1 : 0)), 0)
+  }, [directChats])
+
+  const unreadNotificationsCount = useMemo(() => {
+    return (incomingDirectRequest ? 1 : 0) + totalUnreadDirectCount
+  }, [incomingDirectRequest, totalUnreadDirectCount])
+
   // Input states
   const [messageInput, setMessageInput] = useState('')
   const [isLoadingRooms, setIsLoadingRooms] = useState(true)
@@ -184,6 +201,17 @@ export default function AnonymousLoungePage() {
         if (isAuthenticated) {
           const prof = await getAnonymousProfile()
           if (isMounted) setAnonProfile(prof)
+          try {
+            const savedChats = await getAnonymousDirectChats()
+            if (isMounted && Array.isArray(savedChats)) {
+              setDirectChats(savedChats)
+              try {
+                localStorage.setItem('nest_anon_direct_chats', JSON.stringify(savedChats))
+              } catch (_) {}
+            }
+          } catch (chatErr) {
+            console.error('Failed to load direct chats:', chatErr)
+          }
         }
       } catch (err) {
         console.error('Failed to init anonymous lounge:', err)
@@ -269,24 +297,26 @@ export default function AnonymousLoungePage() {
       setIncomingDirectRequest(from)
     })
 
-    socket.on('anon:direct_started', ({ sessionId, partner }) => {
+    socket.on('anon:direct_started', ({ sessionId, chatKey, partner }) => {
+      const key = chatKey || sessionId
       setDirectChats((prev) => {
-        const exists = prev.find((c) => c.partner?.anonymousId === partner.anonymousId)
+        const exists = prev.find((c) => (c.chatKey || c.sessionId) === key || c.partner?.anonymousId === partner.anonymousId)
         let updated
         if (exists) {
           updated = prev.map((c) =>
-            c.partner?.anonymousId === partner.anonymousId
-              ? { ...c, sessionId, partner, lastMessageAt: new Date().toISOString() }
+            (c.chatKey || c.sessionId) === key || c.partner?.anonymousId === partner.anonymousId
+              ? { ...c, sessionId: key, chatKey: key, partner, lastMessageAt: new Date().toISOString() }
               : c
           )
         } else {
           updated = [
             {
-              sessionId,
+              id: key,
+              sessionId: key,
+              chatKey: key,
               partner,
               lastMessage: t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başladı' }),
               lastMessageAt: new Date().toISOString(),
-              messages: [],
             },
             ...prev,
           ]
@@ -301,24 +331,31 @@ export default function AnonymousLoungePage() {
       setIncomingDirectRequest(null)
       setSentRequestModal(null)
 
-      // Karşı taraf sohbeti kabul ettiğinde direkt sohbet ekranına geçme;
-      // pop-up bilgilendirmesi ver ve kullanıcı onayladığında sohbet sayfasına gir.
-      setChatAcceptedModal({ sessionId, partner })
+      // Karşı taraf sohbeti kabul ettiğinde pop-up bilgilendirmesi ver
+      setChatAcceptedModal({ sessionId: key, partner })
     })
 
     socket.on('anon:new_direct_message', (msg) => {
-      setDirectMessages((prev) => [...prev, msg])
+      setDirectMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
       setDirectChats((prev) => {
         const updated = prev.map((c) => {
           if (
             c.sessionId === msg.sessionId ||
+            c.chatKey === msg.sessionId ||
             c.partner?.anonymousId === msg.senderAnonymousId
           ) {
             return {
               ...c,
-              lastMessage: msg.text,
+              lastMessage: {
+                text: msg.text || (msg.media?.length ? (msg.media[0].type === 'audio' ? '🎤 Sesli Mesaj' : '📷 Fotoğraf') : ''),
+                senderAnonymousId: msg.senderAnonymousId,
+                senderAlias: msg.senderAlias,
+                hasMedia: Boolean(msg.media?.length),
+              },
               lastMessageAt: msg.createdAt || new Date().toISOString(),
-              messages: [...(c.messages || []), msg],
             }
           }
           return c
@@ -330,6 +367,62 @@ export default function AnonymousLoungePage() {
       })
     })
 
+    socket.on('anon:direct_message_notification', ({ sessionId, message }) => {
+      setDirectChats((prev) => {
+        const exists = prev.some((c) => (c.chatKey || c.sessionId) === sessionId)
+        if (!exists) {
+          getAnonymousDirectChats()
+            .then((chats) => {
+              if (Array.isArray(chats)) {
+                setDirectChats(chats)
+                try {
+                  localStorage.setItem('nest_anon_direct_chats', JSON.stringify(chats))
+                } catch (_) {}
+              }
+            })
+            .catch(() => {})
+          return prev
+        }
+        const updated = prev.map((c) => {
+          if (c.sessionId === sessionId || c.chatKey === sessionId) {
+            return {
+              ...c,
+              lastMessage: {
+                text: message.text || (message.media?.length ? (message.media[0].type === 'audio' ? '🎤 Sesli Mesaj' : '📷 Fotoğraf') : ''),
+                senderAnonymousId: message.senderAnonymousId,
+                senderAlias: message.senderAlias,
+                hasMedia: Boolean(message.media?.length),
+              },
+              lastMessageAt: message.createdAt || new Date().toISOString(),
+            }
+          }
+          return c
+        })
+        try {
+          localStorage.setItem('nest_anon_direct_chats', JSON.stringify(updated))
+        } catch (_) {}
+        return updated
+      })
+    })
+
+    socket.on('anon:messages_read', ({ sessionId, chatKey }) => {
+      const targetKey = chatKey || sessionId
+      setDirectMessages((prev) =>
+        prev.map((m) =>
+          m.sessionId === targetKey || m.conversationId === targetKey
+            ? { ...m, status: 'read' }
+            : m,
+        ),
+      )
+      setDirectChats((prev) =>
+        prev.map((c) =>
+          (c.chatKey || c.sessionId) === targetKey
+            ? { ...c, unreadCount: 0, hasUnread: false }
+            : c,
+        ),
+      )
+    })
+
     socket.on('anon:partner_reveal_requested', () => {
       setPartnerRequestedReveal(true)
     })
@@ -338,13 +431,15 @@ export default function AnonymousLoungePage() {
       setRevealedUsers(payload)
     })
 
-    socket.on('anon:direct_ended', () => {
+    socket.on('anon:direct_blocked', () => {
       setActiveDirectSession(null)
       setDirectMessages([])
-      setMyRequestedReveal(false)
-      setPartnerRequestedReveal(false)
-      setRevealedUsers(null)
-      setRevealConfirmModal(null)
+      setMobileTab('rooms')
+      showAlert(
+        t('lounge.messages.chatBlocked', { defaultValue: 'Bu sohbet engellendi.' }),
+        'Engellendi',
+        'info'
+      )
     })
 
     socket.on('anon:direct_rejected', () => {
@@ -428,7 +523,9 @@ export default function AnonymousLoungePage() {
       socket.off('anon:new_direct_message')
       socket.off('anon:partner_reveal_requested')
       socket.off('anon:identities_fully_revealed')
-      socket.off('anon:direct_ended')
+      socket.off('anon:direct_blocked')
+      socket.off('anon:direct_message_notification')
+      socket.off('anon:messages_read')
       socket.off('anon:direct_rejected')
       socket.off('anon:incoming_call')
       socket.off('anon:call_answered')
@@ -731,20 +828,11 @@ export default function AnonymousLoungePage() {
     const text = messageInput.trim()
     if ((!text && !uploadedMediaItem) || !activeDirectSession || isUploadingMedia) return
 
-    if (activeDirectSession.isOffline) {
-      showAlert(
-        t('lounge.messages.offlineNotice', { defaultValue: 'Kullanıcı şu anda çevrimdışı olduğu için yeni mesaj gönderilemez.' }),
-        'Kullanıcı Çevrimdışı',
-        'info'
-      )
-      return
-    }
-
     const media = uploadedMediaItem ? [uploadedMediaItem] : []
 
     if (socketRef.current?.connected) {
       socketRef.current.emit('anon:send_direct_message', {
-        sessionId: activeDirectSession.sessionId,
+        sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
         text,
         media,
       })
@@ -904,30 +992,49 @@ export default function AnonymousLoungePage() {
     setAnonCallInfo(null)
   }
 
-  // Open Chat Helper
-  function openSelectedChat(chat) {
-    const onlineUser = onlineRadarUsers.find(
+  // Open Chat Helper (Persistent MongoDB chat)
+  async function openSelectedChat(chat) {
+    const key = chat.chatKey || chat.sessionId
+    const isOnline = onlineRadarUsers.some(
       (u) => u.anonymousId === chat.partner?.anonymousId
     )
+    setSelectedRoom(null)
+    setActiveDirectSession({
+      sessionId: key,
+      chatKey: key,
+      partner: chat.partner,
+      isOffline: !isOnline,
+    })
+    setMobileTab('chat')
 
-    if (onlineUser) {
-      handleRequestDirectChat(onlineUser)
-    } else {
-      setActiveDirectSession({
-        sessionId: chat.sessionId,
-        partner: chat.partner,
-        isOffline: true,
-      })
-      setDirectMessages(chat.messages || [])
-      setMobileTab('chat')
+    // Reset unread count locally
+    setDirectChats((prev) =>
+      prev.map((c) =>
+        (c.chatKey || c.sessionId) === key
+          ? { ...c, unreadCount: 0, hasUnread: false }
+          : c
+      )
+    )
+
+    socketRef.current?.emit('anon:join_direct', { chatKey: key, sessionId: key })
+    socketRef.current?.emit('anon:mark_messages_read', { chatKey: key, sessionId: key })
+
+    try {
+      const msgs = await getDirectChatMessages(key)
+      setDirectMessages(msgs || [])
+    } catch (err) {
+      console.error('Failed to load messages for direct chat:', err)
+      setDirectMessages([])
     }
   }
 
   // Select Chat from Sohbet List
   function handleSelectChatFromList(chat) {
+    const key = chat.chatKey || chat.sessionId
     if (
       activeDirectSession &&
-      (activeDirectSession.sessionId === chat.sessionId ||
+      (activeDirectSession.sessionId === key ||
+        activeDirectSession.chatKey === key ||
         activeDirectSession.partner?.anonymousId === chat.partner?.anonymousId)
     ) {
       setMobileTab('chat')
@@ -935,42 +1042,59 @@ export default function AnonymousLoungePage() {
     }
 
     if (activeDirectSession) {
-      setConfirmDialog({
-        icon: '💬',
-        iconBg: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-        title: t('lounge.chats.switchChatTitle', { defaultValue: 'Sohbeti Değiştir' }),
-        description: t('lounge.chats.switchChatPrompt', {
-          alias: activeDirectSession.partner?.alias,
-          defaultValue: `${activeDirectSession.partner?.alias} ile olan mevcut sohbeti sonlandırıp bu sohbete geçmek istiyor musunuz?`,
-        }),
-        confirmText: t('lounge.chats.confirmSwitch', { defaultValue: 'Evet, Sohbete Geç' }),
-        isDanger: false,
-        onConfirm: () => {
-          socketRef.current?.emit('anon:leave_direct', {
-            sessionId: activeDirectSession.sessionId,
-          })
-          setActiveDirectSession(null)
-          setDirectMessages([])
-          openSelectedChat(chat)
-        },
+      socketRef.current?.emit('anon:leave_direct', {
+        sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
       })
-      return
     }
 
     openSelectedChat(chat)
   }
 
-  // Remove Chat from History
-  function handleRemoveChat(chatId) {
-    setDirectChats((prev) => {
-      const updated = prev.filter(
-        (c) => c.partner?.anonymousId !== chatId && c.sessionId !== chatId
-      )
-      try {
-        localStorage.setItem('nest_anon_direct_chats', JSON.stringify(updated))
-      } catch (_) {}
-      return updated
+  // Delete / Remove Chat from History
+  function handleDeleteDirectChat(chatKey) {
+    const key = chatKey || activeDirectSession?.chatKey || activeDirectSession?.sessionId
+    if (!key) return
+    setActiveMenuId(null)
+
+    setConfirmDialog({
+      icon: '🗑️',
+      iconBg: 'linear-gradient(135deg, #ef4444, #dc2626)',
+      title: t('lounge.chats.deleteChatTitle', { defaultValue: 'Sohbeti Sil' }),
+      description: t('lounge.chats.deleteChatDesc', {
+        defaultValue:
+          'Bu sohbeti listenizden silmek istediğinize emin misiniz? Sohbet listenizden kaldırılacaktır.',
+      }),
+      confirmText: t('common.delete', { defaultValue: 'Sil' }),
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteAnonymousDirectChat(key)
+        } catch (err) {
+          console.error('Delete direct chat error:', err)
+        }
+        if (socketRef.current) {
+          socketRef.current.emit('anon:delete_direct_chat', { chatKey: key })
+        }
+        setDirectChats((prev) => prev.filter((c) => (c.chatKey || c.sessionId) !== key))
+        try {
+          const saved = localStorage.getItem('nest_anon_direct_chats')
+          if (saved) {
+            const parsed = JSON.parse(saved).filter((c) => (c.chatKey || c.sessionId) !== key)
+            localStorage.setItem('nest_anon_direct_chats', JSON.stringify(parsed))
+          }
+        } catch (_) {}
+
+        if (activeDirectSession && (activeDirectSession.chatKey === key || activeDirectSession.sessionId === key)) {
+          setActiveDirectSession(null)
+          setDirectMessages([])
+          setMobileTab('rooms')
+        }
+      },
     })
+  }
+
+  function handleRemoveChat(chatId) {
+    handleDeleteDirectChat(chatId)
   }
 
   // Direct Chat Request Handlers
@@ -996,7 +1120,7 @@ export default function AnonymousLoungePage() {
   }
 
   function handleDirectStarted({ sessionId, partner }) {
-    setActiveDirectSession({ sessionId, partner })
+    setActiveDirectSession({ sessionId, chatKey: sessionId, partner, isOffline: false })
     setDirectMessages([])
     setMobileTab('chat')
     setSideTab('chats')
@@ -1009,15 +1133,17 @@ export default function AnonymousLoungePage() {
       const existing = prev.filter(
         (c) =>
           c.sessionId !== sessionId &&
+          c.chatKey !== sessionId &&
           c.partner?.anonymousId !== partner?.anonymousId,
       )
       const updated = [
         {
+          id: sessionId,
           sessionId,
+          chatKey: sessionId,
           partner,
           lastMessage: t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' }),
           lastMessageAt: new Date().toISOString(),
-          messages: [],
         },
         ...existing,
       ]
@@ -1028,10 +1154,10 @@ export default function AnonymousLoungePage() {
     })
   }
 
-  function handleEnterAcceptedChat() {
+  async function handleEnterAcceptedChat() {
     if (!chatAcceptedModal) return
     const { sessionId, partner } = chatAcceptedModal
-    setActiveDirectSession({ sessionId, partner })
+    setActiveDirectSession({ sessionId, chatKey: sessionId, partner, isOffline: false })
     setDirectMessages([])
     setMobileTab('chat')
     setSideTab('chats')
@@ -1039,6 +1165,12 @@ export default function AnonymousLoungePage() {
     setPartnerRequestedReveal(false)
     setRevealedUsers(null)
     setChatAcceptedModal(null)
+
+    socketRef.current?.emit('anon:join_direct', { chatKey: sessionId, sessionId })
+    try {
+      const msgs = await getDirectChatMessages(sessionId)
+      if (Array.isArray(msgs)) setDirectMessages(msgs)
+    } catch (_) {}
   }
 
   function handleAcceptDirectRequest() {
@@ -1092,43 +1224,27 @@ export default function AnonymousLoungePage() {
   function executeRequestReveal() {
     if (!activeDirectSession || !socketRef.current) return
     socketRef.current.emit('anon:reveal_identity_request', {
-      sessionId: activeDirectSession.sessionId,
+      sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
     })
     setMyRequestedReveal(true)
   }
 
-  // Leave Direct Chat
-  function handleLeaveDirectChat() {
+  // Close Direct Chat (Returns to room/radar without wiping messages or deleting chat)
+  function handleCloseDirectChat() {
     setRevealConfirmModal(null)
     if (!activeDirectSession) return
-    if (activeDirectSession.isOffline) {
-      setActiveDirectSession(null)
-      setDirectMessages([])
-      setMobileTab('rooms')
-      return
-    }
 
-    setConfirmDialog({
-      icon: '👋',
-      iconBg: 'linear-gradient(135deg, #64748b, #334155)',
-      title: t('lounge.chats.endChatTitle', { defaultValue: 'Sohbeti Bitir' }),
-      description: t('lounge.chats.endChatDesc', {
-        defaultValue:
-          'Bu birebir anonim sohbetten ayrılmak istediğinize emin misiniz? Sohbet sonlanacak ve mesajlar temizlenecektir.',
-      }),
-      confirmText: t('lounge.chats.confirmEnd', { defaultValue: 'Sohbeti Bitir' }),
-      isDanger: true,
-      onConfirm: () => {
-        if (socketRef.current) {
-          socketRef.current.emit('anon:leave_direct', {
-            sessionId: activeDirectSession.sessionId,
-          })
-        }
-        setActiveDirectSession(null)
-        setDirectMessages([])
-        setMobileTab('rooms')
-      },
-    })
+    if (socketRef.current) {
+      socketRef.current.emit('anon:leave_direct', {
+        sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
+      })
+    }
+    setActiveDirectSession(null)
+    setMobileTab('rooms')
+  }
+
+  function handleLeaveDirectChat() {
+    handleCloseDirectChat()
   }
 
   // Delete Room Message (Pop-up Onaylı)
@@ -1313,23 +1429,158 @@ export default function AnonymousLoungePage() {
 
         {/* Right: Quick Match + Secret Profile */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Kader Çarkı Butonu (Profil logosunun solunda) */}
+          {/* Kader Çarkı Butonu (Mobilde Sadece İkon, Masaüstünde Metinle) */}
           <button
             type="button"
             onClick={handleToggleQuickMatch}
-            className={`inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 ${
+            className={`inline-flex items-center justify-center rounded-md px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 ${
               isMatching
                 ? 'border border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 animate-pulse'
                 : 'border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 active:scale-95'
             }`}
             title={t('lounge.header.wheelTitle', { defaultValue: 'Kader Çarkı: Hızlı Eşleş' })}
           >
-            <span>
+            <span className={`text-sm ${isMatching ? 'animate-spin inline-block' : ''}`}>🎡</span>
+            <span className="hidden md:inline ml-1.5 font-medium">
               {isMatching
                 ? t('lounge.header.matching', { defaultValue: 'Eşleşiyor...' })
                 : t('lounge.header.wheelBtn', { defaultValue: 'Kader Çarkı' })}
             </span>
           </button>
+
+          {/* Bildirim İkonu & Paneli */}
+          {isAuthenticated && (
+            <div className="relative shrink-0" data-dropdown-container>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActiveMenuId(activeMenuId === 'lounge_notifications' ? null : 'lounge_notifications')
+                }}
+                className={`relative size-8 sm:size-9 rounded-md border flex items-center justify-center transition-all ${
+                  unreadNotificationsCount > 0
+                    ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/20'
+                    : 'border-border bg-secondary/80 text-text hover:bg-secondary hover:text-primary'
+                }`}
+                title={t('lounge.notifications.title', { defaultValue: 'Gölge Bildirimleri' })}
+                aria-label={t('lounge.notifications.title', { defaultValue: 'Gölge Bildirimleri' })}
+              >
+                <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 size-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-card animate-pulse">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Bildirim Paneli Dropdown */}
+              {activeMenuId === 'lounge_notifications' && (
+                <div
+                  className="absolute right-0 top-full mt-2 z-40 w-72 sm:w-80 rounded-md bg-card border border-border shadow-2xl overflow-hidden text-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-2.5 bg-secondary/60 border-b border-border flex items-center justify-between">
+                    <span className="font-bold text-text flex items-center gap-1.5">
+                      <span>🔔</span>
+                      <span>{t('lounge.notifications.title', { defaultValue: 'Gölge Bildirimleri' })}</span>
+                    </span>
+                    {unreadNotificationsCount > 0 && (
+                      <span className="rounded-full bg-primary/15 text-primary border border-primary/30 px-2 py-0.5 text-[10px] font-bold">
+                        {unreadNotificationsCount} yeni
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
+                    {/* Gelen Sohbet İsteği Varsa */}
+                    {incomingDirectRequest && (
+                      <div className="p-3 bg-primary/5 hover:bg-primary/10 transition-colors">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className="size-8 rounded-md flex items-center justify-center text-sm shrink-0"
+                            style={{ background: getAvatarByKey(incomingDirectRequest.avatarKey).bgStyle }}
+                          >
+                            {getAvatarByKey(incomingDirectRequest.avatarKey).emoji}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-text truncate">{incomingDirectRequest.alias}</p>
+                            <p className="text-[11px] text-muted truncate">
+                              {t('lounge.notifications.requestReceived', { defaultValue: 'Sizinle sohbet başlatmak istiyor' })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveMenuId(null)
+                              handleAcceptDirectRequest()
+                            }}
+                            className="flex-1 rounded-md bg-primary py-1 text-[11px] font-bold !text-white hover:bg-primary-hover transition-colors"
+                          >
+                            {t('lounge.actions.accept', { defaultValue: 'Kabul Et' })}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveMenuId(null)
+                              handleRejectDirectRequest()
+                            }}
+                            className="flex-1 rounded-md border border-border bg-secondary py-1 text-[11px] font-semibold text-text hover:bg-secondary-hover transition-colors"
+                          >
+                            {t('lounge.actions.reject', { defaultValue: 'Reddet' })}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Okunmamış Mesajı Olan Sohbetler */}
+                    {unreadDirectChats.length > 0 ? (
+                      unreadDirectChats.map((chat) => (
+                        <div
+                          key={chat.chatKey || chat.sessionId}
+                          onClick={() => {
+                            setActiveMenuId(null)
+                            openSelectedChat(chat)
+                          }}
+                          className="p-3 hover:bg-secondary/60 cursor-pointer flex items-center gap-2.5 transition-colors"
+                        >
+                          <div
+                            className="size-8 rounded-md flex items-center justify-center text-sm shrink-0"
+                            style={{ background: getAvatarByKey(chat.partner?.avatarKey).bgStyle }}
+                          >
+                            {getAvatarByKey(chat.partner?.avatarKey).emoji}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-text truncate">{chat.partner?.alias}</span>
+                              <span className="rounded-full bg-primary text-white text-[9px] font-bold px-1.5 py-0.2">
+                                {chat.unreadCount || 1}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted truncate">
+                              {chat.lastMessage?.text || (chat.lastMessage?.hasMedia ? '📷 Medya' : '') || t('lounge.notifications.newMessage', { defaultValue: 'Yeni mesaj' })}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : null}
+
+                    {/* Boş Durum */}
+                    {!incomingDirectRequest && unreadDirectChats.length === 0 && (
+                      <div className="py-8 text-center text-muted">
+                        <span className="text-2xl block mb-1">🔕</span>
+                        <p className="font-semibold text-text">{t('lounge.notifications.empty', { defaultValue: 'Yeni bildiriminiz yok' })}</p>
+                        <p className="text-[10px] mt-0.5 opacity-75">{t('lounge.notifications.emptySub', { defaultValue: 'Gelen mesaj ve sohbet istekleri burada görünür' })}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Profil Alanı */}
           {isAuthenticated && anonProfile ? (
@@ -1480,13 +1731,18 @@ export default function AnonymousLoungePage() {
                     setSideTab('chats')
                     setMobileTab('rooms')
                   }}
-                  className={`px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition-all ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition-all relative flex items-center gap-1 ${
                     sideTab === 'chats'
                       ? 'bg-card text-text shadow-sm border border-border'
                       : 'text-muted hover:text-text'
                   }`}
                 >
-                  {t('lounge.tabs.chats', { defaultValue: 'Sohbet' })} ({directChats.length})
+                  <span>{t('lounge.tabs.chats', { defaultValue: 'Sohbet' })} ({directChats.length})</span>
+                  {totalUnreadDirectCount > 0 && (
+                    <span className="min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                      {totalUnreadDirectCount > 99 ? '99+' : totalUnreadDirectCount}
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -1701,13 +1957,16 @@ export default function AnonymousLoungePage() {
                               )}
                             </div>
                             <p className="text-[11px] text-muted truncate max-w-[150px] sm:max-w-[200px]">
-                              {chat.lastMessage || t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' })}
+                              {chat.lastMessage?.text ||
+                                (typeof chat.lastMessage === 'string' ? chat.lastMessage : '') ||
+                                (chat.lastMessage?.hasMedia ? (chat.lastMessage?.mediaType === 'audio' ? '🎤 Sesli Mesaj' : '📷 Fotoğraf') : '') ||
+                                t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' })}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="text-right">
+                          <div className="text-right flex flex-col items-end">
                             <span className="text-[10px] text-muted block">
                               {chat.lastMessageAt
                                 ? new Date(chat.lastMessageAt).toLocaleTimeString([], {
@@ -1716,24 +1975,31 @@ export default function AnonymousLoungePage() {
                                   })
                                 : ''}
                             </span>
-                            <span
-                              className={`text-[9px] ${
-                                isOnline
-                                  ? 'text-emerald-600 dark:text-emerald-400'
-                                  : 'text-muted'
-                              }`}
-                            >
-                              {isOnline ? t('lounge.chats.online', { defaultValue: 'Çevrimiçi' }) : t('lounge.chats.offline', { defaultValue: 'Çevrimdışı' })}
-                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {chat.unreadCount > 0 && (
+                                <span className="min-w-[17px] h-[17px] px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-xs animate-pulse">
+                                  {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                                </span>
+                              )}
+                              <span
+                                className={`text-[9px] ${
+                                  isOnline
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-muted'
+                                }`}
+                              >
+                                {isOnline ? t('lounge.chats.online', { defaultValue: 'Çevrimiçi' }) : t('lounge.chats.offline', { defaultValue: 'Çevrimdışı' })}
+                              </span>
+                            </div>
                           </div>
 
-                          {/* 3 Nokta ⋮ Menüsü (Sohbeti Kaldır veya Kullanıcıyı Engelle) */}
+                          {/* 3 Nokta ⋮ Menüsü (Sohbeti Sil veya Kullanıcıyı Engelle) */}
                           <div className="relative" data-dropdown-container>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                const mKey = `chat_item_${chat.partner?.anonymousId || chat.sessionId}`
+                                const mKey = `chat_item_${chat.chatKey || chat.sessionId || chat.partner?.anonymousId}`
                                 setActiveMenuId(activeMenuId === mKey ? null : mKey)
                               }}
                               className="text-muted hover:text-text p-1.5 rounded hover:bg-secondary transition-colors"
@@ -1744,7 +2010,7 @@ export default function AnonymousLoungePage() {
                               </svg>
                             </button>
 
-                            {activeMenuId === `chat_item_${chat.partner?.anonymousId || chat.sessionId}` && (
+                            {activeMenuId === `chat_item_${chat.chatKey || chat.sessionId || chat.partner?.anonymousId}` && (
                               <div
                                 className="absolute right-0 top-full mt-1 z-30 w-40 rounded-md bg-card border border-border shadow-lg py-1 text-xs"
                                 onClick={(e) => e.stopPropagation()}
@@ -1753,12 +2019,12 @@ export default function AnonymousLoungePage() {
                                   type="button"
                                   onClick={() => {
                                     setActiveMenuId(null)
-                                    handleRemoveChat(chat.partner?.anonymousId || chat.sessionId)
+                                    handleDeleteDirectChat(chat.chatKey || chat.sessionId)
                                   }}
                                   className="w-full text-left px-3 py-1.5 text-text hover:bg-secondary flex items-center gap-2 transition-colors"
                                 >
-                                  <span>✕</span>
-                                  <span>{t('lounge.chats.removeChat', { defaultValue: 'Sohbeti Kaldır' })}</span>
+                                  <span>🗑️</span>
+                                  <span>{t('lounge.chats.deleteChatTitle', { defaultValue: 'Sohbeti Sil' })}</span>
                                 </button>
                                 <button
                                   type="button"
@@ -1955,15 +2221,8 @@ export default function AnonymousLoungePage() {
                       </button>
                     ) : null}
 
-                    <button
-                      type="button"
-                      onClick={handleLeaveDirectChat}
-                      className="rounded-md border border-red-500/30 bg-red-500/10 px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold text-red-500 hover:bg-red-500/20 shrink-0"
-                    >
-                      {t('lounge.chats.endChat', { defaultValue: 'Bitir' })}
-                    </button>
 
-                    {/* Dikey 3 Nokta ⋮ Menüsü (Kullanıcı Engelleme) */}
+                    {/* Dikey 3 Nokta ⋮ Menüsü (Sohbeti Sil / Kullanıcı Engelleme) */}
                     <div className="relative shrink-0" data-dropdown-container>
                       <button
                         type="button"
@@ -1985,6 +2244,18 @@ export default function AnonymousLoungePage() {
                           className="absolute right-0 top-full mt-1 z-30 w-44 rounded-md bg-card border border-border shadow-lg py-1 text-xs"
                           onClick={(e) => e.stopPropagation()}
                         >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteDirectChat(
+                                activeDirectSession.chatKey || activeDirectSession.sessionId,
+                              )
+                            }
+                            className="w-full text-left px-3 py-1.5 text-text hover:bg-secondary flex items-center gap-2 transition-colors font-medium border-b border-border/50"
+                          >
+                            <span>🗑️</span>
+                            <span>{t('lounge.chats.deleteChatTitle', { defaultValue: 'Sohbeti Sil' })}</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() =>
@@ -2181,12 +2452,57 @@ export default function AnonymousLoungePage() {
                             >
                               {isMe ? t('lounge.messages.you', { defaultValue: 'Sen' }) : msg.senderAlias}
                             </span>
-                            <span className="text-[9px] opacity-60">
-                              {new Date(msg.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] opacity-60">
+                                {new Date(msg.createdAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {isMe && activeDirectSession && (
+                                <span
+                                  className="inline-flex items-center ml-0.5"
+                                  title={
+                                    msg.status === 'read'
+                                      ? t('lounge.messages.seen', { defaultValue: 'Görüldü' })
+                                      : msg.status === 'delivered'
+                                      ? t('lounge.messages.delivered', { defaultValue: 'İletildi' })
+                                      : t('lounge.messages.sent', { defaultValue: 'Gönderildi' })
+                                  }
+                                >
+                                  {msg.status === 'read' ? (
+                                    /* Çift Mavi / Açık Renk Tik (Görüldü) */
+                                    <svg
+                                      className="size-3.5 text-sky-300 drop-shadow-xs"
+                                      viewBox="0 0 16 16"
+                                      fill="currentColor"
+                                    >
+                                      <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 2.354 7.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z" />
+                                      <path d="M14.354 4.354a.5.5 0 0 0-.708-.708L7 10.293 5.354 8.646a.5.5 0 1 0-.708.708l2 2a.5.5 0 0 0 .708 0l7-7z" />
+                                    </svg>
+                                  ) : msg.status === 'delivered' ? (
+                                    /* Çift Gri / Soluk Tik (İletildi) */
+                                    <svg
+                                      className="size-3.5 text-white/70"
+                                      viewBox="0 0 16 16"
+                                      fill="currentColor"
+                                    >
+                                      <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 2.354 7.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z" />
+                                      <path d="M14.354 4.354a.5.5 0 0 0-.708-.708L7 10.293 5.354 8.646a.5.5 0 1 0-.708.708l2 2a.5.5 0 0 0 .708 0l7-7z" />
+                                    </svg>
+                                  ) : (
+                                    /* Tek Tik (Gönderildi) */
+                                    <svg
+                                      className="size-3 text-white/60"
+                                      viewBox="0 0 16 16"
+                                      fill="currentColor"
+                                    >
+                                      <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                                    </svg>
+                                  )}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {/* 3 Nokta ⋮ Menüsü (Kullanıcının kendi mesajları veya Admin için silme) */}
