@@ -14,9 +14,15 @@ const {
   unblockAnonymousUser,
   getLoungeSummary,
 } = require('../services/anonymousService')
+const {
+  createUploadMiddleware,
+  buildMediaItems,
+  removeUploadedFiles,
+} = require('../middlewares/uploadMedia')
 const { AppError } = require('../utils/AppError')
 
 const anonymousRouter = express.Router()
+const uploadAnonymousMedia = createUploadMiddleware('anonymous', 4)
 
 // GET /api/anonymous/profile - Get or init anonymous profile
 anonymousRouter.get('/profile', authenticate, async (req, res, next) => {
@@ -92,19 +98,46 @@ anonymousRouter.get('/rooms/:id/messages', authenticateOptional, async (req, res
   }
 })
 
+// POST /api/anonymous/upload - Upload media (image, audio) for anonymous lounge
+anonymousRouter.post('/upload', authenticate, uploadAnonymousMedia, async (req, res, next) => {
+  try {
+    const files = req.files || []
+    if (files.length === 0) {
+      throw new AppError('Hiçbir dosya yüklenmedi.', 400)
+    }
+
+    const media = await buildMediaItems(files)
+    if (!media || media.length === 0) {
+      throw new AppError('Dosya işlenemedi.', 400)
+    }
+
+    if (req.body?.durationSeconds && media[0]) {
+      media[0].durationSeconds = Number(req.body.durationSeconds) || 0
+    }
+
+    res.status(201).json({ success: true, media })
+  } catch (error) {
+    if (req.files?.length) {
+      await removeUploadedFiles(req.files)
+    }
+    next(error)
+  }
+})
+
 // POST /api/anonymous/rooms/:id/messages - Post message to room (requires auth)
 anonymousRouter.post('/rooms/:id/messages', authenticate, async (req, res, next) => {
   try {
     const { id } = req.params
-    const { text } = req.body
-    if (!text || !text.trim()) {
-      throw new AppError('Mesaj metni boş olamaz.', 400)
+    const { text, media } = req.body
+    if ((!text || !text.trim()) && (!Array.isArray(media) || media.length === 0)) {
+      throw new AppError('Mesaj metni veya medya gereklidir.', 400)
     }
 
     const message = await saveRoomMessage({
       roomId: id,
       user: req.user,
-      text,
+      text: text || '',
+      media: Array.isArray(media) ? media : [],
     })
 
     res.status(201).json({ success: true, message })

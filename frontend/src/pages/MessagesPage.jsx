@@ -987,6 +987,9 @@ function MessagesPage() {
     const visualViewport = window.visualViewport
 
     function updateMobileViewportMetrics() {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0)
+      }
       const layoutHeight = window.innerHeight
       const visibleHeight = visualViewport?.height ?? layoutHeight
       const offsetTop = visualViewport?.offsetTop ?? 0
@@ -3305,10 +3308,20 @@ function MessagesPage() {
                             value={messageDraft}
                             onChange={handleDraftChange}
                             onKeyDown={handleMessageKeyDown}
+                            onFocus={() => {
+                              if (isMobileViewport) {
+                                if (window.scrollY !== 0) {
+                                  window.scrollTo(0, 0)
+                                }
+                                setTimeout(() => {
+                                  scrollMessagesToBottom()
+                                }, 120)
+                              }
+                            }}
                             disabled={!activePeer || isOptimizingMedia}
                             placeholder={t('messages.placeholder')}
-                            className={`max-h-[140px] flex-1 resize-none overflow-y-auto bg-transparent px-2 text-sm leading-6 text-text outline-none placeholder:text-muted disabled:cursor-not-allowed ${
-                              isMobileViewport ? 'min-h-[24px] py-[10px]' : 'min-h-[44px] py-2'
+                            className={`max-h-[140px] flex-1 resize-none overflow-y-auto bg-transparent px-2 leading-6 text-text outline-none placeholder:text-muted disabled:cursor-not-allowed ${
+                              isMobileViewport ? 'min-h-[24px] py-[10px] text-[16px]' : 'min-h-[44px] py-2 text-sm'
                             }`}
                           />
 

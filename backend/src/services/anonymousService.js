@@ -232,13 +232,17 @@ async function getRoomMessages(roomId, limit = 50) {
     senderAlias: msg.senderAlias,
     senderAvatar: msg.senderAvatar,
     text: msg.text,
+    media: Array.isArray(msg.media) ? msg.media : [],
     createdAt: msg.createdAt,
   }))
 }
 
-async function saveRoomMessage({ roomId, user, text }) {
-  if (!text || typeof text !== 'string' || !text.trim()) {
-    throw new AppError('Mesaj metni boş olamaz.', 400)
+async function saveRoomMessage({ roomId, user, text, media = [] }) {
+  const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : ''
+  const cleanMedia = Array.isArray(media) ? media : []
+
+  if (!cleanText && cleanMedia.length === 0) {
+    throw new AppError('Mesaj metni veya medya gereklidir.', 400)
   }
 
   const profile = await getOrCreateAnonymousProfile(user)
@@ -248,7 +252,8 @@ async function saveRoomMessage({ roomId, user, text }) {
     senderAnonymousId: profile.anonymousId,
     senderAlias: profile.alias,
     senderAvatar: profile.avatarKey,
-    text: text.trim().slice(0, 1000),
+    text: cleanText,
+    media: cleanMedia,
   })
 
   return {
@@ -258,6 +263,7 @@ async function saveRoomMessage({ roomId, user, text }) {
     senderAlias: profile.alias,
     senderAvatar: profile.avatarKey,
     text: message.text,
+    media: message.media || [],
     createdAt: message.createdAt,
   }
 }
@@ -281,7 +287,8 @@ async function deleteCustomRoom(user, roomId) {
   if (room.isSystem) {
     throw new AppError('Sistem odaları silinemez.', 403)
   }
-  if (!room.createdBy || room.createdBy.toString() !== user._id.toString()) {
+  const isAdmin = user.role === 'admin'
+  if (!isAdmin && (!room.createdBy || room.createdBy.toString() !== user._id.toString())) {
     throw new AppError('Yalnızca kendi açtığınız odayı silebilirsiniz.', 403)
   }
 
@@ -297,7 +304,8 @@ async function deleteRoomMessage(user, messageId) {
   if (!message) {
     throw new AppError('Mesaj bulunamadı.', 404)
   }
-  if (message.senderAnonymousId !== profile.anonymousId) {
+  const isAdmin = user.role === 'admin'
+  if (!isAdmin && message.senderAnonymousId !== profile.anonymousId) {
     throw new AppError('Yalnızca kendi mesajlarınızı silebilirsiniz.', 403)
   }
 

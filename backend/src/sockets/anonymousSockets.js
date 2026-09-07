@@ -169,21 +169,25 @@ function registerAnonymousSockets(io, socket) {
   })
 
   // 5. SEND MESSAGE TO ROOM
-  socket.on('anon:send_room_message', async ({ roomId, text }, ack) => {
+  socket.on('anon:send_room_message', async ({ roomId, text, media }, ack) => {
     try {
       if (!socket.user) {
         if (typeof ack === 'function') ack({ success: false, error: 'Oturum açmalısınız.' })
         return
       }
-      if (!roomId || !text || !text.trim()) {
-        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz mesaj.' })
+      const hasText = Boolean(text && text.trim())
+      const hasMedia = Array.isArray(media) && media.length > 0
+
+      if (!roomId || (!hasText && !hasMedia)) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz mesaj veya medya.' })
         return
       }
 
       const savedMessage = await saveRoomMessage({
         roomId,
         user: socket.user,
-        text,
+        text: text || '',
+        media: hasMedia ? media : [],
       })
 
       io.to(`anon_room:${roomId}`).emit('anon:new_room_message', savedMessage)
@@ -327,7 +331,7 @@ function registerAnonymousSockets(io, socket) {
   })
 
   // 9. DIRECT MESSAGE
-  socket.on('anon:send_direct_message', ({ sessionId, text }, ack) => {
+  socket.on('anon:send_direct_message', ({ sessionId, text, media }, ack) => {
     try {
       const session = activeDirectSessions.get(sessionId)
       if (!session) {
@@ -339,6 +343,14 @@ function registerAnonymousSockets(io, socket) {
       const myData = activeAnonUsers.get(myAnonId)
       if (!myData) return
 
+      const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : ''
+      const cleanMedia = Array.isArray(media) ? media : []
+
+      if (!cleanText && cleanMedia.length === 0) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz mesaj veya medya.' })
+        return
+      }
+
       session.messageCount = (session.messageCount || 0) + 1
 
       const msg = {
@@ -347,7 +359,8 @@ function registerAnonymousSockets(io, socket) {
         senderAnonymousId: myAnonId,
         senderAlias: myData.alias,
         senderAvatar: myData.avatarKey,
-        text: text.trim().slice(0, 1000),
+        text: cleanText,
+        media: cleanMedia,
         createdAt: new Date().toISOString(),
         totalMessageCount: session.messageCount,
       }
@@ -357,6 +370,70 @@ function registerAnonymousSockets(io, socket) {
       if (typeof ack === 'function') ack({ success: true, message: msg })
     } catch (err) {
       if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 9.1 ANONYMOUS 1-ON-1 VOICE CALL SIGNALING
+  socket.on('anon:call_start', ({ sessionId, offer }) => {
+    try {
+      const session = activeDirectSessions.get(sessionId)
+      if (!session) return
+
+      const myAnonId = userToAnonMap.get(userId)
+      const myData = activeAnonUsers.get(myAnonId)
+      if (!myData) return
+
+      socket.to(`anon_direct:${sessionId}`).emit('anon:incoming_call', {
+        sessionId,
+        callerAnonId: myAnonId,
+        callerAlias: myData.alias,
+        callerAvatar: myData.avatarKey,
+        offer,
+      })
+    } catch (err) {
+      console.error('anon:call_start error:', err)
+    }
+  })
+
+  socket.on('anon:call_answer', ({ sessionId, answer }) => {
+    try {
+      const session = activeDirectSessions.get(sessionId)
+      if (!session) return
+
+      socket.to(`anon_direct:${sessionId}`).emit('anon:call_answered', {
+        sessionId,
+        answer,
+      })
+    } catch (err) {
+      console.error('anon:call_answer error:', err)
+    }
+  })
+
+  socket.on('anon:call_ice_candidate', ({ sessionId, candidate }) => {
+    try {
+      const session = activeDirectSessions.get(sessionId)
+      if (!session) return
+
+      socket.to(`anon_direct:${sessionId}`).emit('anon:call_ice_candidate', {
+        sessionId,
+        candidate,
+      })
+    } catch (err) {
+      console.error('anon:call_ice_candidate error:', err)
+    }
+  })
+
+  socket.on('anon:call_end', ({ sessionId, reason }) => {
+    try {
+      const session = activeDirectSessions.get(sessionId)
+      if (!session) return
+
+      io.to(`anon_direct:${sessionId}`).emit('anon:call_ended', {
+        sessionId,
+        reason: reason || 'ended',
+      })
+    } catch (err) {
+      console.error('anon:call_end error:', err)
     }
   })
 

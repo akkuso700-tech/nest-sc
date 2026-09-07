@@ -95,3 +95,11 @@ export async function unblockAnonymousUser(targetAnonymousId) {
     body: JSON.stringify({ targetAnonymousId }),
   })
 }
+
+export async function uploadAnonymousMedia(formData) {
+  const res = await apiRequest('/anonymous/upload', {
+    method: 'POST',
+    body: formData,
+  })
+  return res.media || []
+}

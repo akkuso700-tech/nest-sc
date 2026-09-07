@@ -226,13 +226,28 @@ export function MonetizationIcon({ className = 'size-6' }) {
   )
 }
 
-export function HiddenProfileIcon({ className = 'size-6' }) {
+export function HiddenProfileIcon({ filled = false, className = 'size-6' }) {
+  if (filled) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className={`${className} transition-transform duration-200`}
+        aria-hidden="true"
+      >
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8ZM9 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"
+        />
+      </svg>
+    )
+  }
   return (
     <Icon className={className} strokeWidth={1.9}>
-      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-      <line x1="2" y1="2" x2="22" y2="22" />
+      <path d="M9 10h.01" />
+      <path d="M15 10h.01" />
+      <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
     </Icon>
   )
 }

@@ -13,7 +13,19 @@ import {
   deleteAnonymousRoom,
   deleteRoomMessage,
   blockAnonymousUser,
+  uploadAnonymousMedia,
 } from '../services/anonymousService.js'
+import { compressImageToFile } from '../utils/imageUpload.js'
+import { resolveMediaUrl } from '../utils/media.js'
+import AudioMessagePlayer from '../components/media/AudioMessagePlayer.jsx'
+import {
+  PhotoIcon,
+  MicrophoneIcon,
+  PhoneIcon,
+  SendIcon,
+  CloseIcon,
+  TrashIcon,
+} from './MessagesPageIcons.jsx'
 import { AnonymousProfileModal } from '../components/anonymous/AnonymousProfileModal.jsx'
 import { AnonymousRoomCreateModal } from '../components/anonymous/AnonymousRoomCreateModal.jsx'
 import { GuestLoungeGateModal } from '../components/anonymous/GuestLoungeGateModal.jsx'
@@ -105,6 +117,51 @@ export default function AnonymousLoungePage() {
 
   // Socket instance ref
   const socketRef = useRef(null)
+
+  // Responsive viewport
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  )
+
+  useEffect(() => {
+    function handleResize() {
+      setIsMobileViewport(window.innerWidth < 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Media (Image) upload states
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedImagePreview, setSelectedImagePreview] = useState('')
+  const [uploadedMediaItem, setUploadedMediaItem] = useState(null)
+  const [alertModal, setAlertModal] = useState(null)
+  const imageInputRef = useRef(null)
+
+  function showAlert(message, title = 'Bilgilendirme', tone = 'error') {
+    setAlertModal({ title, message, tone })
+  }
+
+  // Voice recording states
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const recordingTimerRef = useRef(null)
+  const recordingStartTimeRef = useRef(0)
+  const audioStreamRef = useRef(null)
+
+  // WebRTC Anonymous Voice Calling
+  const [anonCallState, setAnonCallState] = useState('idle') // 'idle' | 'calling' | 'incoming' | 'connected'
+  const [anonCallInfo, setAnonCallInfo] = useState(null)
+  const [isCallMuted, setIsCallMuted] = useState(false)
+  const [callDuration, setCallDuration] = useState(0)
+
+  const peerConnectionRef = useRef(null)
+  const localCallStreamRef = useRef(null)
+  const remoteAudioRef = useRef(null)
+  const callTimerRef = useRef(null)
 
   // 1. Load initial data
   useEffect(() => {
@@ -304,6 +361,57 @@ export default function AnonymousLoungePage() {
       })
     })
 
+    socket.on('anon:incoming_call', ({ sessionId, callerAnonId, callerAlias, callerAvatar, offer }) => {
+      setAnonCallInfo({
+        sessionId,
+        callerAnonId,
+        partnerAlias: callerAlias,
+        partnerAvatar: callerAvatar,
+        offer,
+      })
+      setAnonCallState('incoming')
+    })
+
+    socket.on('anon:call_answered', async ({ answer }) => {
+      if (peerConnectionRef.current && answer) {
+        try {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer))
+          setAnonCallState('connected')
+        } catch (err) {
+          console.error('Failed to set remote description on answer:', err)
+        }
+      }
+    })
+
+    socket.on('anon:call_ice_candidate', async ({ candidate }) => {
+      if (peerConnectionRef.current && candidate) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
+        } catch (err) {
+          console.error('Failed to add ICE candidate:', err)
+        }
+      }
+    })
+
+    socket.on('anon:call_ended', () => {
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current)
+        callTimerRef.current = null
+      }
+      if (localCallStreamRef.current) {
+        localCallStreamRef.current.getTracks().forEach((t) => t.stop())
+        localCallStreamRef.current = null
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close()
+        peerConnectionRef.current = null
+      }
+      setAnonCallState('idle')
+      setAnonCallInfo(null)
+      setCallDuration(0)
+      setIsCallMuted(false)
+    })
+
     return () => {
       socket.emit('anon:leave_lounge')
       socket.off('anon:user_joined')
@@ -321,6 +429,10 @@ export default function AnonymousLoungePage() {
       socket.off('anon:identities_fully_revealed')
       socket.off('anon:direct_ended')
       socket.off('anon:direct_rejected')
+      socket.off('anon:incoming_call')
+      socket.off('anon:call_answered')
+      socket.off('anon:call_ice_candidate')
+      socket.off('anon:call_ended')
       disconnectSocketClient()
     }
   }, [isAuthenticated])
@@ -374,71 +486,407 @@ export default function AnonymousLoungePage() {
     if (callback) callback()
   }
 
+  // Image selection, client-side compression and immediate upload/processing
+  async function handleImageSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Immediately show preview from raw file and mark uploading/processing
+    const rawPreviewUrl = URL.createObjectURL(file)
+    setSelectedImagePreview(rawPreviewUrl)
+    setIsUploadingMedia(true)
+    setUploadedMediaItem(null)
+    setSelectedImage(file)
+
+    try {
+      // 1. Compress image to clean EXIF and reduce bandwidth
+      let compressedFile = file
+      try {
+        compressedFile = await compressImageToFile(file, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.82,
+          maxBytes: 1.2 * 1024 * 1024,
+        })
+      } catch (compressionErr) {
+        console.warn('Image compression fallback:', compressionErr)
+      }
+
+      // 2. Upload to server to process and get durable URL
+      const formData = new FormData()
+      formData.append('media', compressedFile)
+      const resMedia = await uploadAnonymousMedia(formData)
+
+      if (resMedia && resMedia.length > 0) {
+        const item = resMedia[0]
+        setUploadedMediaItem({ ...item, type: 'image' })
+        setSelectedImage(compressedFile)
+      } else {
+        throw new Error('Dosya işlenemedi.')
+      }
+    } catch (err) {
+      console.error('Image upload error:', err)
+      showAlert(err.message || 'Görsel işlenemedi.', 'Görsel Hatası')
+      clearSelectedImage()
+    } finally {
+      setIsUploadingMedia(false)
+    }
+  }
+
+  function clearSelectedImage() {
+    setSelectedImage(null)
+    setUploadedMediaItem(null)
+    setIsUploadingMedia(false)
+    if (selectedImagePreview) {
+      URL.revokeObjectURL(selectedImagePreview)
+      setSelectedImagePreview('')
+    }
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ''
+    }
+  }
+
+  // Voice recording handlers
+  function cleanupAudioStreams() {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop())
+      audioStreamRef.current = null
+    }
+  }
+
+  async function startVoiceRecording() {
+    if (isRecordingVoice || isUploadingMedia) return
+
+    requireAuth(t('lounge.gateModal.toSendMessage', { defaultValue: 'Sesli mesaj göndermek için' }), async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showAlert('Tarayıcınız ses kaydını desteklemiyor.', 'Tarayıcı Desteği')
+          return
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        audioStreamRef.current = stream
+
+        let mimeType = 'audio/webm;codecs=opus'
+        if (typeof MediaRecorder !== 'undefined') {
+          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            mimeType = 'audio/webm;codecs=opus'
+          } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm')) {
+            mimeType = 'audio/webm'
+          } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+            mimeType = 'audio/ogg;codecs=opus'
+          } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/mp4')) {
+            mimeType = 'audio/mp4'
+          } else {
+            mimeType = ''
+          }
+        }
+
+        const options = mimeType ? { mimeType } : {}
+        const recorder = new MediaRecorder(stream, options)
+        mediaRecorderRef.current = recorder
+        audioChunksRef.current = []
+
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            audioChunksRef.current.push(event.data)
+          }
+        }
+
+        recorder.start(200)
+        recordingStartTimeRef.current = Date.now()
+        setIsRecordingVoice(true)
+        setRecordingDuration(0)
+
+        recordingTimerRef.current = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000)
+          setRecordingDuration(elapsed)
+        }, 1000)
+      } catch (error) {
+        console.error('Microphone error:', error)
+        showAlert('Mikrofon erişimi engellendi. Lütfen tarayıcı ayarlarından mikrofon iznini verin.', 'Mikrofon İzni Gerekli')
+      }
+    })
+  }
+
+  function cancelVoiceRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = null
+      mediaRecorderRef.current.stop()
+    }
+    cleanupAudioStreams()
+    audioChunksRef.current = []
+    setIsRecordingVoice(false)
+    setRecordingDuration(0)
+  }
+
+  async function stopVoiceRecordingAndSend() {
+    const recorder = mediaRecorderRef.current
+    if (!recorder || recorder.state === 'inactive') {
+      cleanupAudioStreams()
+      setIsRecordingVoice(false)
+      return
+    }
+
+    const duration = Math.max(1, Math.round((Date.now() - recordingStartTimeRef.current) / 1000))
+    cleanupAudioStreams()
+
+    recorder.onstop = async () => {
+      const mimeType = recorder.mimeType || 'audio/webm'
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+      audioChunksRef.current = []
+      setIsRecordingVoice(false)
+      setRecordingDuration(0)
+
+      if (audioBlob.size > 0) {
+        const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+        const audioFile = new File([audioBlob], `anon-voice-${Date.now()}.${extension}`, {
+          type: mimeType,
+          lastModified: Date.now(),
+        })
+
+        setIsUploadingMedia(true)
+        try {
+          const formData = new FormData()
+          formData.append('media', audioFile)
+          formData.set('durationSeconds', String(duration))
+          const uploadedMedia = await uploadAnonymousMedia(formData)
+
+          if (uploadedMedia && uploadedMedia.length > 0) {
+            const mediaItem = { ...uploadedMedia[0], type: 'audio', durationSeconds: duration }
+
+            if (activeDirectSession) {
+              socketRef.current?.emit('anon:send_direct_message', {
+                sessionId: activeDirectSession.sessionId,
+                text: '',
+                media: [mediaItem],
+              })
+            } else if (selectedRoom) {
+              socketRef.current?.emit('anon:send_room_message', {
+                roomId: selectedRoom.id,
+                text: '',
+                media: [mediaItem],
+              })
+            }
+          }
+        } catch (err) {
+          console.error('Audio upload error:', err)
+          showAlert('Sesli mesaj gönderilemedi: ' + (err.message || 'Bilinmeyen hata'), 'Sesli Mesaj Hatası')
+        } finally {
+          setIsUploadingMedia(false)
+        }
+      }
+    }
+
+    recorder.stop()
+  }
+
   // Room Message Submit
-  function handleSendRoomMessage(e) {
-    e.preventDefault()
+  async function handleSendRoomMessage(e) {
+    e?.preventDefault?.()
     const text = messageInput.trim()
-    if (!text || !selectedRoom) return
+    if ((!text && !uploadedMediaItem) || !selectedRoom || isUploadingMedia) return
 
     requireAuth(t('lounge.gateModal.toSendMessage', { defaultValue: 'Odaya mesaj yazmak için' }), () => {
+      const media = uploadedMediaItem ? [uploadedMediaItem] : []
+
       if (socketRef.current?.connected) {
         socketRef.current.emit('anon:send_room_message', {
           roomId: selectedRoom.id,
           text,
+          media,
         })
         setMessageInput('')
+        clearSelectedImage()
       }
     })
   }
 
   // Direct Message Submit
-  function handleSendDirectMessage(e) {
-    e.preventDefault()
+  async function handleSendDirectMessage(e) {
+    e?.preventDefault?.()
     const text = messageInput.trim()
-    if (!text || !activeDirectSession) return
+    if ((!text && !uploadedMediaItem) || !activeDirectSession || isUploadingMedia) return
 
     if (activeDirectSession.isOffline) {
-      alert(t('lounge.messages.offlineNotice', { defaultValue: 'Kullanıcı şu anda çevrimdışı olduğu için yeni mesaj gönderilemez.' }))
+      showAlert(
+        t('lounge.messages.offlineNotice', { defaultValue: 'Kullanıcı şu anda çevrimdışı olduğu için yeni mesaj gönderilemez.' }),
+        'Kullanıcı Çevrimdışı',
+        'info'
+      )
       return
     }
+
+    const media = uploadedMediaItem ? [uploadedMediaItem] : []
 
     if (socketRef.current?.connected) {
       socketRef.current.emit('anon:send_direct_message', {
         sessionId: activeDirectSession.sessionId,
         text,
+        media,
       })
       setMessageInput('')
+      clearSelectedImage()
     }
   }
 
-  // Select Chat from Sohbet List
-  function handleSelectChatFromList(chat) {
-    if (
-      activeDirectSession &&
-      (activeDirectSession.sessionId === chat.sessionId ||
-        activeDirectSession.partner?.anonymousId === chat.partner?.anonymousId)
-    ) {
-      setMobileTab('chat')
-      return
+  // WebRTC Anonymous Voice Call Handlers
+  function cleanupCallResources() {
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current)
+      callTimerRef.current = null
     }
+    if (localCallStreamRef.current) {
+      localCallStreamRef.current.getTracks().forEach((track) => track.stop())
+      localCallStreamRef.current = null
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close()
+      peerConnectionRef.current = null
+    }
+  }
 
-    if (activeDirectSession) {
-      if (
-        !confirm(
-          t('lounge.chats.switchChatPrompt', {
-            alias: activeDirectSession.partner?.alias,
-            defaultValue: `${activeDirectSession.partner?.alias} ile olan mevcut sohbeti sonlandırıp bu sohbete geçmek istiyor musunuz?`,
-          })
-        )
-      ) {
-        return
-      }
-      socketRef.current?.emit('anon:leave_direct', {
-        sessionId: activeDirectSession.sessionId,
+  function endAnonymousCall(emitSocket = true) {
+    if (emitSocket && anonCallInfo?.sessionId) {
+      socketRef.current?.emit('anon:call_end', {
+        sessionId: anonCallInfo.sessionId,
+        reason: 'hangup',
       })
-      setActiveDirectSession(null)
     }
+    cleanupCallResources()
+    setAnonCallState('idle')
+    setAnonCallInfo(null)
+    setCallDuration(0)
+    setIsCallMuted(false)
+  }
 
+  function toggleCallMute() {
+    if (localCallStreamRef.current) {
+      const audioTrack = localCallStreamRef.current.getAudioTracks()[0]
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled
+        setIsCallMuted(!audioTrack.enabled)
+      }
+    }
+  }
+
+  async function startAnonymousCall() {
+    if (!activeDirectSession || anonCallState !== 'idle') return
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      localCallStreamRef.current = stream
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      })
+      peerConnectionRef.current = pc
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      pc.ontrack = (event) => {
+        if (remoteAudioRef.current && event.streams[0]) {
+          remoteAudioRef.current.srcObject = event.streams[0]
+        }
+      }
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socketRef.current) {
+          socketRef.current.emit('anon:call_ice_candidate', {
+            sessionId: activeDirectSession.sessionId,
+            candidate: event.candidate,
+          })
+        }
+      }
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      setAnonCallInfo({
+        sessionId: activeDirectSession.sessionId,
+        partnerAlias: activeDirectSession.partner?.alias,
+        partnerAvatar: activeDirectSession.partner?.avatarKey,
+      })
+      setAnonCallState('calling')
+
+      socketRef.current?.emit('anon:call_start', {
+        sessionId: activeDirectSession.sessionId,
+        offer,
+      })
+    } catch (err) {
+      console.error('startAnonymousCall error:', err)
+      showAlert('Sesli arama başlatılamadı: ' + (err.message || 'Mikrofon izni verilmedi'), 'Arama Başlatılamadı')
+      cleanupCallResources()
+    }
+  }
+
+  async function acceptAnonymousCall() {
+    if (!anonCallInfo || !anonCallInfo.offer) return
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      localCallStreamRef.current = stream
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      })
+      peerConnectionRef.current = pc
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      pc.ontrack = (event) => {
+        if (remoteAudioRef.current && event.streams[0]) {
+          remoteAudioRef.current.srcObject = event.streams[0]
+        }
+      }
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socketRef.current) {
+          socketRef.current.emit('anon:call_ice_candidate', {
+            sessionId: anonCallInfo.sessionId,
+            candidate: event.candidate,
+          })
+        }
+      }
+
+      await pc.setRemoteDescription(new RTCSessionDescription(anonCallInfo.offer))
+      const answer = await pc.createAnswer()
+      await pc.setLocalDescription(answer)
+
+      socketRef.current?.emit('anon:call_answer', {
+        sessionId: anonCallInfo.sessionId,
+        answer,
+      })
+
+      setAnonCallState('connected')
+      setCallDuration(0)
+      callTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1)
+      }, 1000)
+    } catch (err) {
+      console.error('acceptAnonymousCall error:', err)
+      showAlert('Arama yanıtlanamadı: ' + err.message, 'Arama Hatası')
+      endAnonymousCall(true)
+    }
+  }
+
+  function rejectAnonymousCall() {
+    if (anonCallInfo?.sessionId) {
+      socketRef.current?.emit('anon:call_end', {
+        sessionId: anonCallInfo.sessionId,
+        reason: 'rejected',
+      })
+    }
+    setAnonCallState('idle')
+    setAnonCallInfo(null)
+  }
+
+  // Open Chat Helper
+  function openSelectedChat(chat) {
     const onlineUser = onlineRadarUsers.find(
       (u) => u.anonymousId === chat.partner?.anonymousId
     )
@@ -454,6 +902,43 @@ export default function AnonymousLoungePage() {
       setDirectMessages(chat.messages || [])
       setMobileTab('chat')
     }
+  }
+
+  // Select Chat from Sohbet List
+  function handleSelectChatFromList(chat) {
+    if (
+      activeDirectSession &&
+      (activeDirectSession.sessionId === chat.sessionId ||
+        activeDirectSession.partner?.anonymousId === chat.partner?.anonymousId)
+    ) {
+      setMobileTab('chat')
+      return
+    }
+
+    if (activeDirectSession) {
+      setConfirmDialog({
+        icon: '💬',
+        iconBg: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+        title: t('lounge.chats.switchChatTitle', { defaultValue: 'Sohbeti Değiştir' }),
+        description: t('lounge.chats.switchChatPrompt', {
+          alias: activeDirectSession.partner?.alias,
+          defaultValue: `${activeDirectSession.partner?.alias} ile olan mevcut sohbeti sonlandırıp bu sohbete geçmek istiyor musunuz?`,
+        }),
+        confirmText: t('lounge.chats.confirmSwitch', { defaultValue: 'Evet, Sohbete Geç' }),
+        isDanger: false,
+        onConfirm: () => {
+          socketRef.current?.emit('anon:leave_direct', {
+            sessionId: activeDirectSession.sessionId,
+          })
+          setActiveDirectSession(null)
+          setDirectMessages([])
+          openSelectedChat(chat)
+        },
+      })
+      return
+    }
+
+    openSelectedChat(chat)
   }
 
   // Remove Chat from History
@@ -478,25 +963,49 @@ export default function AnonymousLoungePage() {
           { targetAnonymousId: targetUser.anonymousId },
           (res) => {
             if (res?.success) {
-              setSentRequestModal(targetUser)
-            } else {
-              setConfirmDialog({
-                title: t('lounge.chats.requestFailedTitle', { defaultValue: 'İstek Gönderilemedi' }),
-                description:
-                  res?.error ||
-                  t('lounge.chats.requestFailedDesc', {
-                    defaultValue: 'Kullanıcıya sohbet isteği iletilemedi. Kullanıcı çevrimdışı veya şu anda meşgul olabilir.',
-                  }),
-                icon: '⚠️',
-                iconBg: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                confirmText: t('common.ok', { defaultValue: 'Tamam' }),
-                isDanger: false,
-                onConfirm: () => setConfirmDialog(null),
+              setSentRequestModal({
+                alias: targetUser.alias,
+                avatarKey: targetUser.avatarKey,
               })
+            } else {
+              showAlert(res?.error || t('lounge.radar.requestFailed', { defaultValue: 'Sohbet isteği iletilemedi.' }), 'Sohbet İsteği')
             }
           },
         )
       }
+    })
+  }
+
+  function handleDirectStarted({ sessionId, partner }) {
+    setActiveDirectSession({ sessionId, partner })
+    setDirectMessages([])
+    setMobileTab('chat')
+    setSideTab('chats')
+    setMyRequestedReveal(false)
+    setPartnerRequestedReveal(false)
+    setRevealedUsers(null)
+    setChatAcceptedModal({ partner })
+
+    setDirectChats((prev) => {
+      const existing = prev.filter(
+        (c) =>
+          c.sessionId !== sessionId &&
+          c.partner?.anonymousId !== partner?.anonymousId,
+      )
+      const updated = [
+        {
+          sessionId,
+          partner,
+          lastMessage: t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' }),
+          lastMessageAt: new Date().toISOString(),
+          messages: [],
+        },
+        ...existing,
+      ]
+      try {
+        localStorage.setItem('nest_anon_direct_chats', JSON.stringify(updated))
+      } catch (_) {}
+      return updated
     })
   }
 
@@ -544,7 +1053,7 @@ export default function AnonymousLoungePage() {
             setIsMatching(false)
           } else if (!res?.success) {
             setIsMatching(false)
-            alert(res?.error || t('lounge.banner.matchFailed', { defaultValue: 'Eşleşme başlatılamadı.' }))
+            showAlert(res?.error || t('lounge.banner.matchFailed', { defaultValue: 'Eşleşme başlatılamadı.' }), 'Kader Çarkı')
           }
         })
       }
@@ -633,7 +1142,7 @@ export default function AnonymousLoungePage() {
             setRoomMessages((prev) => prev.filter((m) => m.id !== msgId))
           }
         } catch (err) {
-          alert(err.message || 'Mesaj silinemedi.')
+          showAlert(err.message || 'Mesaj silinemedi.', 'Silme Hatası')
         }
       },
     })
@@ -666,7 +1175,7 @@ export default function AnonymousLoungePage() {
             setSelectedRoom(latestRooms[0])
           }
         } catch (err) {
-          alert(err.message || 'Oda silinemedi.')
+          showAlert(err.message || 'Oda silinemedi.', 'Oda Silme Hatası')
         }
       },
     })
@@ -707,7 +1216,7 @@ export default function AnonymousLoungePage() {
           handleRemoveChat(targetAnonymousId)
           setOnlineRadarUsers((prev) => prev.filter((u) => u.anonymousId !== targetAnonymousId))
         } catch (err) {
-          alert(err.message || 'Kullanıcı engellenemedi.')
+          showAlert(err.message || 'Kullanıcı engellenemedi.', 'Engelleme Hatası')
         }
       },
     })
@@ -1382,6 +1891,19 @@ export default function AnonymousLoungePage() {
                   </div>
 
                   <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {/* Sesli Arama Butonu */}
+                    <button
+                      type="button"
+                      onClick={startAnonymousCall}
+                      disabled={anonCallState !== 'idle'}
+                      className="rounded-md border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 p-1.5 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs font-semibold flex items-center gap-1 shrink-0 transition-colors disabled:opacity-40"
+                      title={t('calling.voiceCall', { defaultValue: 'Sesli Arama' })}
+                      aria-label={t('calling.voiceCall', { defaultValue: 'Sesli Arama' })}
+                    >
+                      <PhoneIcon className="size-3.5 sm:size-4" />
+                      <span className="hidden sm:inline">{t('calling.voiceCall', { defaultValue: 'Ara' })}</span>
+                    </button>
+
                     {/* Reveal Identity Button */}
                     {!revealedUsers ? (
                       <button
@@ -1492,10 +2014,11 @@ export default function AnonymousLoungePage() {
                     </div>
                   </div>
 
-                  {/* Oda Kurucusuna Özel Dikey 3 Nokta ⋮ Menüsü (Odayı Silme) */}
+                  {/* Oda Kurucusu veya Admin Özel Dikey 3 Nokta ⋮ Menüsü (Odayı Silme) */}
                   {!selectedRoom.isSystem &&
                     (selectedRoom.createdBy === (user?.id || user?._id) ||
-                      selectedRoom.creatorAlias === anonProfile?.alias) && (
+                      selectedRoom.creatorAlias === anonProfile?.alias ||
+                      user?.role === 'admin') && (
                       <div className="relative shrink-0 ml-2" data-dropdown-container>
                         <button
                           type="button"
@@ -1527,7 +2050,12 @@ export default function AnonymousLoungePage() {
                               className="w-full text-left px-3 py-1.5 text-red-500 hover:bg-secondary flex items-center gap-2 transition-colors font-semibold"
                             >
                               <span>🗑️</span>
-                              <span>{t('lounge.rooms.deleteRoom', { defaultValue: 'Odayı Sil' })}</span>
+                              <span>
+                                {user?.role === 'admin' &&
+                                selectedRoom.createdBy !== (user?.id || user?._id)
+                                  ? 'Odayı Kapat (Admin)'
+                                  : t('lounge.rooms.deleteRoom', { defaultValue: 'Odayı Sil' })}
+                              </span>
                             </button>
                           </div>
                         )}
@@ -1642,8 +2170,8 @@ export default function AnonymousLoungePage() {
                             </span>
                           </div>
 
-                          {/* 3 Nokta ⋮ Menüsü (Kullanıcının kendi mesajları için silme) */}
-                          {isMe && (
+                          {/* 3 Nokta ⋮ Menüsü (Kullanıcının kendi mesajları veya Admin için silme) */}
+                          {(isMe || user?.role === 'admin') && (
                             <div className="relative" data-dropdown-container>
                               <button
                                 type="button"
@@ -1662,7 +2190,7 @@ export default function AnonymousLoungePage() {
 
                               {isMenuOpen && (
                                 <div
-                                  className="absolute right-0 top-full mt-1 z-30 w-32 rounded-md bg-card border border-border shadow-lg py-1 text-xs text-text"
+                                  className="absolute right-0 top-full mt-1 z-30 w-36 rounded-md bg-card border border-border shadow-lg py-1 text-xs text-text"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <button
@@ -1671,14 +2199,51 @@ export default function AnonymousLoungePage() {
                                     className="w-full text-left px-3 py-1.5 text-red-500 hover:bg-secondary flex items-center gap-2 transition-colors font-semibold"
                                   >
                                     <span>🗑️</span>
-                                    <span>{t('lounge.messages.delete', { defaultValue: 'Mesajı Sil' })}</span>
+                                    <span>
+                                      {user?.role === 'admin' && !isMe
+                                        ? 'Sil (Admin)'
+                                        : t('lounge.messages.delete', { defaultValue: 'Mesajı Sil' })}
+                                    </span>
                                   </button>
                                 </div>
                               )}
                             </div>
                           )}
                         </div>
-                        <p className="leading-relaxed break-words text-sm">{msg.text}</p>
+
+                        {/* Media display (Image & Audio) */}
+                        {Array.isArray(msg.media) && msg.media.length > 0 && (
+                          <div className="mb-2 space-y-1.5">
+                            {msg.media.map((item, idx) => {
+                              if (item.type === 'image') {
+                                return (
+                                  <div key={idx} className="relative overflow-hidden rounded-md border border-border/50 max-w-xs">
+                                    <img
+                                      src={resolveMediaUrl(item.url)}
+                                      alt="Anonim Medya"
+                                      className="max-h-60 w-auto object-cover rounded-md cursor-pointer hover:opacity-95 transition-opacity"
+                                      onClick={() => window.open(resolveMediaUrl(item.url), '_blank')}
+                                    />
+                                  </div>
+                                )
+                              }
+                              if (item.type === 'audio') {
+                                return (
+                                  <div key={idx} className="py-1">
+                                    <AudioMessagePlayer
+                                      src={resolveMediaUrl(item.url)}
+                                      duration={item.durationSeconds || 0}
+                                      isMine={isMe}
+                                    />
+                                  </div>
+                                )
+                              }
+                              return null
+                            })}
+                          </div>
+                        )}
+
+                        {msg.text ? <p className="leading-relaxed break-words text-sm">{msg.text}</p> : null}
                       </div>
                     </div>
                   )
@@ -1689,40 +2254,177 @@ export default function AnonymousLoungePage() {
 
             {/* Chat Input Bar */}
             <div className="p-2.5 sm:p-3 border-t border-border bg-secondary/30 rounded-b-none sm:rounded-b-md shrink-0">
-              <form
-                onSubmit={activeDirectSession ? handleSendDirectMessage : handleSendRoomMessage}
-                className="flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  placeholder={
-                    isAuthenticated
-                      ? activeDirectSession
-                        ? t('lounge.messages.inputPlaceholderDirect', {
-                            alias: activeDirectSession.partner?.alias,
-                            defaultValue: `${activeDirectSession.partner?.alias} kullanıcısına mesaj gönder...`,
-                          })
-                        : t('lounge.messages.inputPlaceholderRoom', {
-                            roomName: selectedRoom?.name || 'Odaya',
-                            defaultValue: `${selectedRoom?.name || 'Odaya'} anonim mesaj yaz...`,
-                          })
-                      : t('lounge.messages.inputPlaceholderGuest', {
-                          defaultValue: 'Mesaj yazmak için giriş yapın...',
-                        })
-                  }
-                  className="flex-1 rounded-md border border-border bg-card px-3.5 py-2.5 text-xs sm:text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={!messageInput.trim()}
-                  className="rounded-md bg-primary px-4 py-2.5 text-xs sm:text-sm font-bold !text-white shadow hover:bg-primary-hover active:scale-95 disabled:opacity-40 transition-all flex items-center gap-1.5"
+              {/* Hidden file input for image upload */}
+              <input
+                type="file"
+                ref={imageInputRef}
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+
+              {/* Selected Image Preview Thumbnail */}
+              {selectedImagePreview && (
+                <div className="mb-2 relative inline-block">
+                  <div className="relative rounded-lg overflow-hidden border border-border bg-card shadow-sm w-20 h-20 group">
+                    <img
+                      src={selectedImagePreview}
+                      alt="Önizleme"
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Processing overlay with animated spinner */}
+                    {isUploadingMedia && (
+                      <div className="absolute inset-0 bg-black/65 backdrop-blur-[1px] flex flex-col items-center justify-center gap-1">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span className="text-[9px] text-white font-semibold">İşleniyor...</span>
+                      </div>
+                    )}
+
+                    {/* Ready badge when upload succeeds */}
+                    {!isUploadingMedia && uploadedMediaItem && (
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-emerald-600/90 text-white text-[9px] font-bold shadow-xs flex items-center gap-0.5">
+                        <span>✓</span>
+                        <span>Hazır</span>
+                      </div>
+                    )}
+
+                    {/* Remove button */}
+                    <button
+                      type="button"
+                      onClick={clearSelectedImage}
+                      disabled={isUploadingMedia}
+                      className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors disabled:opacity-40"
+                      title="Görseli kaldır"
+                    >
+                      <CloseIcon className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Voice Recording Bar */}
+              {isRecordingVoice ? (
+                <div className="flex items-center justify-between gap-3 bg-card border border-destructive/30 rounded-xl px-4 py-2 text-sm shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-3 h-3 rounded-full bg-destructive animate-ping" />
+                    <span className="font-bold text-destructive font-mono">
+                      {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                    </span>
+                    <span className="text-xs text-muted">Ses kaydediliyor...</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={cancelVoiceRecording}
+                      className="p-2 rounded-full text-muted hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="İptal et"
+                    >
+                      <TrashIcon className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopVoiceRecordingAndSend}
+                      disabled={isUploadingMedia}
+                      className="p-2 rounded-full bg-primary text-white hover:bg-primary-hover shadow active:scale-95 transition-all"
+                      title="Gönder"
+                    >
+                      <SendIcon className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form
+                  onSubmit={activeDirectSession ? handleSendDirectMessage : handleSendRoomMessage}
+                  className="flex items-center gap-1.5 sm:gap-2"
                 >
-                  <span>{t('lounge.messages.send', { defaultValue: 'Gönder' })}</span>
-                  <span>🚀</span>
-                </button>
-              </form>
+                  {/* Photo Attachment Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        setGateActionLabel('Görsel göndermek için giriş yapın')
+                        setGateModalOpen(true)
+                        return
+                      }
+                      imageInputRef.current?.click()
+                    }}
+                    disabled={isUploadingMedia}
+                    className="p-2 sm:p-2.5 rounded-lg text-muted hover:text-primary hover:bg-secondary active:scale-95 transition-all shrink-0"
+                    title="Görsel ekle"
+                  >
+                    <PhotoIcon className="size-5" />
+                  </button>
+
+                  {/* Input field */}
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder={
+                      isAuthenticated
+                        ? activeDirectSession
+                          ? t('lounge.messages.inputPlaceholderDirect', {
+                              alias: activeDirectSession.partner?.alias,
+                              defaultValue: `${activeDirectSession.partner?.alias} kullanıcısına mesaj gönder...`,
+                            })
+                          : t('lounge.messages.inputPlaceholderRoom', {
+                              roomName: selectedRoom?.name || 'Odaya',
+                              defaultValue: `${selectedRoom?.name || 'Odaya'} anonim mesaj yaz...`,
+                            })
+                        : t('lounge.messages.inputPlaceholderGuest', {
+                            defaultValue: 'Mesaj yazmak için giriş yapın...',
+                          })
+                    }
+                    className="flex-1 rounded-md border border-border bg-card px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none"
+                  />
+
+                  {/* If input is empty and no image selected, show Mic button */}
+                  {!messageInput.trim() && !selectedImage && !uploadedMediaItem ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          setGateActionLabel('Sesli mesaj göndermek için giriş yapın')
+                          setGateModalOpen(true)
+                          return
+                        }
+                        startVoiceRecording()
+                      }}
+                      className="p-2 sm:p-2.5 rounded-lg text-muted hover:text-primary hover:bg-secondary active:scale-95 transition-all shrink-0"
+                      title="Sesli mesaj kaydet"
+                    >
+                      <MicrophoneIcon className="size-5" />
+                    </button>
+                  ) : (
+                    /* Mobile: Send button is icon-only. Desktop: Send button has icon + text */
+                    <button
+                      type="submit"
+                      disabled={
+                        isUploadingMedia ||
+                        (!messageInput.trim() && !uploadedMediaItem)
+                      }
+                      className="rounded-full sm:rounded-md bg-primary p-2.5 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-bold !text-white shadow hover:bg-primary-hover active:scale-95 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5 shrink-0"
+                      title={
+                        isUploadingMedia
+                          ? 'Görsel işleniyor...'
+                          : t('lounge.messages.send', { defaultValue: 'Gönder' })
+                      }
+                    >
+                      {isUploadingMedia ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <SendIcon className="size-4" />
+                      )}
+                      <span className="hidden sm:inline-block">
+                        {isUploadingMedia
+                          ? 'İşleniyor...'
+                          : t('lounge.messages.send', { defaultValue: 'Gönder' })}
+                      </span>
+                    </button>
+                  )}
+                </form>
+              )}
             </div>
           </div>
         </div>
@@ -2174,12 +2876,12 @@ export default function AnonymousLoungePage() {
               </div>
 
               <h3 className="text-lg sm:text-xl font-bold tracking-tight text-text">
-                {t('lounge.disclaimer.title', { defaultValue: "Anonim Lounge'a Hoş Geldiniz!" })}
+                {t('lounge.disclaimer.title', { defaultValue: 'Gizli Profile Hoş Geldiniz!' })}
               </h3>
 
               <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-muted">
                 {t('lounge.disclaimer.desc', {
-                  defaultValue: 'Burası tamamen günün stresini atmak, kafa dağıtmak ve eğlenceli sohbetler gerçekleştirmek için tasarlanmış bağımsız ve anonim bir alandır.',
+                  defaultValue: 'Günün stresini atmak ve kafa dağıtmak için tasarlanmış anonim sohbet alanındasınız.',
                 })}
               </p>
 
@@ -2187,18 +2889,18 @@ export default function AnonymousLoungePage() {
                 <div className="flex items-start gap-2.5">
                   <span className="text-base shrink-0">🤫</span>
                   <p>
-                    <strong>{t('lounge.disclaimer.rule1Title', { defaultValue: 'Gizlilik ve Eğlence Esastır:' })}</strong>{' '}
+                    <strong>{t('lounge.disclaimer.rule1Title', { defaultValue: 'Tam Gizlilik:' })}</strong>{' '}
                     {t('lounge.disclaimer.rule1Desc', {
-                      defaultValue: 'Tüm katılımcılar rastgele rumuz ve avatarlar kullanır. Buradaki sohbetleri ciddiye almamalı, kafa dağıtma amaçlı olduğunu unutmamalısınız.',
+                      defaultValue: 'Rastgele rumuz ve avatarlarla kimliğiniz tamamen saklı kalır.',
                     })}
                   </p>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <span className="text-base shrink-0">⚠️</span>
                   <p>
-                    <strong>{t('lounge.disclaimer.rule2Title', { defaultValue: 'Gerçeklik Uyarısı:' })}</strong>{' '}
+                    <strong>{t('lounge.disclaimer.rule2Title', { defaultValue: 'Güvenlik Uyarısı:' })}</strong>{' '}
                     {t('lounge.disclaimer.rule2Desc', {
-                      defaultValue: 'Anonim kişilerin beyanlarına veya anlattıklarına doğrudan inanmamalı; kişisel, finansal veya özel iletişim bilgilerinizi kesinlikle paylaşmamalısınız.',
+                      defaultValue: 'Kişisel, finansal veya hassas bilgilerinizi kesinlikle paylaşmayın.',
                     })}
                   </p>
                 </div>
@@ -2307,6 +3009,186 @@ export default function AnonymousLoungePage() {
                 className="text-xs text-muted hover:text-text underline mt-1 transition-colors"
               >
                 {t('lounge.guestTimeout.returnHome', { defaultValue: 'Nest Social Ana Sayfasına Dön' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden audio element for receiving WebRTC remote audio stream */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
+      {/* WebRTC Anonymous Voice Calling: Incoming Call Modal */}
+      {anonCallState === 'incoming' && anonCallInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-primary/40 bg-card p-6 text-text shadow-2xl text-center animate-in zoom-in-95 duration-200">
+            <div className="relative mx-auto mb-4 size-20">
+              <div
+                className="size-20 rounded-2xl flex items-center justify-center text-4xl shadow-xl ring-4 ring-primary/30 animate-pulse"
+                style={{
+                  background: getAvatarByKey(anonCallInfo.partnerAvatar).bgStyle,
+                }}
+              >
+                {getAvatarByKey(anonCallInfo.partnerAvatar).emoji}
+              </div>
+            </div>
+
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-2">
+              <span className="size-2 rounded-full bg-primary animate-ping" />
+              <span>Gölge Modu Sesli Arama</span>
+            </div>
+
+            <h3 className="text-xl font-black text-text">
+              {anonCallInfo.partnerAlias || 'Gizli Profil'}
+            </h3>
+            <p className="mt-1 text-xs text-muted">
+              Size anonim sesli arama yapıyor...
+            </p>
+
+            <div className="mt-6 flex items-center justify-center gap-8">
+              {/* Reject Call */}
+              <button
+                type="button"
+                onClick={rejectAnonymousCall}
+                className="flex flex-col items-center gap-1.5 group"
+              >
+                <div className="size-14 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg group-hover:bg-destructive/90 active:scale-95 transition-all">
+                  <CloseIcon className="size-6" />
+                </div>
+                <span className="text-xs font-medium text-muted group-hover:text-text">Reddet</span>
+              </button>
+
+              {/* Accept Call */}
+              <button
+                type="button"
+                onClick={acceptAnonymousCall}
+                className="flex flex-col items-center gap-1.5 group"
+              >
+                <div className="size-14 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg group-hover:bg-emerald-500 active:scale-95 transition-all animate-bounce">
+                  <PhoneIcon className="size-6" />
+                </div>
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 font-semibold">Cevapla</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WebRTC Anonymous Voice Calling: Active / Calling Call Modal */}
+      {(anonCallState === 'calling' || anonCallState === 'connected') && anonCallInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card p-6 text-text shadow-2xl text-center animate-in zoom-in-95 duration-200">
+            <div className="relative mx-auto mb-4 size-20">
+              <div
+                className={`size-20 rounded-2xl flex items-center justify-center text-4xl shadow-xl ${
+                  anonCallState === 'connected'
+                    ? 'ring-4 ring-emerald-500/40'
+                    : 'ring-4 ring-primary/30 animate-pulse'
+                }`}
+                style={{
+                  background: getAvatarByKey(anonCallInfo.partnerAvatar).bgStyle,
+                }}
+              >
+                {getAvatarByKey(anonCallInfo.partnerAvatar).emoji}
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-text">
+              {anonCallInfo.partnerAlias || 'Gizli Profil'}
+            </h3>
+
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-xs font-mono font-medium">
+              {anonCallState === 'connected' ? (
+                <>
+                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-emerald-500 font-bold">
+                    {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="size-2 rounded-full bg-amber-500 animate-ping" />
+                  <span className="text-muted">Aranıyor...</span>
+                </>
+              )}
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-8">
+              {/* Mute / Unmute Button */}
+              <button
+                type="button"
+                onClick={toggleCallMute}
+                className="flex flex-col items-center gap-1.5 group"
+              >
+                <div
+                  className={`size-12 rounded-full flex items-center justify-center shadow transition-all ${
+                    isCallMuted
+                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40'
+                      : 'bg-secondary text-text hover:bg-secondary-hover'
+                  }`}
+                >
+                  <MicrophoneIcon className="size-5" />
+                </div>
+                <span className="text-xs text-muted">
+                  {isCallMuted ? 'Sessiz' : 'Sesi Kapat'}
+                </span>
+              </button>
+
+              {/* End Call Button */}
+              <button
+                type="button"
+                onClick={() => endAnonymousCall(true)}
+                className="flex flex-col items-center gap-1.5 group"
+              >
+                <div className="size-14 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg hover:bg-destructive/90 active:scale-95 transition-all">
+                  <PhoneIcon className="size-6 rotate-[135deg]" />
+                </div>
+                <span className="text-xs font-medium text-destructive">Sonlandır</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Özel Profesyonel Pop-Up Uyarı Modalı (Tarayıcı alert'leri yerine) */}
+      {alertModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setAlertModal(null)}
+        >
+          <div
+            className="relative w-full max-w-sm overflow-hidden rounded-xl border border-border bg-card p-6 text-text shadow-2xl text-center animate-in zoom-in-95 duration-150"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className={`mx-auto mb-3.5 flex size-14 items-center justify-center rounded-2xl text-2xl shadow-md ${
+                alertModal.tone === 'error'
+                  ? 'bg-destructive/15 text-destructive border border-destructive/20'
+                  : alertModal.tone === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
+                  : 'bg-primary/15 text-primary border border-primary/20'
+              }`}
+            >
+              {alertModal.tone === 'error' ? '⚠️' : alertModal.tone === 'success' ? '✅' : 'ℹ️'}
+            </div>
+
+            <h3 className="text-base sm:text-lg font-bold text-text">
+              {alertModal.title}
+            </h3>
+
+            <p className="mt-2 text-xs sm:text-sm leading-relaxed text-muted whitespace-pre-line">
+              {alertModal.message}
+            </p>
+
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => setAlertModal(null)}
+                className="w-full rounded-md bg-primary py-2.5 text-xs sm:text-sm font-bold !text-white shadow hover:bg-primary-hover active:scale-95 transition-all"
+              >
+                {t('common.ok', { defaultValue: 'Tamam' })}
               </button>
             </div>
           </div>
