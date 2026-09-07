@@ -30,10 +30,18 @@ const anonymousMessageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: true,
+      default: '',
       trim: true,
       maxlength: 1000,
     },
+    media: [
+      {
+        url: { type: String, default: '' },
+        posterUrl: { type: String, default: '' },
+        type: { type: String, enum: ['image', 'video', 'audio'], default: 'image' },
+        durationSeconds: { type: Number, default: 0 },
+      },
+    ],
     createdAt: {
       type: Date,
       default: Date.now,

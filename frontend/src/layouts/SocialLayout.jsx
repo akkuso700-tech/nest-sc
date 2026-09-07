@@ -182,7 +182,7 @@ function getNavIcon(iconKey, filled = false) {
     reports: <BookmarkIcon filled={filled} />,
     profile: <UserIcon filled={filled} />,
     settings: <SettingsIcon />,
-    hiddenProfile: <HiddenProfileIcon />,
+    hiddenProfile: <HiddenProfileIcon filled={filled} />,
     monetization: <MonetizationIcon />,
     about: <AboutIcon />,
     contact: <ContactIcon />,
