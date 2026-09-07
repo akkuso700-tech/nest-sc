@@ -114,6 +114,7 @@ export default function AnonymousLoungePage() {
   const [messageInput, setMessageInput] = useState('')
   const [isLoadingRooms, setIsLoadingRooms] = useState(true)
   const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
 
   // Socket instance ref
   const socketRef = useRef(null)
@@ -471,10 +472,28 @@ export default function AnonymousLoungePage() {
     }
   }, [selectedRoom?.id])
 
-  // Auto scroll messages to bottom
+  // Window Scroll Lock: Ensure the browser window/body is strictly locked at 0 on mobile
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [roomMessages, directMessages])
+    window.scrollTo(0, 0)
+  }, [mobileTab, selectedRoom?.id, activeDirectSession?.sessionId])
+
+  // Container-isolated auto scroll to bottom without shaking or shifting the window
+  useEffect(() => {
+    const scrollToBottom = () => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+      }
+    }
+
+    scrollToBottom()
+    const frameId = requestAnimationFrame(scrollToBottom)
+    const timeoutId = setTimeout(scrollToBottom, 60)
+
+    return () => {
+      cancelAnimationFrame(frameId)
+      clearTimeout(timeoutId)
+    }
+  }, [roomMessages, directMessages, mobileTab, selectedRoom?.id, activeDirectSession?.sessionId])
 
   // Action Guards for Guests
   function requireAuth(actionText, callback) {
@@ -1241,7 +1260,7 @@ export default function AnonymousLoungePage() {
   const currentAvatar = getAvatarByKey(anonProfile?.avatarKey)
 
   return (
-    <div className={`h-[100dvh] overflow-hidden bg-bg text-text flex flex-col ${mobileTab === 'chat' ? 'pt-0 lg:pt-14' : 'pt-14'} pb-0 sm:pb-2`}>
+    <div className={`fixed inset-0 lg:static lg:h-[100dvh] overflow-hidden bg-bg text-text flex flex-col ${mobileTab === 'chat' ? 'pt-0 lg:pt-14' : 'pt-14'} pb-0 sm:pb-2`}>
       {/* 56px Top Fixed Navbar */}
       <header className={`fixed top-0 inset-x-0 z-50 h-14 border-b border-border bg-[rgb(var(--color-card)/0.95)] backdrop-blur px-3 sm:px-4 items-center justify-between gap-3 shadow-sm ${mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'}`}>
         {/* Left: Geri Dön Butonu & Başlık */}
@@ -2118,7 +2137,7 @@ export default function AnonymousLoungePage() {
             )}
 
             {/* Messages Scroll View */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 overscroll-contain">
               {(activeDirectSession ? directMessages : roomMessages).length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted text-xs py-10">
                   <span className="text-3xl mb-2">💬</span>
