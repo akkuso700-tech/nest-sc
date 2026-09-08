@@ -17,6 +17,7 @@ export function AnonymousRoomCreateModal({ isOpen, onClose, onRoomCreated }) {
   const [topic, setTopic] = useState('')
   const [icon, setIcon] = useState('💬')
   const [color, setColor] = useState('purple')
+  const [isPrivate, setIsPrivate] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -32,6 +33,7 @@ export function AnonymousRoomCreateModal({ isOpen, onClose, onRoomCreated }) {
         topic,
         icon,
         color,
+        isPrivate,
       })
       if (onRoomCreated) onRoomCreated(newRoom)
       onClose()
@@ -140,6 +142,60 @@ export function AnonymousRoomCreateModal({ isOpen, onClose, onRoomCreated }) {
                 />
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-text mb-1.5">
+              {t('lounge.roomModal.privacyLabel', { defaultValue: 'Oda Gizliliği' })}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPrivate(false)}
+                className={`flex items-center gap-2 rounded-md border p-2.5 text-left transition-all ${
+                  !isPrivate
+                    ? 'border-primary bg-primary/10 text-primary font-semibold shadow-xs'
+                    : 'border-border bg-secondary text-muted hover:text-text'
+                }`}
+              >
+                <span className="text-base">🌐</span>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold leading-tight">
+                    {t('lounge.roomModal.publicTitle', { defaultValue: 'Herkese Açık' })}
+                  </div>
+                  <div className="text-[10px] text-muted truncate">
+                    {t('lounge.roomModal.publicSub', { defaultValue: 'Tüm gölge kullanıcıları' })}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPrivate(true)}
+                className={`flex items-center gap-2 rounded-md border p-2.5 text-left transition-all ${
+                  isPrivate
+                    ? 'border-primary bg-primary/10 text-primary font-semibold shadow-xs'
+                    : 'border-border bg-secondary text-muted hover:text-text'
+                }`}
+              >
+                <span className="text-base">🔒</span>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold leading-tight">
+                    {t('lounge.roomModal.privateTitle', { defaultValue: 'Gizli Oda' })}
+                  </div>
+                  <div className="text-[10px] text-muted truncate">
+                    {t('lounge.roomModal.privateSub', { defaultValue: 'Sadece kod/link ile' })}
+                  </div>
+                </div>
+              </button>
+            </div>
+            {isPrivate && (
+              <p className="mt-1.5 text-[11px] text-primary/90 bg-primary/5 border border-primary/20 rounded p-2">
+                {t('lounge.roomModal.privateNotice', {
+                  defaultValue: 'Bu oda genel listede gizlenir. Otomatik 6 haneli bir oda kodu üretilir ve yalnızca kodu paylaştığınız kişiler katılabilir.',
+                })}
+              </p>
+            )}
           </div>
 
           <div className="pt-2 flex justify-end gap-2">

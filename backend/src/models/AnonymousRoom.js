@@ -49,6 +49,30 @@ const anonymousRoomSchema = new mongoose.Schema(
       default: null,
       index: { expires: 0 },
     },
+    isPrivate: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    accessCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: null,
+      index: true,
+    },
+    allowedAnonymousIds: {
+      type: [String],
+      default: [],
+    },
+    pendingRequests: [
+      {
+        anonymousId: { type: String, required: true },
+        alias: { type: String, default: 'Anonim' },
+        avatarKey: { type: String, default: 'avatar-1' },
+        requestedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

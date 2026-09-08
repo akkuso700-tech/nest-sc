@@ -77,9 +77,13 @@ function serializeAnonymousProfile(user) {
 }
 
 async function getOrCreateAnonymousProfile(user) {
+  const anonId = getAnonymousId(user._id)
+  let needsSave = false
+
   if (!user.anonymousProfile || !user.anonymousProfile.alias) {
     user.anonymousProfile = {
       alias: generateRandomAlias(),
+      anonymousId: anonId,
       avatarKey: `avatar-${Math.floor(1 + Math.random() * 8)}`,
       gender: 'unspecified',
       ageRange: 'unspecified',
@@ -87,6 +91,13 @@ async function getOrCreateAnonymousProfile(user) {
       isOnlineInLounge: true,
       lastActiveAt: new Date(),
     }
+    needsSave = true
+  } else if (!user.anonymousProfile.anonymousId) {
+    user.anonymousProfile.anonymousId = anonId
+    needsSave = true
+  }
+
+  if (needsSave) {
     await user.save()
   }
   return serializeAnonymousProfile(user)
@@ -169,30 +180,89 @@ async function seedDefaultRoomsIfNeeded() {
   }
 }
 
-async function listRooms() {
-  await seedDefaultRoomsIfNeeded()
-  const rooms = await AnonymousRoom.find().sort({ isSystem: -1, activeCount: -1, createdAt: -1 }).lean()
-
-  return rooms.map((room) => ({
-    id: room._id.toString(),
-    name: room.name,
-    topic: room.topic,
-    icon: room.icon,
-    color: room.color,
-    isSystem: Boolean(room.isSystem),
-    createdBy: room.createdBy ? room.createdBy.toString() : null,
-    creatorAlias: room.creatorAlias,
-    activeCount: Number(room.activeCount || 0),
-    createdAt: room.createdAt,
-  }))
+function generateRoomAccessCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
 }
 
-async function createCustomRoom(user, { name, topic, icon, color }) {
+async function listRooms(user = null) {
+  await seedDefaultRoomsIfNeeded()
+
+  const rooms = await AnonymousRoom.find({}).sort({ isSystem: -1, activeCount: -1, createdAt: -1 }).lean()
+
+  let userAnonId = null
+  let userIdStr = null
+  let isAdmin = false
+  if (user && user._id) {
+    userAnonId = getAnonymousId(user._id)
+    userIdStr = user._id.toString()
+    isAdmin = user.role === 'admin'
+  }
+
+  return rooms.map((room) => {
+    const isOwner = Boolean(userIdStr && room.createdBy && room.createdBy.toString() === userIdStr)
+    const isAllowed = !room.isPrivate || (userAnonId && Array.isArray(room.allowedAnonymousIds) && room.allowedAnonymousIds.includes(userAnonId))
+    const isMember = Boolean(isOwner || isAllowed || isAdmin)
+    const isPending = Boolean(userAnonId && Array.isArray(room.pendingRequests) && room.pendingRequests.some((r) => r.anonymousId === userAnonId))
+
+    const pendingRequests = (isOwner || isAdmin) && Array.isArray(room.pendingRequests)
+      ? room.pendingRequests.map((r) => ({
+          anonymousId: r.anonymousId,
+          alias: r.alias,
+          avatarKey: r.avatarKey,
+          requestedAt: r.requestedAt,
+        }))
+      : []
+
+    return {
+      id: room._id.toString(),
+      name: room.name,
+      topic: room.topic,
+      icon: room.icon,
+      color: room.color,
+      isSystem: Boolean(room.isSystem),
+      isPrivate: Boolean(room.isPrivate),
+      accessCode: (isOwner || isAdmin || isMember) ? (room.accessCode || null) : null,
+      createdBy: room.createdBy ? room.createdBy.toString() : null,
+      creatorAlias: room.creatorAlias,
+      activeCount: Number(room.activeCount || 0),
+      createdAt: room.createdAt,
+      isMember,
+      isOwner,
+      isPending,
+      pendingRequests,
+    }
+  })
+}
+
+async function createCustomRoom(user, { name, topic, icon, color, isPrivate }) {
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
     throw new AppError('Oda adı en az 2 karakter olmalıdır.', 400)
   }
 
   const alias = user.anonymousProfile?.alias || 'Anonim'
+  const isPriv = Boolean(isPrivate)
+  let accessCode = null
+
+  if (isPriv) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = generateRoomAccessCode()
+      const exists = await AnonymousRoom.findOne({ accessCode: candidate })
+      if (!exists) {
+        accessCode = candidate
+        break
+      }
+    }
+    if (!accessCode) {
+      accessCode = generateRoomAccessCode()
+    }
+  }
+
+  const anonProfile = await getOrCreateAnonymousProfile(user)
 
   const room = await AnonymousRoom.create({
     name: name.trim().slice(0, 50),
@@ -200,6 +270,9 @@ async function createCustomRoom(user, { name, topic, icon, color }) {
     icon: (icon || '💬').trim().slice(0, 10),
     color: ['purple', 'cyan', 'emerald', 'rose', 'amber'].includes(color) ? color : 'purple',
     isSystem: false,
+    isPrivate: isPriv,
+    accessCode: accessCode,
+    allowedAnonymousIds: isPriv ? [anonProfile.anonymousId] : [],
     createdBy: user._id,
     creatorAlias: alias,
     activeCount: 1,
@@ -213,14 +286,85 @@ async function createCustomRoom(user, { name, topic, icon, color }) {
     icon: room.icon,
     color: room.color,
     isSystem: false,
+    isPrivate: Boolean(room.isPrivate),
+    accessCode: room.accessCode || null,
     createdBy: user._id.toString(),
     creatorAlias: room.creatorAlias,
     activeCount: 1,
     createdAt: room.createdAt,
+    isMember: true,
+    isOwner: true,
+    isPending: false,
+    pendingRequests: [],
   }
 }
 
-async function getRoomMessages(roomId, limit = 50) {
+async function joinRoomByAccessCode(user, accessCode) {
+  if (!accessCode || typeof accessCode !== 'string') {
+    throw new AppError('Geçerli bir oda kodu giriniz.', 400)
+  }
+
+  const cleanCode = accessCode.trim().toUpperCase()
+  const room = await AnonymousRoom.findOne({ accessCode: cleanCode })
+  if (!room) {
+    throw new AppError('Bu koda ait gizli oda bulunamadı veya süresi dolmuş.', 404)
+  }
+
+  const anonProfile = await getOrCreateAnonymousProfile(user)
+  const anonId = anonProfile.anonymousId
+
+  if (!room.allowedAnonymousIds) {
+    room.allowedAnonymousIds = []
+  }
+  if (!room.allowedAnonymousIds.includes(anonId)) {
+    room.allowedAnonymousIds.push(anonId)
+    await room.save()
+  }
+
+  const userIdStr = user._id.toString()
+  const isOwner = room.createdBy && room.createdBy.toString() === userIdStr
+  return {
+    id: room._id.toString(),
+    name: room.name,
+    topic: room.topic,
+    icon: room.icon,
+    color: room.color,
+    isSystem: Boolean(room.isSystem),
+    isPrivate: Boolean(room.isPrivate),
+    accessCode: room.accessCode || null,
+    createdBy: room.createdBy ? room.createdBy.toString() : null,
+    creatorAlias: room.creatorAlias,
+    activeCount: Number(room.activeCount || 0),
+    createdAt: room.createdAt,
+    isMember: true,
+    isOwner: Boolean(isOwner),
+    isPending: false,
+    pendingRequests: [],
+  }
+}
+
+async function getRoomMessages(roomId, user = null, limit = 50) {
+  const room = await AnonymousRoom.findById(roomId).lean()
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+
+  if (room.isPrivate) {
+    let authorized = false
+    if (user && user._id) {
+      const anonId = getAnonymousId(user._id)
+      const isOwner = room.createdBy && room.createdBy.toString() === user._id.toString()
+      const isAdmin = user.role === 'admin'
+      const isAllowed = Array.isArray(room.allowedAnonymousIds) && room.allowedAnonymousIds.includes(anonId)
+      if (isOwner || isAdmin || isAllowed) {
+        authorized = true
+      }
+    }
+    if (!authorized) {
+      throw new AppError('Bu gizli odaya erişim izniniz yok. Lütfen katılma isteği gönderin.', 403)
+    }
+  }
+
   const messages = await AnonymousMessage.find({ roomId })
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -239,6 +383,21 @@ async function getRoomMessages(roomId, limit = 50) {
 }
 
 async function saveRoomMessage({ roomId, user, text, media = [] }) {
+  const room = await AnonymousRoom.findById(roomId).lean()
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+
+  if (room.isPrivate) {
+    const anonId = getAnonymousId(user._id)
+    const isOwner = room.createdBy && room.createdBy.toString() === user._id.toString()
+    const isAdmin = user.role === 'admin'
+    const isAllowed = Array.isArray(room.allowedAnonymousIds) && room.allowedAnonymousIds.includes(anonId)
+    if (!isOwner && !isAdmin && !isAllowed) {
+      throw new AppError('Bu gizli odaya mesaj göndermek için önce onay almalısınız.', 403)
+    }
+  }
+
   const cleanText = typeof text === 'string' ? text.trim().slice(0, 1000) : ''
   const cleanMedia = Array.isArray(media) ? media : []
 
@@ -266,6 +425,122 @@ async function saveRoomMessage({ roomId, user, text, media = [] }) {
     text: message.text,
     media: message.media || [],
     createdAt: message.createdAt,
+  }
+}
+
+async function requestRoomJoin(user, roomId) {
+  const room = await AnonymousRoom.findById(roomId)
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+  if (!room.isPrivate) {
+    return { success: true, isMember: true, message: 'Bu oda herkese açık.' }
+  }
+
+  const profile = await getOrCreateAnonymousProfile(user)
+  const anonId = profile.anonymousId
+  const isOwner = room.createdBy && room.createdBy.toString() === user._id.toString()
+  const isAdmin = user.role === 'admin'
+  const isMember = Boolean(isOwner || isAdmin || (Array.isArray(room.allowedAnonymousIds) && room.allowedAnonymousIds.includes(anonId)))
+
+  if (isMember) {
+    return { success: true, isMember: true, message: 'Zaten bu odanın üyesisiniz.' }
+  }
+
+  if (!Array.isArray(room.pendingRequests)) {
+    room.pendingRequests = []
+  }
+
+  const alreadyPending = room.pendingRequests.some((r) => r.anonymousId === anonId)
+  if (alreadyPending) {
+    return { success: true, isPending: true, message: 'Katılım isteğiniz zaten onay bekliyor.' }
+  }
+
+  const requestItem = {
+    anonymousId: anonId,
+    alias: profile.alias,
+    avatarKey: profile.avatarKey,
+    requestedAt: new Date(),
+  }
+  room.pendingRequests.push(requestItem)
+  await room.save()
+
+  return {
+    success: true,
+    isPending: true,
+    roomId: room._id.toString(),
+    roomName: room.name,
+    creatorUserId: room.createdBy ? room.createdBy.toString() : null,
+    requester: requestItem,
+  }
+}
+
+async function approveRoomJoin(user, roomId, requesterAnonymousId) {
+  if (!requesterAnonymousId || typeof requesterAnonymousId !== 'string') {
+    throw new AppError('Geçersiz katılım isteği.', 400)
+  }
+
+  const room = await AnonymousRoom.findById(roomId)
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+
+  const isOwner = room.createdBy && room.createdBy.toString() === user._id.toString()
+  const isAdmin = user.role === 'admin'
+  if (!isOwner && !isAdmin) {
+    throw new AppError('Yalnızca oda kurucusu katılım isteklerini onaylayabilir.', 403)
+  }
+
+  if (!Array.isArray(room.allowedAnonymousIds)) {
+    room.allowedAnonymousIds = []
+  }
+  if (!room.allowedAnonymousIds.includes(requesterAnonymousId)) {
+    room.allowedAnonymousIds.push(requesterAnonymousId)
+  }
+
+  if (Array.isArray(room.pendingRequests)) {
+    room.pendingRequests = room.pendingRequests.filter((r) => r.anonymousId !== requesterAnonymousId)
+  }
+  await room.save()
+
+  const requesterUser = await User.findOne({ 'anonymousProfile.anonymousId': requesterAnonymousId })
+
+  return {
+    success: true,
+    roomId: room._id.toString(),
+    roomName: room.name,
+    requesterAnonymousId,
+    requesterUserId: requesterUser ? requesterUser._id.toString() : null,
+    pendingRequests: room.pendingRequests,
+  }
+}
+
+async function rejectRoomJoin(user, roomId, requesterAnonymousId) {
+  if (!requesterAnonymousId || typeof requesterAnonymousId !== 'string') {
+    throw new AppError('Geçersiz katılım isteği.', 400)
+  }
+
+  const room = await AnonymousRoom.findById(roomId)
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+
+  const isOwner = room.createdBy && room.createdBy.toString() === user._id.toString()
+  const isAdmin = user.role === 'admin'
+  if (!isOwner && !isAdmin) {
+    throw new AppError('Yalnızca oda kurucusu katılım isteklerini reddedebilir.', 403)
+  }
+
+  if (Array.isArray(room.pendingRequests)) {
+    room.pendingRequests = room.pendingRequests.filter((r) => r.anonymousId !== requesterAnonymousId)
+    await room.save()
+  }
+
+  return {
+    success: true,
+    roomId: room._id.toString(),
+    requesterAnonymousId,
+    pendingRequests: room.pendingRequests,
   }
 }
 
@@ -453,6 +728,19 @@ async function getOrCreateDirectChat(user, targetAnonymousId, targetProfileData 
   // If previously deleted by current user, restore it
   if (chat.deletedBy && chat.deletedBy.includes(myAnonId)) {
     chat.deletedBy = chat.deletedBy.filter((id) => id !== myAnonId)
+  }
+
+  if (!Array.isArray(chat.participantUserIds)) {
+    chat.participantUserIds = []
+  }
+  if (user._id && !chat.participantUserIds.some((id) => id.toString() === user._id.toString())) {
+    chat.participantUserIds.push(user._id)
+  }
+  if (chat.participantUserIds.length < 2) {
+    const targetUser = await User.findOne({ 'anonymousProfile.anonymousId': targetAnonymousId }).select('_id')
+    if (targetUser && !chat.participantUserIds.some((id) => id.toString() === targetUser._id.toString())) {
+      chat.participantUserIds.push(targetUser._id)
+    }
   }
 
   await chat.save()
@@ -676,6 +964,7 @@ module.exports = {
   seedDefaultRoomsIfNeeded,
   listRooms,
   createCustomRoom,
+  joinRoomByAccessCode,
   deleteCustomRoom,
   getRoomMessages,
   saveRoomMessage,
@@ -690,4 +979,7 @@ module.exports = {
   saveDirectChatMessage,
   deleteDirectChatForUser,
   markDirectChatAsRead,
+  requestRoomJoin,
+  approveRoomJoin,
+  rejectRoomJoin,
 }

@@ -128,6 +128,7 @@ const userSchema = new mongoose.Schema(
     },
     anonymousProfile: {
       alias: { type: String, trim: true, default: '' },
+      anonymousId: { type: String, trim: true, default: '', index: true },
       avatarKey: { type: String, trim: true, default: 'avatar-1' },
       gender: {
         type: String,
@@ -282,6 +283,10 @@ const userSchema = new mongoose.Schema(
       emailNotifications: {
         messages: { type: Boolean, default: true },
         mentions: { type: Boolean, default: true },
+        shadowMessages: { type: Boolean, default: false },
+      },
+      inAppNotifications: {
+        shadowMessages: { type: Boolean, default: false },
       },
       calling: {
         voiceCallEnabled: { type: Boolean, default: true },
@@ -289,6 +294,10 @@ const userSchema = new mongoose.Schema(
       },
     },
     lastMessageEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    lastShadowMessageEmailSentAt: {
       type: Date,
       default: null,
     },

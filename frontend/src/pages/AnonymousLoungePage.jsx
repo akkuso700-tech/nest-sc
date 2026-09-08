@@ -18,6 +18,10 @@ import {
   getDirectChatMessages,
   deleteAnonymousDirectChat,
   markAnonymousDirectChatRead,
+  joinPrivateAnonymousRoom,
+  requestRoomJoin,
+  approveRoomJoin,
+  rejectRoomJoin,
 } from '../services/anonymousService.js'
 import { compressImageToFile } from '../utils/imageUpload.js'
 import { resolveMediaUrl } from '../utils/media.js'
@@ -29,9 +33,12 @@ import {
   SendIcon,
   CloseIcon,
   TrashIcon,
+  CheckIcon,
 } from './MessagesPageIcons.jsx'
 import { AnonymousProfileModal } from '../components/anonymous/AnonymousProfileModal.jsx'
 import { AnonymousRoomCreateModal } from '../components/anonymous/AnonymousRoomCreateModal.jsx'
+import { JoinPrivateRoomModal } from '../components/anonymous/JoinPrivateRoomModal.jsx'
+import { RoomJoinApprovalModal } from '../components/anonymous/RoomJoinApprovalModal.jsx'
 import { GuestLoungeGateModal } from '../components/anonymous/GuestLoungeGateModal.jsx'
 import i18n from '../i18n/index.js'
 import { loungeTranslations } from '../components/anonymous/loungeTranslations.js'
@@ -51,6 +58,10 @@ export default function AnonymousLoungePage() {
   const [anonProfile, setAnonProfile] = useState(null)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
   const [createRoomModalOpen, setCreateRoomModalOpen] = useState(false)
+  const [joinPrivateModalOpen, setJoinPrivateModalOpen] = useState(false)
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false)
+  const [isRequestingJoin, setIsRequestingJoin] = useState(false)
+  const [codeCopiedToast, setCodeCopiedToast] = useState(false)
   const [gateModalOpen, setGateModalOpen] = useState(false)
   const [gateActionLabel, setGateActionLabel] = useState('')
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false)
@@ -132,6 +143,7 @@ export default function AnonymousLoungePage() {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true)
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const chatInputRef = useRef(null)
 
   // Socket instance ref
   const socketRef = useRef(null)
@@ -208,9 +220,41 @@ export default function AnonymousLoungePage() {
               try {
                 localStorage.setItem('nest_anon_direct_chats', JSON.stringify(savedChats))
               } catch (_) {}
+
+              // If URL has ?chat=chatKey, automatically select that chat
+              const chatParam = new URLSearchParams(window.location.search).get('chat')
+              if (chatParam) {
+                const targetChat = savedChats.find(
+                  (c) => c.chatKey === chatParam || c.sessionId === chatParam,
+                )
+                if (targetChat) {
+                  setActiveDirectSession(targetChat)
+                  setSideTab('chats')
+                  setMobileTab('chat')
+                }
+              }
             }
           } catch (chatErr) {
             console.error('Failed to load direct chats:', chatErr)
+          }
+
+          // If URL has ?roomCode=XYZ, automatically join and select private room
+          const roomCodeParam = new URLSearchParams(window.location.search).get('roomCode')
+          if (roomCodeParam) {
+            try {
+              const joined = await joinPrivateAnonymousRoom(roomCodeParam)
+              if (joined && isMounted) {
+                setRooms((prev) => {
+                  const exists = prev.some((r) => r.id === joined.id)
+                  return exists ? prev : [joined, ...prev]
+                })
+                setSelectedRoom(joined)
+                setActiveDirectSession(null)
+                setMobileTab('chat')
+              }
+            } catch (codeErr) {
+              console.warn('Auto-join private room error:', codeErr)
+            }
           }
         }
       } catch (err) {
@@ -290,6 +334,73 @@ export default function AnonymousLoungePage() {
           setSelectedRoom(latestRooms[0])
         }
       })
+    })
+
+    // Private Room Join Requests Listeners
+    socket.on('anon:room_join_requested', ({ roomId, roomName, requester }) => {
+      setRooms((prev) =>
+        prev.map((r) => {
+          if (r.id === roomId) {
+            const existing = Array.isArray(r.pendingRequests) ? r.pendingRequests : []
+            if (existing.some((p) => p.anonymousId === requester.anonymousId)) return r
+            return { ...r, pendingRequests: [...existing, requester] }
+          }
+          return r
+        }),
+      )
+      setSelectedRoom((prev) => {
+        if (prev?.id === roomId) {
+          const existing = Array.isArray(prev.pendingRequests) ? prev.pendingRequests : []
+          if (existing.some((p) => p.anonymousId === requester.anonymousId)) return prev
+          return { ...prev, pendingRequests: [...existing, requester] }
+        }
+        return prev
+      })
+      showAlert(
+        `${requester.alias}, "${roomName}" gizli odanıza katılmak istiyor.`,
+        'Katılım İsteği',
+        'info',
+      )
+    })
+
+    socket.on('anon:room_request_approved', ({ roomId, roomName }) => {
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.id === roomId ? { ...r, isMember: true, isPending: false } : r,
+        ),
+      )
+      setSelectedRoom((prev) => {
+        if (prev?.id === roomId) {
+          return { ...prev, isMember: true, isPending: false }
+        }
+        return prev
+      })
+      getRoomMessages(roomId)
+        .then((msgs) => setRoomMessages(msgs || []))
+        .catch(() => {})
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('anon:join_room', { roomId })
+      }
+      showAlert(
+        `"${roomName}" odasına katılım isteğiniz kurucu tarafından onaylandı! Artık sohbete katılabilirsiniz. 🎉`,
+        'Katılım Onaylandı',
+        'success',
+      )
+    })
+
+    socket.on('anon:room_request_rejected', ({ roomId }) => {
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.id === roomId ? { ...r, isPending: false } : r,
+        ),
+      )
+      setSelectedRoom((prev) => {
+        if (prev?.id === roomId) {
+          return { ...prev, isPending: false }
+        }
+        return prev
+      })
+      showAlert('Gizli odaya katılım isteğiniz onaylanmadı.', 'Katılım Durumu', 'info')
     })
 
     // 1-on-1 Direct Chat listeners
@@ -531,6 +642,9 @@ export default function AnonymousLoungePage() {
       socket.off('anon:call_answered')
       socket.off('anon:call_ice_candidate')
       socket.off('anon:call_ended')
+      socket.off('anon:room_join_requested')
+      socket.off('anon:room_request_approved')
+      socket.off('anon:room_request_rejected')
       disconnectSocketClient()
     }
   }, [isAuthenticated])
@@ -549,6 +663,8 @@ export default function AnonymousLoungePage() {
   // 3. Load Room Messages when selectedRoom changes
   useEffect(() => {
     if (!selectedRoom?.id) return
+    // Don't attempt to load messages or join socket room if the user is not yet a member of a private room
+    if (selectedRoom.isPrivate && !selectedRoom.isMember) return
 
     let isMounted = true
     getRoomMessages(selectedRoom.id)
@@ -567,7 +683,7 @@ export default function AnonymousLoungePage() {
         socketRef.current.emit('anon:leave_room', { roomId: selectedRoom.id })
       }
     }
-  }, [selectedRoom?.id])
+  }, [selectedRoom?.id, selectedRoom?.isMember])
 
   // Window Scroll Lock: Ensure the browser window/body is strictly locked at 0 on mobile
   useEffect(() => {
@@ -818,6 +934,10 @@ export default function AnonymousLoungePage() {
         })
         setMessageInput('')
         clearSelectedImage()
+        // Mobilde klavyenin kapanmaması için input odağını koru
+        setTimeout(() => {
+          chatInputRef.current?.focus()
+        }, 10)
       }
     })
   }
@@ -838,6 +958,10 @@ export default function AnonymousLoungePage() {
       })
       setMessageInput('')
       clearSelectedImage()
+      // Mobilde klavyenin kapanmaması için input odağını koru
+      setTimeout(() => {
+        chatInputRef.current?.focus()
+      }, 10)
     }
   }
 
@@ -1762,19 +1886,36 @@ export default function AnonymousLoungePage() {
 
               {/* Action depending on active side tab */}
               {sideTab === 'rooms' && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    requireAuth(
-                      t('lounge.actions.createRoom', { defaultValue: 'Oda açmak için' }),
-                      () => setCreateRoomModalOpen(true),
-                    )
-                  }
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] sm:text-xs font-semibold text-text hover:bg-secondary transition-colors shrink-0"
-                >
-                  <span>+</span>
-                  <span>{t('lounge.actions.createRoom', { defaultValue: 'Oda Aç' })}</span>
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      requireAuth(
+                        t('lounge.actions.joinPrivate', { defaultValue: 'Gizli odaya katılmak için' }),
+                        () => setJoinPrivateModalOpen(true),
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-semibold text-text hover:bg-secondary transition-colors shrink-0"
+                    title={t('lounge.actions.joinPrivateTooltip', { defaultValue: 'Kod ile gizli odaya katıl' })}
+                  >
+                    <span>🔑</span>
+                    <span>{t('lounge.actions.joinPrivate', { defaultValue: 'Gizli Oda' })}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      requireAuth(
+                        t('lounge.actions.createRoom', { defaultValue: 'Oda açmak için' }),
+                        () => setCreateRoomModalOpen(true),
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors shrink-0"
+                  >
+                    <span>+</span>
+                    <span>{t('lounge.actions.createRoom', { defaultValue: 'Oda Aç' })}</span>
+                  </button>
+                </div>
               )}
               {sideTab === 'chats' && directChats.length > 0 && (
                 <button
@@ -1854,6 +1995,12 @@ export default function AnonymousLoungePage() {
                             {room.isSystem && (
                               <span className="rounded-md bg-secondary border border-border px-1.5 py-0.5 text-[9px] font-semibold text-muted shrink-0">
                                 {t('lounge.rooms.fixed', { defaultValue: 'Sabit' })}
+                              </span>
+                            )}
+                            {room.isPrivate && (
+                              <span className="rounded-md bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 text-[9px] font-bold text-purple-600 dark:text-purple-400 shrink-0 inline-flex items-center gap-0.5">
+                                <span>🔒</span>
+                                <span>{room.accessCode ? `Kod: ${room.accessCode}` : t('lounge.rooms.private', { defaultValue: 'Gizli' })}</span>
                               </span>
                             )}
                           </div>
@@ -2241,34 +2388,38 @@ export default function AnonymousLoungePage() {
 
                       {activeMenuId === 'direct_header' && (
                         <div
-                          className="absolute right-0 top-full mt-1 z-30 w-44 rounded-md bg-card border border-border shadow-lg py-1 text-xs"
+                          className="absolute right-0 top-full mt-2 z-50 w-48 rounded-xl bg-card border border-border shadow-xl py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-border/40"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDeleteDirectChat(
-                                activeDirectSession.chatKey || activeDirectSession.sessionId,
-                              )
-                            }
-                            className="w-full text-left px-3 py-1.5 text-text hover:bg-secondary flex items-center gap-2 transition-colors font-medium border-b border-border/50"
-                          >
-                            <span>🗑️</span>
-                            <span>{t('lounge.chats.deleteChatTitle', { defaultValue: 'Sohbeti Sil' })}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              promptBlockUser(
-                                activeDirectSession.partner?.anonymousId,
-                                activeDirectSession.partner?.alias,
-                              )
-                            }
-                            className="w-full text-left px-3 py-1.5 text-red-500 hover:bg-secondary flex items-center gap-2 transition-colors font-semibold"
-                          >
-                            <span>🚫</span>
-                            <span>{t('lounge.chats.blockUser', { defaultValue: 'Kullanıcıyı Engelle' })}</span>
-                          </button>
+                          <div className="py-0.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeleteDirectChat(
+                                  activeDirectSession.chatKey || activeDirectSession.sessionId,
+                                )
+                              }
+                              className="w-full text-left px-3.5 py-2 text-text hover:bg-secondary flex items-center gap-2.5 transition-colors font-medium"
+                            >
+                              <span className="text-sm">🗑️</span>
+                              <span>{t('lounge.chats.deleteChatTitle', { defaultValue: 'Sohbeti Sil' })}</span>
+                            </button>
+                          </div>
+                          <div className="py-0.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                promptBlockUser(
+                                  activeDirectSession.partner?.anonymousId,
+                                  activeDirectSession.partner?.alias,
+                                )
+                              }
+                              className="w-full text-left px-3.5 py-2 text-red-500 hover:bg-destructive/10 flex items-center gap-2.5 transition-colors font-semibold"
+                            >
+                              <span className="text-sm">🚫</span>
+                              <span>{t('lounge.chats.blockUser', { defaultValue: 'Kullanıcıyı Engelle' })}</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2304,6 +2455,43 @@ export default function AnonymousLoungePage() {
                     </div>
                   </div>
 
+                  {/* Pending Join Requests Badge (owner/admin only) */}
+                  {selectedRoom.isPrivate && selectedRoom.isOwner &&
+                    Array.isArray(selectedRoom.pendingRequests) && selectedRoom.pendingRequests.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setApprovalModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-all shadow-xs animate-pulse shrink-0"
+                      title={t('lounge.rooms.pendingRequestsHint', { defaultValue: 'Bekleyen katılım isteklerini yönet' })}
+                    >
+                      <span>🔔</span>
+                      <span>{selectedRoom.pendingRequests.length} İstek</span>
+                    </button>
+                  )}
+
+                  {/* Gizli Oda Kodu & Kopyalama Butonu */}
+                  {selectedRoom.isPrivate && selectedRoom.accessCode && (
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto mr-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const inviteUrl = `${window.location.origin}/${lang}/lounge?roomCode=${selectedRoom.accessCode}`
+                          if (navigator.clipboard?.writeText) {
+                            navigator.clipboard.writeText(inviteUrl)
+                          }
+                          setCodeCopiedToast(true)
+                          setTimeout(() => setCodeCopiedToast(false), 2400)
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-all shadow-xs"
+                        title={t('lounge.rooms.copyInviteHint', { defaultValue: 'Katılım bağlantısını kopyala' })}
+                      >
+                        <span>🔒</span>
+                        <span className="font-mono">{selectedRoom.accessCode}</span>
+                        <span className="text-[10px] opacity-75">{codeCopiedToast ? '✓ Kopyalandı' : '📋 Paylaş'}</span>
+                      </button>
+                    </div>
+                  )}
+
                   {/* Oda Kurucusu veya Admin Özel Dikey 3 Nokta ⋮ Menüsü (Odayı Silme) */}
                   {!selectedRoom.isSystem &&
                     (selectedRoom.createdBy === (user?.id || user?._id) ||
@@ -2331,15 +2519,15 @@ export default function AnonymousLoungePage() {
 
                         {activeMenuId === `room_${selectedRoom.id}` && (
                           <div
-                            className="absolute right-0 top-full mt-1 z-30 w-36 rounded-md bg-card border border-border shadow-lg py-1 text-xs"
+                            className="absolute right-0 top-full mt-2 z-50 w-44 rounded-xl bg-card border border-border shadow-xl py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
                               onClick={() => promptDeleteRoom(selectedRoom)}
-                              className="w-full text-left px-3 py-1.5 text-red-500 hover:bg-secondary flex items-center gap-2 transition-colors font-semibold"
+                              className="w-full text-left px-3.5 py-2 text-red-500 hover:bg-destructive/10 flex items-center gap-2.5 transition-colors font-semibold"
                             >
-                              <span>🗑️</span>
+                              <span className="text-sm">🗑️</span>
                               <span>
                                 {user?.role === 'admin' &&
                                 selectedRoom.createdBy !== (user?.id || user?._id)
@@ -2408,6 +2596,106 @@ export default function AnonymousLoungePage() {
             )}
 
             {/* Messages Scroll View */}
+            {/* ── Locked Room Screen (private room, user not yet approved) ── */}
+            {selectedRoom?.isPrivate && !selectedRoom?.isMember && !activeDirectSession ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
+                <div className="size-20 rounded-full bg-purple-500/10 border-2 border-purple-500/30 flex items-center justify-center text-4xl shadow-inner">
+                  🔒
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-text">
+                    {t('lounge.rooms.lockedTitle', { defaultValue: 'Bu oda özel' })}
+                  </h3>
+                  <p className="text-xs text-muted mt-1 max-w-xs">
+                    {selectedRoom.isPending
+                      ? t('lounge.rooms.pendingDesc', { defaultValue: 'Katılım isteğiniz gönderildi. Oda kurucusunun onayı bekleniyor.' })
+                      : t('lounge.rooms.lockedDesc', { defaultValue: 'Bu odanın içeriğini görebilmek için kurucu onayı gereklidir. Katılma isteği gönderin.' })}
+                  </p>
+                </div>
+                {selectedRoom.isPending ? (
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    <div className="size-3 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+                    {t('lounge.rooms.pendingBadge', { defaultValue: 'Onay Bekleniyor…' })}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isRequestingJoin}
+                    onClick={async () => {
+                      if (!isAuthenticated) {
+                        setGateActionLabel('Odaya katılmak için giriş yapın')
+                        setGateModalOpen(true)
+                        return
+                      }
+                      setIsRequestingJoin(true)
+                      try {
+                        const roomId = selectedRoom.id
+                        if (socketRef.current?.connected) {
+                          // Prefer socket so the creator gets an instant real-time notification
+                          socketRef.current.emit('anon:request_room_join', { roomId }, (result) => {
+                            if (result?.isPending) {
+                              setSelectedRoom((prev) => ({ ...prev, isPending: true }))
+                              setRooms((prev) =>
+                                prev.map((r) => (r.id === roomId ? { ...r, isPending: true } : r)),
+                              )
+                              showAlert(
+                                'Katılma isteğiniz oda kurucusuna iletildi. Onay bekleniyor.',
+                                'İstek Gönderildi',
+                                'success',
+                              )
+                            } else if (result?.isMember) {
+                              setSelectedRoom((prev) => ({ ...prev, isMember: true, isPending: false }))
+                              setRooms((prev) =>
+                                prev.map((r) => (r.id === roomId ? { ...r, isMember: true, isPending: false } : r)),
+                              )
+                            } else if (result?.error) {
+                              showAlert(result.error, 'Hata')
+                            }
+                            setIsRequestingJoin(false)
+                          })
+                        } else {
+                          // HTTP fallback
+                          const result = await requestRoomJoin(roomId)
+                          if (result?.isPending) {
+                            setSelectedRoom((prev) => ({ ...prev, isPending: true }))
+                            setRooms((prev) =>
+                              prev.map((r) => (r.id === roomId ? { ...r, isPending: true } : r)),
+                            )
+                            showAlert(
+                              'Katılma isteğiniz oda kurucusuna iletildi. Onay bekleniyor.',
+                              'İstek Gönderildi',
+                              'success',
+                            )
+                          } else if (result?.isMember) {
+                            setSelectedRoom((prev) => ({ ...prev, isMember: true, isPending: false }))
+                            setRooms((prev) =>
+                              prev.map((r) => (r.id === roomId ? { ...r, isMember: true, isPending: false } : r)),
+                            )
+                          }
+                          setIsRequestingJoin(false)
+                        }
+                      } catch (err) {
+                        showAlert(err.message || 'İstek gönderilemedi.', 'Hata')
+                        setIsRequestingJoin(false)
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs px-6 py-2.5 shadow-md transition-all disabled:opacity-50"
+                  >
+                    {isRequestingJoin ? (
+                      <>
+                        <div className="size-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        {t('common.loading', { defaultValue: 'Gönderiliyor…' })}
+                      </>
+                    ) : (
+                      <>
+                        <span>🙋</span>
+                        {t('lounge.rooms.sendJoinRequest', { defaultValue: 'Katılma İsteği Gönder' })}
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            ) : (
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 overscroll-contain">
               {(activeDirectSession ? directMessages : roomMessages).length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted text-xs py-10">
@@ -2461,7 +2749,7 @@ export default function AnonymousLoungePage() {
                               </span>
                               {isMe && activeDirectSession && (
                                 <span
-                                  className="inline-flex items-center ml-0.5"
+                                  className="inline-flex items-center ml-1"
                                   title={
                                     msg.status === 'read'
                                       ? t('lounge.messages.seen', { defaultValue: 'Görüldü' })
@@ -2471,34 +2759,23 @@ export default function AnonymousLoungePage() {
                                   }
                                 >
                                   {msg.status === 'read' ? (
-                                    /* Çift Mavi / Açık Renk Tik (Görüldü) */
-                                    <svg
-                                      className="size-3.5 text-sky-300 drop-shadow-xs"
-                                      viewBox="0 0 16 16"
-                                      fill="currentColor"
-                                    >
-                                      <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 2.354 7.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z" />
-                                      <path d="M14.354 4.354a.5.5 0 0 0-.708-.708L7 10.293 5.354 8.646a.5.5 0 1 0-.708.708l2 2a.5.5 0 0 0 .708 0l7-7z" />
-                                    </svg>
+                                    /* Çift Mavi Tik (Görüldü) - Parlak gökyüzü mavisi ve net çift vuruş */
+                                    <CheckIcon
+                                      double
+                                      className="size-4 text-cyan-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] stroke-[2.5]"
+                                    />
                                   ) : msg.status === 'delivered' ? (
-                                    /* Çift Gri / Soluk Tik (İletildi) */
-                                    <svg
-                                      className="size-3.5 text-white/70"
-                                      viewBox="0 0 16 16"
-                                      fill="currentColor"
-                                    >
-                                      <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 2.354 7.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z" />
-                                      <path d="M14.354 4.354a.5.5 0 0 0-.708-.708L7 10.293 5.354 8.646a.5.5 0 1 0-.708.708l2 2a.5.5 0 0 0 .708 0l7-7z" />
-                                    </svg>
+                                    /* Çift Gri Tik (İletildi) - Belirgin, parlak ve net çift vuruş */
+                                    <CheckIcon
+                                      double
+                                      className="size-4 text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)] stroke-[2.2]"
+                                    />
                                   ) : (
-                                    /* Tek Tik (Gönderildi) */
-                                    <svg
-                                      className="size-3 text-white/60"
-                                      viewBox="0 0 16 16"
-                                      fill="currentColor"
-                                    >
-                                      <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                                    </svg>
+                                    /* Tek Tik (Gönderildi) - Net tek vuruş */
+                                    <CheckIcon
+                                      double={false}
+                                      className="size-3.5 text-white/75 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)] stroke-[2.2]"
+                                    />
                                   )}
                                 </span>
                               )}
@@ -2586,8 +2863,10 @@ export default function AnonymousLoungePage() {
               )}
               <div ref={messagesEndRef} />
             </div>
+            )}
 
-            {/* Chat Input Bar */}
+            {/* Chat Input Bar - hidden when room is locked */}
+            {(!selectedRoom?.isPrivate || selectedRoom?.isMember || activeDirectSession) && (
             <div className="p-2.5 sm:p-3 border-t border-border bg-secondary/30 rounded-b-none sm:rounded-b-md shrink-0">
               {/* Hidden file input for image upload */}
               <input
@@ -2693,6 +2972,7 @@ export default function AnonymousLoungePage() {
 
                   {/* Input field */}
                   <input
+                    ref={chatInputRef}
                     type="text"
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
@@ -2735,6 +3015,11 @@ export default function AnonymousLoungePage() {
                     /* Mobile: Send button is icon-only. Desktop: Send button has icon + text */
                     <button
                       type="submit"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onTouchStart={() => {
+                        // Mobilde butona dokunulduğunda klavyenin kapanmaması için input odağını canlı tut
+                        chatInputRef.current?.focus()
+                      }}
                       disabled={
                         isUploadingMedia ||
                         (!messageInput.trim() && !uploadedMediaItem)
@@ -2761,6 +3046,7 @@ export default function AnonymousLoungePage() {
                 </form>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -2782,10 +3068,94 @@ export default function AnonymousLoungePage() {
         }}
       />
 
+      <JoinPrivateRoomModal
+        isOpen={joinPrivateModalOpen}
+        onClose={() => setJoinPrivateModalOpen(false)}
+        onRoomJoined={(room) => {
+          setRooms((prev) => {
+            const exists = prev.some((r) => r.id === room.id)
+            return exists ? prev : [room, ...prev]
+          })
+          setSelectedRoom(room)
+          setActiveDirectSession(null)
+          setMobileTab('chat')
+        }}
+      />
+
       <GuestLoungeGateModal
         isOpen={gateModalOpen}
         onClose={() => setGateModalOpen(false)}
         actionLabel={gateActionLabel}
+      />
+
+      <RoomJoinApprovalModal
+        isOpen={approvalModalOpen}
+        onClose={() => setApprovalModalOpen(false)}
+        room={selectedRoom}
+        onApprove={async (requesterAnonymousId) => {
+          if (!selectedRoom) return
+          if (socketRef.current?.connected) {
+            socketRef.current.emit('anon:approve_room_join', {
+              roomId: selectedRoom.id,
+              requesterAnonymousId,
+            }, (result) => {
+              if (result?.success) {
+                setRooms((prev) =>
+                  prev.map((r) =>
+                    r.id === selectedRoom.id
+                      ? { ...r, pendingRequests: result.pendingRequests || [] }
+                      : r,
+                  ),
+                )
+                setSelectedRoom((prev) =>
+                  prev?.id === selectedRoom.id
+                    ? { ...prev, pendingRequests: result.pendingRequests || [] }
+                    : prev,
+                )
+              }
+            })
+          } else {
+            await approveRoomJoin(selectedRoom.id, requesterAnonymousId)
+            const refreshed = await getAnonymousRooms()
+            const updated = refreshed.find((r) => r.id === selectedRoom.id)
+            if (updated) {
+              setSelectedRoom(updated)
+              setRooms((prev) => prev.map((r) => r.id === updated.id ? updated : r))
+            }
+          }
+        }}
+        onReject={async (requesterAnonymousId) => {
+          if (!selectedRoom) return
+          if (socketRef.current?.connected) {
+            socketRef.current.emit('anon:reject_room_join', {
+              roomId: selectedRoom.id,
+              requesterAnonymousId,
+            }, (result) => {
+              if (result?.success) {
+                setRooms((prev) =>
+                  prev.map((r) =>
+                    r.id === selectedRoom.id
+                      ? { ...r, pendingRequests: result.pendingRequests || [] }
+                      : r,
+                  ),
+                )
+                setSelectedRoom((prev) =>
+                  prev?.id === selectedRoom.id
+                    ? { ...prev, pendingRequests: result.pendingRequests || [] }
+                    : prev,
+                )
+              }
+            })
+          } else {
+            await rejectRoomJoin(selectedRoom.id, requesterAnonymousId)
+            const refreshed = await getAnonymousRooms()
+            const updated = refreshed.find((r) => r.id === selectedRoom.id)
+            if (updated) {
+              setSelectedRoom(updated)
+              setRooms((prev) => prev.map((r) => r.id === updated.id ? updated : r))
+            }
+          }
+        }}
       />
 
       {/* 1. Sohbet İsteği Gönderildi Profesyonel Pop-Up Modalı */}

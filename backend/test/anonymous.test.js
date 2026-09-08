@@ -73,7 +73,43 @@ test('anonymousRouter is a valid express router and has delete and block routes'
   const hasBlock = routes.some(
     (r) => r.path === '/block' && r.methods.includes('post'),
   )
+  const hasJoinPrivate = routes.some(
+    (r) => r.path === '/rooms/join-private' && r.methods.includes('post'),
+  )
+  const hasRequestJoin = routes.some(
+    (r) => r.path === '/rooms/:id/request-join' && r.methods.includes('post'),
+  )
+  const hasApproveJoin = routes.some(
+    (r) => r.path === '/rooms/:id/approve-join' && r.methods.includes('post'),
+  )
+  const hasRejectJoin = routes.some(
+    (r) => r.path === '/rooms/:id/reject-join' && r.methods.includes('post'),
+  )
   assert.ok(hasDeleteRoom, 'Should have DELETE /rooms/:id')
   assert.ok(hasDeleteMessage, 'Should have DELETE /messages/:id')
   assert.ok(hasBlock, 'Should have POST /block')
+  assert.ok(hasJoinPrivate, 'Should have POST /rooms/join-private')
+  assert.ok(hasRequestJoin, 'Should have POST /rooms/:id/request-join')
+  assert.ok(hasApproveJoin, 'Should have POST /rooms/:id/approve-join')
+  assert.ok(hasRejectJoin, 'Should have POST /rooms/:id/reject-join')
+})
+
+test('buildShadowMessageNotificationEmail generates privacy-safe subject, HTML and text', () => {
+  const { buildShadowMessageNotificationEmail } = require('../src/templates/shadowMessageNotificationEmail')
+  const email = buildShadowMessageNotificationEmail({
+    recipientName: 'Ali',
+    senderAlias: 'GizemliKurt#789',
+    messageCount: 1,
+    previewText: 'Merhaba, gizli odada buluşalım!',
+    actionUrl: 'https://mysocial.com/tr/lounge?chat=anon_1_2',
+    siteName: 'My Social',
+  })
+
+  assert.ok(email.subject.includes('Gölge Modu: GizemliKurt#789'))
+  assert.ok(email.html.includes('GizemliKurt#789'))
+  assert.ok(email.html.includes('Merhaba, gizli odada buluşalım!'))
+  assert.ok(email.html.includes('https://mysocial.com/tr/lounge?chat=anon_1_2'))
+  assert.ok(email.html.includes('Gölge Sohbetini Aç'))
+  // Ensure no real names or default leaks
+  assert.ok(!email.html.includes('undefined'))
 })

@@ -15,16 +15,20 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['system', 'follow', 'message', 'comment', 'like', 'share', 'mention', 'admin'],
+      enum: ['system', 'follow', 'message', 'comment', 'like', 'share', 'mention', 'admin', 'shadow_message'],
       required: true,
     },
     entityKind: {
       type: String,
-      enum: ['post', 'comment', 'message', 'profile', 'system'],
+      enum: ['post', 'comment', 'message', 'profile', 'system', 'shadow_message'],
       default: 'system',
     },
     entityId: {
       type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    targetChatKey: {
+      type: String,
       default: null,
     },
     title: {

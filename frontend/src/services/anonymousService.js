@@ -49,10 +49,18 @@ export async function getAnonymousRooms() {
   return res.rooms
 }
 
-export async function createAnonymousRoom({ name, topic, icon, color }) {
+export async function createAnonymousRoom({ name, topic, icon, color, isPrivate = false }) {
   const res = await apiRequest('/anonymous/rooms', {
     method: 'POST',
-    body: JSON.stringify({ name, topic, icon, color }),
+    body: JSON.stringify({ name, topic, icon, color, isPrivate }),
+  })
+  return res.room
+}
+
+export async function joinPrivateAnonymousRoom(accessCode) {
+  const res = await apiRequest('/anonymous/rooms/join-private', {
+    method: 'POST',
+    body: JSON.stringify({ accessCode }),
   })
   return res.room
 }
@@ -131,6 +139,26 @@ export async function deleteAnonymousDirectChat(chatKey) {
 export async function markAnonymousDirectChatRead(chatKey) {
   return apiRequest(`/anonymous/direct-chats/${chatKey}/read`, {
     method: 'POST',
+  })
+}
+
+export async function requestRoomJoin(roomId) {
+  return apiRequest(`/anonymous/rooms/${roomId}/request-join`, {
+    method: 'POST',
+  })
+}
+
+export async function approveRoomJoin(roomId, requesterAnonymousId) {
+  return apiRequest(`/anonymous/rooms/${roomId}/approve-join`, {
+    method: 'POST',
+    body: JSON.stringify({ requesterAnonymousId }),
+  })
+}
+
+export async function rejectRoomJoin(roomId, requesterAnonymousId) {
+  return apiRequest(`/anonymous/rooms/${roomId}/reject-join`, {
+    method: 'POST',
+    body: JSON.stringify({ requesterAnonymousId }),
   })
 }
 

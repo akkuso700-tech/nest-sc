@@ -844,6 +844,16 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     if (typeof body.preferences.emailNotifications.mentions === 'boolean') {
       profile.preferences.emailNotifications.mentions = body.preferences.emailNotifications.mentions
     }
+    if (typeof body.preferences.emailNotifications.shadowMessages === 'boolean') {
+      profile.preferences.emailNotifications.shadowMessages = body.preferences.emailNotifications.shadowMessages
+    }
+  }
+  if (body.preferences?.inAppNotifications) {
+    if (!profile.preferences) profile.preferences = {}
+    if (!profile.preferences.inAppNotifications) profile.preferences.inAppNotifications = {}
+    if (typeof body.preferences.inAppNotifications.shadowMessages === 'boolean') {
+      profile.preferences.inAppNotifications.shadowMessages = body.preferences.inAppNotifications.shadowMessages
+    }
   }
   if (body.preferences?.calling) {
     if (!profile.preferences) profile.preferences = {}

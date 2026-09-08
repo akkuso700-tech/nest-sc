@@ -64,6 +64,11 @@ function buildNotificationRoute(notification, lang) {
   const commentId = normalizeId(notification?.targetCommentId) || (entityKind === 'comment' ? entityId : '')
   const conversationId = normalizeId(notification?.targetConversationId)
 
+  if (notification?.type === 'shadow_message' || entityKind === 'shadow_message') {
+    const chatKey = notification?.targetChatKey || entityId
+    return `/${lang}/lounge${chatKey ? `?chat=${chatKey}` : ''}`
+  }
+
   if (notification?.type === 'follow' && actorUsername) {
     return `/${lang}/u/${actorUsername}`
   }
@@ -427,14 +432,20 @@ function NotificationsPage() {
                       className="flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left transition hover:bg-secondary/70 focus:outline-none focus:ring-2 focus:ring-primary/30"
                       aria-label={t('notificationsPage.actions.open')}
                     >
-                      <UserAvatar
-                        user={actor}
-                        className={`size-11 shrink-0 ${
-                          isUnread ? 'bg-card text-text' : 'bg-primary text-inverse'
-                        }`}
-                        textClassName="text-sm font-semibold"
-                        imageClassName="object-cover"
-                      />
+                      {notification.type === 'shadow_message' ? (
+                        <div className="size-11 shrink-0 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shadow-xs">
+                          🎭
+                        </div>
+                      ) : (
+                        <UserAvatar
+                          user={actor}
+                          className={`size-11 shrink-0 ${
+                            isUnread ? 'bg-card text-text' : 'bg-primary text-inverse'
+                          }`}
+                          textClassName="text-sm font-semibold"
+                          imageClassName="object-cover"
+                        />
+                      )}
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -447,9 +458,16 @@ function NotificationsPage() {
                         </div>
                         <p className="mt-1 text-sm text-muted">{content.body}</p>
                         <p className={`mt-2 text-xs ${isUnread ? 'text-muted' : 'text-soft'}`}>
-                          {actor.username
-                            ? <span className="flex items-center gap-1">@{actor.username} - {getFullName(actor)} <VerifiedBadge user={actor} size="xs" /></span>
-                            : t('notificationsPage.systemActor')}
+                          {notification.type === 'shadow_message' ? (
+                            <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold">
+                              <span>🎭</span>
+                              <span>{t('lounge.title', { defaultValue: 'Gölge Modu' })}</span>
+                            </span>
+                          ) : actor.username ? (
+                            <span className="flex items-center gap-1">@{actor.username} - {getFullName(actor)} <VerifiedBadge user={actor} size="xs" /></span>
+                          ) : (
+                            t('notificationsPage.systemActor')
+                          )}
                         </p>
                       </div>
                     </button>

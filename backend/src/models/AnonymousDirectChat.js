@@ -13,6 +13,12 @@ const anonymousDirectChatSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    participantUserIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     participantProfiles: {
       type: Map,
       of: new mongoose.Schema(
