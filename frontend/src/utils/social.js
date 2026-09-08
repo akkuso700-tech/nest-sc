@@ -77,8 +77,15 @@ export function formatNotificationContent(notification, t) {
   const actor = notification.actor || {}
   const name = actor.firstName || getFullName(actor) || actor.username || (t ? t('notificationsPage.systemActor') : 'System')
   const type = notification.type
-  const entityKind = notification.entityKind
+  const entityKind = notification.entityKind || ''
   const rawTitle = (notification.title || '').toLowerCase()
+
+  if (type === 'shadow_message' || entityKind === 'shadow_message') {
+    return {
+      title: notification.title || 'Gölge Modu',
+      body: notification.body || 'Gölge modunda yeni bir mesajınız var.',
+    }
+  }
 
   if (type === 'message') {
     return {

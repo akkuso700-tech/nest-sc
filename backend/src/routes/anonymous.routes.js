@@ -6,6 +6,7 @@ const {
   updateAnonymousProfile,
   listRooms,
   createCustomRoom,
+  joinRoomByAccessCode,
   deleteCustomRoom,
   getRoomMessages,
   saveRoomMessage,
@@ -19,6 +20,9 @@ const {
   saveDirectChatMessage,
   getOrCreateDirectChat,
   markDirectChatAsRead,
+  requestRoomJoin,
+  approveRoomJoin,
+  rejectRoomJoin,
 } = require('../services/anonymousService')
 const {
   createUploadMiddleware,
@@ -71,10 +75,10 @@ anonymousRouter.get('/summary', authenticateOptional, async (req, res, next) => 
   }
 })
 
-// GET /api/anonymous/rooms - List all rooms (public)
+// GET /api/anonymous/rooms - List all rooms (public + user's private rooms)
 anonymousRouter.get('/rooms', authenticateOptional, async (req, res, next) => {
   try {
-    const rooms = await listRooms()
+    const rooms = await listRooms(req.user)
     res.json({ success: true, rooms })
   } catch (error) {
     next(error)
@@ -84,21 +88,67 @@ anonymousRouter.get('/rooms', authenticateOptional, async (req, res, next) => {
 // POST /api/anonymous/rooms - Create a custom room (requires auth)
 anonymousRouter.post('/rooms', authenticate, async (req, res, next) => {
   try {
-    const { name, topic, icon, color } = req.body
-    const room = await createCustomRoom(req.user, { name, topic, icon, color })
+    const { name, topic, icon, color, isPrivate } = req.body
+    const room = await createCustomRoom(req.user, { name, topic, icon, color, isPrivate })
     res.status(201).json({ success: true, room })
   } catch (error) {
     next(error)
   }
 })
 
-// GET /api/anonymous/rooms/:id/messages - Get recent room messages (public)
+// POST /api/anonymous/rooms/join-private - Join a private room with access code
+anonymousRouter.post('/rooms/join-private', authenticate, async (req, res, next) => {
+  try {
+    const { accessCode } = req.body
+    const room = await joinRoomByAccessCode(req.user, accessCode)
+    res.json({ success: true, room })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/anonymous/rooms/:id/messages - Get recent room messages (public or private with auth)
 anonymousRouter.get('/rooms/:id/messages', authenticateOptional, async (req, res, next) => {
   try {
     const { id } = req.params
     const limit = Math.min(Number(req.query.limit) || 50, 100)
-    const messages = await getRoomMessages(id, limit)
+    const messages = await getRoomMessages(id, req.user, limit)
     res.json({ success: true, messages })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/rooms/:id/request-join - Request to join a private room
+anonymousRouter.post('/rooms/:id/request-join', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const result = await requestRoomJoin(req.user, id)
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/rooms/:id/approve-join - Approve user join request (creator/admin only)
+anonymousRouter.post('/rooms/:id/approve-join', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { requesterAnonymousId } = req.body
+    const result = await approveRoomJoin(req.user, id, requesterAnonymousId)
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/rooms/:id/reject-join - Reject user join request (creator/admin only)
+anonymousRouter.post('/rooms/:id/reject-join', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { requesterAnonymousId } = req.body
+    const result = await rejectRoomJoin(req.user, id, requesterAnonymousId)
+    res.json(result)
   } catch (error) {
     next(error)
   }

@@ -33,6 +33,8 @@ function buildInitialForm(profile) {
     },
     voiceCallEnabled: profile?.user?.preferences?.calling?.voiceCallEnabled !== false,
     videoCallEnabled: profile?.user?.preferences?.calling?.videoCallEnabled !== false,
+    shadowInAppEnabled: Boolean(profile?.user?.preferences?.inAppNotifications?.shadowMessages),
+    shadowEmailEnabled: Boolean(profile?.user?.preferences?.emailNotifications?.shadowMessages),
   }
 }
 
@@ -223,12 +225,29 @@ function buildProfileUpdatePayload(form, locationInputValue, initialSnapshot) {
 
   const hasVoiceChanged = Boolean(form.voiceCallEnabled) !== Boolean(initialForm.voiceCallEnabled)
   const hasVideoChanged = Boolean(form.videoCallEnabled) !== Boolean(initialForm.videoCallEnabled)
-  if (hasVoiceChanged || hasVideoChanged) {
-    payload.preferences = {
-      calling: {
+  const hasShadowInAppChanged = Boolean(form.shadowInAppEnabled) !== Boolean(initialForm.shadowInAppEnabled)
+  const hasShadowEmailChanged = Boolean(form.shadowEmailEnabled) !== Boolean(initialForm.shadowEmailEnabled)
+
+  if (hasVoiceChanged || hasVideoChanged || hasShadowInAppChanged || hasShadowEmailChanged) {
+    payload.preferences = payload.preferences || {}
+
+    if (hasVoiceChanged || hasVideoChanged) {
+      payload.preferences.calling = {
         voiceCallEnabled: Boolean(form.voiceCallEnabled),
         videoCallEnabled: Boolean(form.videoCallEnabled),
-      },
+      }
+    }
+
+    if (hasShadowInAppChanged) {
+      payload.preferences.inAppNotifications = {
+        shadowMessages: Boolean(form.shadowInAppEnabled),
+      }
+    }
+
+    if (hasShadowEmailChanged) {
+      payload.preferences.emailNotifications = {
+        shadowMessages: Boolean(form.shadowEmailEnabled),
+      }
     }
   }
 
@@ -965,6 +984,52 @@ function EditProfilePage() {
                         checked={formState.videoCallEnabled}
                         onChange={(e) =>
                           setFormState((prev) => ({ ...prev, videoCallEnabled: e.target.checked }))
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/50 p-4 transition">
+                    <div className="pr-4">
+                      <p className="text-sm font-semibold text-text flex items-center gap-1.5">
+                        <span>🎭</span>
+                        <span>{t('profile.edit.allowShadowInAppNotifications')}</span>
+                      </p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {t('profile.edit.allowShadowInAppNotificationsDescription')}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formState.shadowInAppEnabled}
+                        onChange={(e) =>
+                          setFormState((prev) => ({ ...prev, shadowInAppEnabled: e.target.checked }))
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/50 p-4 transition">
+                    <div className="pr-4">
+                      <p className="text-sm font-semibold text-text flex items-center gap-1.5">
+                        <span>✉️</span>
+                        <span>{t('profile.edit.allowShadowEmailNotifications')}</span>
+                      </p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {t('profile.edit.allowShadowEmailNotificationsDescription')}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formState.shadowEmailEnabled}
+                        onChange={(e) =>
+                          setFormState((prev) => ({ ...prev, shadowEmailEnabled: e.target.checked }))
                         }
                         className="sr-only peer"
                       />

@@ -1,4 +1,9 @@
 const { AnonymousRoom } = require('../models/AnonymousRoom')
+const { User } = require('../models/User')
+const { Notification } = require('../models/Notification')
+const { sendEmail } = require('../services/emailService')
+const { buildShadowMessageNotificationEmail } = require('../templates/shadowMessageNotificationEmail')
+const { env } = require('../config/env')
 const {
   getOrCreateAnonymousProfile,
   saveRoomMessage,
@@ -10,6 +15,10 @@ const {
   saveDirectChatMessage,
   deleteDirectChatForUser,
   markDirectChatAsRead,
+  joinRoomByAccessCode,
+  requestRoomJoin,
+  approveRoomJoin,
+  rejectRoomJoin,
 } = require('../services/anonymousService')
 
 // In-memory state for anonymous realtime interactions
@@ -131,31 +140,225 @@ function registerAnonymousSockets(io, socket) {
   socket.on('anon:join_room', async ({ roomId }, ack) => {
     try {
       if (!roomId) return
+
+      const room = await AnonymousRoom.findById(roomId)
+      if (!room) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Oda bulunamadı.' })
+        return
+      }
+
+      const anonId = userToAnonMap.get(userId)
+      if (room.isPrivate) {
+        const isOwner = room.createdBy && room.createdBy.toString() === userId
+        const isAdmin = socket.user?.role === 'admin'
+        const isAllowed = anonId && Array.isArray(room.allowedAnonymousIds) && room.allowedAnonymousIds.includes(anonId)
+        if (!isOwner && !isAdmin && !isAllowed) {
+          if (typeof ack === 'function') ack({ success: false, error: 'Bu gizli odaya erişim izniniz yok.' })
+          return
+        }
+      }
+
       const roomKey = `anon_room:${roomId}`
       socket.join(roomKey)
 
-      const anonId = userToAnonMap.get(userId)
       if (anonId && activeAnonUsers.has(anonId)) {
         activeAnonUsers.get(anonId).activeRoomId = roomId
       }
 
       // Update room active count
-      const room = await AnonymousRoom.findByIdAndUpdate(
+      room.activeCount = (room.activeCount || 0) + 1
+      await room.save()
+
+      io.to(roomKey).emit('anon:room_count_changed', {
         roomId,
+        activeCount: room.activeCount,
+      })
+
+      if (typeof ack === 'function') {
+        ack({ success: true, activeCount: room.activeCount })
+      }
+    } catch (err) {
+      console.error('anon:join_room error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 3.1 JOIN A PRIVATE ROOM BY ACCESS CODE
+  socket.on('anon:join_room_by_code', async ({ accessCode }, ack) => {
+    try {
+      if (!accessCode || !socket.user) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz istek.' })
+        return
+      }
+
+      const room = await joinRoomByAccessCode(socket.user, accessCode)
+      const roomKey = `anon_room:${room.id}`
+      socket.join(roomKey)
+
+      const anonId = userToAnonMap.get(userId)
+      if (anonId && activeAnonUsers.has(anonId)) {
+        activeAnonUsers.get(anonId).activeRoomId = room.id
+      }
+
+      const updated = await AnonymousRoom.findByIdAndUpdate(
+        room.id,
         { $inc: { activeCount: 1 } },
         { new: true },
       )
 
       io.to(roomKey).emit('anon:room_count_changed', {
-        roomId,
-        activeCount: room ? room.activeCount : 1,
+        roomId: room.id,
+        activeCount: updated ? updated.activeCount : 1,
       })
 
       if (typeof ack === 'function') {
-        ack({ success: true, activeCount: room ? room.activeCount : 1 })
+        ack({ success: true, room, activeCount: updated ? updated.activeCount : 1 })
       }
     } catch (err) {
-      console.error('anon:join_room error:', err)
+      console.error('anon:join_room_by_code error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 3.2 REQUEST JOIN PRIVATE ROOM
+  socket.on('anon:request_room_join', async ({ roomId }, ack) => {
+    try {
+      if (!socket.user || !roomId) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz istek.' })
+        return
+      }
+
+      const result = await requestRoomJoin(socket.user, roomId)
+
+      if (result.isPending && result.creatorUserId) {
+        // 1. Notify creator via lounge socket if online
+        const creatorAnonId = userToAnonMap.get(result.creatorUserId)
+        const creatorData = creatorAnonId ? activeAnonUsers.get(creatorAnonId) : null
+        if (creatorData && creatorData.socketId) {
+          io.to(creatorData.socketId).emit('anon:room_join_requested', {
+            roomId: result.roomId,
+            roomName: result.roomName,
+            requester: result.requester,
+          })
+        }
+
+        // 2. In-app notification to creator (if enabled)
+        void (async () => {
+          try {
+            const creatorUser = await User.findById(result.creatorUserId)
+            if (!creatorUser || creatorUser.accountStatus === 'suspended') return
+
+            if (creatorUser.preferences?.inAppNotifications?.shadowMessages) {
+              const notification = await Notification.create({
+                user: creatorUser._id,
+                actor: null,
+                type: 'shadow_message',
+                entityKind: 'shadow_message',
+                entityId: result.roomId,
+                title: 'Gölge Modu Katılım İsteği',
+                body: `${result.requester.alias}, "${result.roomName}" gizli odanıza katılmak istiyor.`,
+              })
+
+              io.to(`user:${creatorUser._id}`).emit('notification:new', {
+                ...(notification.toObject ? notification.toObject() : notification),
+              })
+            }
+          } catch (notifErr) {
+            console.error('Room request in-app notification error:', notifErr)
+          }
+        })()
+      }
+
+      if (typeof ack === 'function') ack(result)
+    } catch (err) {
+      console.error('anon:request_room_join error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 3.3 APPROVE ROOM JOIN REQUEST
+  socket.on('anon:approve_room_join', async ({ roomId, requesterAnonymousId }, ack) => {
+    try {
+      if (!socket.user || !roomId || !requesterAnonymousId) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz istek.' })
+        return
+      }
+
+      const result = await approveRoomJoin(socket.user, roomId, requesterAnonymousId)
+
+      // 1. Add requester's socket to the room channel so they receive messages instantly
+      const requesterData = activeAnonUsers.get(requesterAnonymousId)
+      if (requesterData && requesterData.socketId) {
+        const requesterSocket = io.sockets.sockets.get(requesterData.socketId)
+        if (requesterSocket) {
+          requesterSocket.join(`anon_room:${roomId}`)
+          if (requesterData) {
+            requesterData.activeRoomId = roomId
+          }
+        }
+        // 2. Notify requester that they've been approved
+        io.to(requesterData.socketId).emit('anon:room_request_approved', {
+          roomId: result.roomId,
+          roomName: result.roomName,
+        })
+      }
+
+      // 3. In-app notification to requester (if enabled)
+      if (result.requesterUserId) {
+        void (async () => {
+          try {
+            const requesterUser = await User.findById(result.requesterUserId)
+            if (!requesterUser || requesterUser.accountStatus === 'suspended') return
+
+            if (requesterUser.preferences?.inAppNotifications?.shadowMessages) {
+              const notification = await Notification.create({
+                user: requesterUser._id,
+                actor: null,
+                type: 'shadow_message',
+                entityKind: 'shadow_message',
+                entityId: result.roomId,
+                title: 'Gölge Modu',
+                body: `"${result.roomName}" gizli odasına katılım isteğiniz onaylandı! 🎉`,
+              })
+
+              io.to(`user:${requesterUser._id}`).emit('notification:new', {
+                ...(notification.toObject ? notification.toObject() : notification),
+              })
+            }
+          } catch (notifErr) {
+            console.error('Room approval in-app notification error:', notifErr)
+          }
+        })()
+      }
+
+      if (typeof ack === 'function') ack(result)
+    } catch (err) {
+      console.error('anon:approve_room_join error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 3.4 REJECT ROOM JOIN REQUEST
+  socket.on('anon:reject_room_join', async ({ roomId, requesterAnonymousId }, ack) => {
+    try {
+      if (!socket.user || !roomId || !requesterAnonymousId) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz istek.' })
+        return
+      }
+
+      const result = await rejectRoomJoin(socket.user, roomId, requesterAnonymousId)
+
+      // Optionally notify requester
+      const requesterData = activeAnonUsers.get(requesterAnonymousId)
+      if (requesterData && requesterData.socketId) {
+        io.to(requesterData.socketId).emit('anon:room_request_rejected', {
+          roomId: result.roomId,
+        })
+      }
+
+      if (typeof ack === 'function') ack(result)
+    } catch (err) {
+      console.error('anon:reject_room_join error:', err)
       if (typeof ack === 'function') ack({ success: false, error: err.message })
     }
   })
@@ -466,6 +669,82 @@ function registerAnonymousSockets(io, socket) {
           sessionId,
           message: savedMsg,
         })
+      }
+
+      // Check partner preferences for site-wide in-app and email notifications
+      if (partnerAnonId) {
+        void (async () => {
+          try {
+            const partnerUser = await User.findOne({ 'anonymousProfile.anonymousId': partnerAnonId })
+            if (!partnerUser || partnerUser.accountStatus === 'suspended') return
+
+            // 1. Site-wide In-App Notification (Normal profil bildirimlerine yansıma)
+            if (partnerUser.preferences?.inAppNotifications?.shadowMessages) {
+              const isInCurrentDirectChat = partnerData && partnerData.directSessionId === sessionId
+              if (!isInCurrentDirectChat) {
+                const previewSnippet = cleanText
+                  ? (cleanText.length > 80 ? cleanText.slice(0, 80) + '...' : cleanText)
+                  : 'Yeni bir medya gönderdi.'
+
+                const notification = await Notification.create({
+                  user: partnerUser._id,
+                  actor: null,
+                  type: 'shadow_message',
+                  entityKind: 'shadow_message',
+                  entityId: savedMsg.id || null,
+                  targetChatKey: sessionId,
+                  title: 'Gölge Modu',
+                  body: `${myData.alias}: ${previewSnippet}`,
+                })
+
+                io.to(`user:${partnerUser._id}`).emit('notification:new', {
+                  ...(notification.toObject ? notification.toObject() : notification),
+                  targetChatKey: sessionId,
+                })
+              }
+            }
+
+            // 2. Email Notification (Gölge Modu E-posta Bildirimi)
+            if (partnerUser.preferences?.emailNotifications?.shadowMessages && partnerUser.email) {
+              const userRoom = `user:${partnerUser._id}`
+              const activeUserSockets = io.sockets?.adapter?.rooms?.get(userRoom)?.size || 0
+              const isPartnerOnline = activeUserSockets > 0 || Boolean(partnerData)
+
+              if (!isPartnerOnline) {
+                const throttleMs = 5 * 60 * 1000 // 5 minutes debounce/throttle
+                const lastSent = partnerUser.lastShadowMessageEmailSentAt
+                  ? new Date(partnerUser.lastShadowMessageEmailSentAt).getTime()
+                  : 0
+
+                if (Date.now() - lastSent > throttleMs) {
+                  partnerUser.lastShadowMessageEmailSentAt = new Date()
+                  await partnerUser.save()
+
+                  const clientUrl = env.clientUrl || 'https://my-social-web.onrender.com'
+                  const actionUrl = `${clientUrl}/tr/lounge?chat=${sessionId}`
+                  const emailData = buildShadowMessageNotificationEmail({
+                    recipientName: partnerUser.firstName || partnerUser.username,
+                    senderAlias: myData.alias,
+                    messageCount: 1,
+                    previewText: cleanText || 'Yeni bir medya gönderdi.',
+                    actionUrl,
+                  })
+
+                  sendEmail({
+                    to: partnerUser.email,
+                    subject: emailData.subject,
+                    html: emailData.html,
+                    text: emailData.text,
+                  }).catch((mailErr) => {
+                    console.warn('[ShadowEmail] Failed to send email notification:', mailErr.message)
+                  })
+                }
+              }
+            }
+          } catch (notifErr) {
+            console.warn('[AnonymousSocket] Notification dispatch error:', notifErr.message)
+          }
+        })()
       }
 
       if (typeof ack === 'function') ack({ success: true, message: savedMsg })
