@@ -34,6 +34,9 @@ export function getSocketClient() {
           }
         } catch {
           // Session expired or logged out; keep socket disconnected
+          if (socketInstance) {
+            socketInstance.disconnect()
+          }
         } finally {
           isRefreshingAuth = false
         }

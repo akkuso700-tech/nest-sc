@@ -107,8 +107,13 @@ function LoginPage() {
     }))
   }, [])
 
+  if (status === 'loading') {
+    return null
+  }
+
   if (isAuthenticated) {
-    return <Navigate to={`/${lang}/`} replace />
+    const destination = location.state?.from || `/${lang}/`
+    return <Navigate to={destination} replace />
   }
 
   function closePage() {
@@ -162,7 +167,8 @@ function LoginPage() {
         window.localStorage.removeItem(rememberedLoginKey)
       }
 
-      navigate(`/${lang}/`, { replace: true })
+      const destination = location.state?.from || `/${lang}/`
+      navigate(destination, { replace: true })
     } catch (submitError) {
       setError(submitError.message || 'Giris yapilamadi.')
     } finally {

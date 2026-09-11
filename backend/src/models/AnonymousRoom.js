@@ -65,11 +65,17 @@ const anonymousRoomSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    bannedAnonymousIds: {
+      type: [String],
+      default: [],
+    },
     pendingRequests: [
       {
         anonymousId: { type: String, required: true },
         alias: { type: String, default: 'Anonim' },
         avatarKey: { type: String, default: 'avatar-1' },
+        gender: { type: String, default: 'unspecified' },
+        ageRange: { type: String, default: 'unspecified' },
         requestedAt: { type: Date, default: Date.now },
       },
     ],

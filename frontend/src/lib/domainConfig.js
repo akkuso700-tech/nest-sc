@@ -10,14 +10,14 @@
 const DOMAIN_MAP = {
   'demo.nest-sc.com': {
     env: 'demo',
-    api: 'https://demo.nest-sc.com/api/v1',
-    fallbackApi: 'https://api-demo.nest-sc.com/api/v1',
+    api: 'https://api-demo.nest-sc.com/api/v1',
+    fallbackApi: 'https://demo.nest-sc.com/api/v1',
     upload: 'https://upload-demo.nest-sc.com',
   },
   'nest-sc.com': {
     env: 'live',
-    api: 'https://nest-sc.com/api/v1',
-    fallbackApi: 'https://api.nest-sc.com/api/v1',
+    api: 'https://api.nest-sc.com/api/v1',
+    fallbackApi: 'https://nest-sc.com/api/v1',
     upload: 'https://upload.nest-sc.com',
   },
 }

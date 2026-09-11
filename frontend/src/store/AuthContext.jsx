@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { apiRequest, refreshSession } from '../lib/apiClient.js'
+import { apiRequest, onSessionExpired, refreshSession } from '../lib/apiClient.js'
 import { clearGroupsSidebarCache } from '../features/groups/sidebarCache.js'
 import { clearClientLoopFeedCache } from '../pages/LoopPage.jsx'
 import { disconnectSocketClient } from '../services/socketClient.js'
@@ -48,6 +48,18 @@ export function AuthProvider({ children }) {
     user: null,
   }))
   const bootstrapRef = useRef(false)
+
+  useEffect(() => {
+    const unsubscribe = onSessionExpired(() => {
+      markSessionInactive()
+      setAuthState({
+        status: 'guest',
+        user: null,
+      })
+    })
+
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     if (bootstrapRef.current) {

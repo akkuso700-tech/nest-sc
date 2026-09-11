@@ -19,6 +19,8 @@ const {
   requestRoomJoin,
   approveRoomJoin,
   rejectRoomJoin,
+  kickRoomMember,
+  banRoomMember,
 } = require('../services/anonymousService')
 
 // In-memory state for anonymous realtime interactions
@@ -148,6 +150,11 @@ function registerAnonymousSockets(io, socket) {
       }
 
       const anonId = userToAnonMap.get(userId)
+      if (Array.isArray(room.bannedAnonymousIds) && anonId && room.bannedAnonymousIds.includes(anonId)) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Bu odaya girişiniz engellenmiştir.' })
+        return
+      }
+
       if (room.isPrivate) {
         const isOwner = room.createdBy && room.createdBy.toString() === userId
         const isAdmin = socket.user?.role === 'admin'
@@ -363,6 +370,162 @@ function registerAnonymousSockets(io, socket) {
     }
   })
 
+  // 3.4 GET ROOM MEMBERS
+  socket.on('anon:get_room_members', async ({ roomId }, ack) => {
+    try {
+      if (!roomId) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Oda ID belirtilmedi.' })
+        return
+      }
+      const room = await AnonymousRoom.findById(roomId)
+      if (!room) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Oda bulunamadı.' })
+        return
+      }
+
+      const members = []
+      const seenAnonIds = new Set()
+
+      for (const [anonId, data] of activeAnonUsers.entries()) {
+        if (data.activeRoomId === roomId) {
+          const isHost = Boolean(room.createdBy && data.userId && room.createdBy.toString() === data.userId.toString())
+          members.push({
+            anonymousId: anonId,
+            alias: data.alias || 'Anonim',
+            avatarKey: data.avatarKey || 'avatar-1',
+            gender: data.gender || 'unspecified',
+            ageRange: data.ageRange || 'unspecified',
+            status: data.status || '',
+            isHost,
+          })
+          seenAnonIds.add(anonId)
+        }
+      }
+
+      // If current user is viewing the room, ensure they are in the list
+      const myAnonId = userToAnonMap.get(userId)
+      if (myAnonId && !seenAnonIds.has(myAnonId)) {
+        const myData = activeAnonUsers.get(myAnonId)
+        if (myData) {
+          members.push({
+            anonymousId: myAnonId,
+            alias: myData.alias || 'Anonim',
+            avatarKey: myData.avatarKey || 'avatar-1',
+            gender: myData.gender || 'unspecified',
+            ageRange: myData.ageRange || 'unspecified',
+            status: myData.status || '',
+            isHost: Boolean(room.createdBy && myData.userId && room.createdBy.toString() === myData.userId.toString()),
+          })
+          seenAnonIds.add(myAnonId)
+        }
+      }
+
+      const isHostUser = Boolean(room.createdBy && room.createdBy.toString() === userId) || socket.user?.role === 'admin'
+
+      if (typeof ack === 'function') {
+        ack({
+          success: true,
+          roomId,
+          members,
+          isHost: isHostUser,
+        })
+      }
+    } catch (err) {
+      console.error('anon:get_room_members error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 3.5 KICK ROOM MEMBER (Host/Admin only)
+  socket.on('anon:kick_room_member', async ({ roomId, targetAnonymousId }, ack) => {
+    try {
+      if (!socket.user || !roomId || !targetAnonymousId) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz parametre.' })
+        return
+      }
+
+      const result = await kickRoomMember(socket.user, roomId, targetAnonymousId)
+
+      // Disconnect target socket from room channel and reset activeRoomId
+      const targetData = activeAnonUsers.get(targetAnonymousId)
+      if (targetData) {
+        if (targetData.activeRoomId === roomId) {
+          targetData.activeRoomId = null
+        }
+        if (targetData.socketId) {
+          const targetSocket = io.sockets.sockets.get(targetData.socketId)
+          if (targetSocket) {
+            targetSocket.leave(`anon_room:${roomId}`)
+          }
+          io.to(targetData.socketId).emit('anon:kicked_from_room', {
+            roomId,
+            message: 'Oda yöneticisi tarafından odadan çıkarıldınız.',
+          })
+        }
+      }
+
+      // Broadcast updated count & removed member to room channel
+      io.to(`anon_room:${roomId}`).emit('anon:room_count_changed', {
+        roomId,
+        activeCount: result.activeCount,
+      })
+      io.to(`anon_room:${roomId}`).emit('anon:member_removed', {
+        roomId,
+        targetAnonymousId,
+      })
+
+      if (typeof ack === 'function') ack(result)
+    } catch (err) {
+      console.error('anon:kick_room_member error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
+  // 3.6 BAN ROOM MEMBER (Host/Admin only)
+  socket.on('anon:ban_room_member', async ({ roomId, targetAnonymousId }, ack) => {
+    try {
+      if (!socket.user || !roomId || !targetAnonymousId) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz parametre.' })
+        return
+      }
+
+      const result = await banRoomMember(socket.user, roomId, targetAnonymousId)
+
+      // Disconnect target socket from room channel and reset activeRoomId
+      const targetData = activeAnonUsers.get(targetAnonymousId)
+      if (targetData) {
+        if (targetData.activeRoomId === roomId) {
+          targetData.activeRoomId = null
+        }
+        if (targetData.socketId) {
+          const targetSocket = io.sockets.sockets.get(targetData.socketId)
+          if (targetSocket) {
+            targetSocket.leave(`anon_room:${roomId}`)
+          }
+          io.to(targetData.socketId).emit('anon:banned_from_room', {
+            roomId,
+            message: 'Bu odaya girişiniz oda yöneticisi tarafından engellendi.',
+          })
+        }
+      }
+
+      // Broadcast updated count & removed member to room channel
+      io.to(`anon_room:${roomId}`).emit('anon:room_count_changed', {
+        roomId,
+        activeCount: result.activeCount,
+      })
+      io.to(`anon_room:${roomId}`).emit('anon:member_removed', {
+        roomId,
+        targetAnonymousId,
+      })
+
+      if (typeof ack === 'function') ack(result)
+    } catch (err) {
+      console.error('anon:ban_room_member error:', err)
+      if (typeof ack === 'function') ack({ success: false, error: err.message })
+    }
+  })
+
   // 4. LEAVE ROOM
   socket.on('anon:leave_room', async ({ roomId }) => {
     if (!roomId) return
@@ -405,6 +568,18 @@ function registerAnonymousSockets(io, socket) {
 
       if (!roomId || (!hasText && !hasMedia)) {
         if (typeof ack === 'function') ack({ success: false, error: 'Geçersiz mesaj veya medya.' })
+        return
+      }
+
+      const room = await AnonymousRoom.findById(roomId)
+      if (!room) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Oda bulunamadı.' })
+        return
+      }
+
+      const myAnonId = userToAnonMap.get(userId)
+      if (Array.isArray(room.bannedAnonymousIds) && myAnonId && room.bannedAnonymousIds.includes(myAnonId)) {
+        if (typeof ack === 'function') ack({ success: false, error: 'Bu odaya girişiniz engellenmiştir.' })
         return
       }
 

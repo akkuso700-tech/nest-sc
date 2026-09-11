@@ -58,11 +58,11 @@ const pinnedApiUrl = resolvePinnedApiUrlByHost()
 const defaultApiUrl = buildDefaultApiUrl()
 const envApiUrl = String(import.meta.env?.VITE_API_URL || '').trim()
 const effectiveEnvApiUrl = shouldUseEnvApiUrl(envApiUrl) ? envApiUrl : ''
-const apiBaseUrl = (pinnedApiUrl || effectiveEnvApiUrl || defaultApiUrl).replace(/\/$/, '')
+const apiBaseUrl = (effectiveEnvApiUrl || pinnedApiUrl || defaultApiUrl).replace(/\/$/, '')
 const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/, '')
 const requestApiBaseCandidates = resolveApiBaseCandidates(apiBaseUrl, {
   fallbackBaseUrl: configPinnedFallbackApiUrl,
-  lockToPrimary: Boolean(pinnedApiUrl),
+  lockToPrimary: Boolean(pinnedApiUrl || effectiveEnvApiUrl),
 })
 const configuredRequestTimeoutMs = Number(import.meta.env?.VITE_API_TIMEOUT_MS)
 const API_REQUEST_TIMEOUT_MS = Number.isFinite(configuredRequestTimeoutMs)
@@ -71,6 +71,22 @@ const API_REQUEST_TIMEOUT_MS = Number.isFinite(configuredRequestTimeoutMs)
 const API_RETRY_DELAY_MS = 350
 
 let refreshPromise = null
+const sessionExpiredListeners = new Set()
+
+export function onSessionExpired(callback) {
+  sessionExpiredListeners.add(callback)
+  return () => sessionExpiredListeners.delete(callback)
+}
+
+function notifySessionExpired() {
+  sessionExpiredListeners.forEach((listener) => {
+    try {
+      listener()
+    } catch {
+      // Ignore listener error
+    }
+  })
+}
 
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '')
@@ -178,6 +194,17 @@ async function fetchWithApiFallback(path, options = {}, config = {}) {
         })
         lastResponse = response
 
+        const contentType = response.headers.get('content-type') || ''
+        const isHtml = contentType.includes('text/html')
+        const isNotFound = response.status === 404
+        const hasAlternativeCandidate =
+          requestApiBaseCandidates.length > 1 &&
+          baseUrl !== requestApiBaseCandidates[requestApiBaseCandidates.length - 1]
+
+        if ((isHtml || isNotFound) && hasAlternativeCandidate) {
+          continue
+        }
+
         if (!retryEnabled || !isRetryableStatus(response.status)) {
           return response
         }
@@ -199,11 +226,12 @@ async function fetchWithApiFallback(path, options = {}, config = {}) {
 }
 
 export class ApiError extends Error {
-  constructor(message, status, details = null) {
+  constructor(message, status, details = null, isNetworkError = false) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.details = details
+    this.isNetworkError = isNetworkError
   }
 }
 
@@ -236,6 +264,9 @@ async function refreshSession() {
       const payload = await parseResponse(response)
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          notifySessionExpired()
+        }
         throw new ApiError(
           payload?.message || 'Session refresh failed.',
           response.status,
@@ -244,6 +275,11 @@ async function refreshSession() {
       }
 
       return payload
+    }).catch((error) => {
+      if (error?.status === 401 || error?.status === 403) {
+        notifySessionExpired()
+      }
+      throw error
     }).finally(() => {
       refreshPromise = null
     })
@@ -255,29 +291,49 @@ async function refreshSession() {
 export async function apiRequest(path, options = {}, config = {}) {
   const { skipRefreshRetry = false, timeoutMs, retry } = config
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
-  const response = await fetchWithApiFallback(
-    path,
-    {
-      cache: 'no-store',
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-        ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...options.headers,
+  let response
+  try {
+    response = await fetchWithApiFallback(
+      path,
+      {
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+          ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...options.headers,
+        },
+        ...options,
       },
-      ...options,
-    },
-    { timeoutMs, retry },
-  )
+      { timeoutMs, retry },
+    )
+  } catch (error) {
+    const isNetwork = !error?.status && (
+      error?.name === 'TypeError' ||
+      String(error?.message || '').toLowerCase().includes('fetch') ||
+      error?.code === 'API_TIMEOUT'
+    )
+    if (isNetwork) {
+      const friendlyMessage = 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı veya sunucu durumunu kontrol edin.'
+      const apiErr = new ApiError(friendlyMessage, error?.status || 0, null, true)
+      if (error?.code) apiErr.code = error.code
+      throw apiErr
+    }
+    throw error
+  }
 
   const payload = await parseResponse(response)
 
   if (response.status === 401 && !skipRefreshRetry && !path.startsWith('/auth/')) {
-    await refreshSession()
-
-    return apiRequest(path, options, { skipRefreshRetry: true })
+    try {
+      await refreshSession()
+      return apiRequest(path, options, { skipRefreshRetry: true })
+    } catch (refreshErr) {
+      notifySessionExpired()
+      throw refreshErr
+    }
   }
 
   if (!response.ok) {

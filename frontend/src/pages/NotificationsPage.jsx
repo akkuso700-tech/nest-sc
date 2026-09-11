@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import Seo from '../components/seo/Seo.jsx'
@@ -121,6 +121,7 @@ function buildNotificationRoute(notification, lang) {
 
 function NotificationsPage() {
   const { lang } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { isAuthenticated, status } = useAuth()
@@ -330,6 +331,14 @@ function NotificationsPage() {
 
     const targetRoute = buildNotificationRoute(notification, lang)
     navigate(targetRoute)
+  }
+
+  if (status === 'loading') {
+    return null
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to={`/${lang}/login`} replace state={{ from: location.pathname }} />
   }
 
   return (

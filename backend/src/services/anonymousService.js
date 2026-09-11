@@ -70,6 +70,7 @@ function serializeAnonymousProfile(user) {
     gender: profile.gender || 'unspecified',
     ageRange: profile.ageRange || 'unspecified',
     status: profile.status || '',
+    hasConfigured: Boolean(profile.hasConfigured),
     isOnlineInLounge: Boolean(profile.isOnlineInLounge),
     blockedAnonymousIds: Array.isArray(profile.blockedAnonymousIds) ? profile.blockedAnonymousIds : [],
     lastActiveAt: profile.lastActiveAt || null,
@@ -88,6 +89,7 @@ async function getOrCreateAnonymousProfile(user) {
       gender: 'unspecified',
       ageRange: 'unspecified',
       status: 'Yeni katıldım 🌟',
+      hasConfigured: false,
       isOnlineInLounge: true,
       lastActiveAt: new Date(),
     }
@@ -136,6 +138,7 @@ async function updateAnonymousProfile(userId, { alias, avatarKey, gender, ageRan
     user.anonymousProfile.status = status.trim().slice(0, 80)
   }
 
+  user.anonymousProfile.hasConfigured = true
   user.anonymousProfile.lastActiveAt = new Date()
   await user.save()
 
@@ -214,6 +217,8 @@ async function listRooms(user = null) {
           anonymousId: r.anonymousId,
           alias: r.alias,
           avatarKey: r.avatarKey,
+          gender: r.gender || 'unspecified',
+          ageRange: r.ageRange || 'unspecified',
           requestedAt: r.requestedAt,
         }))
       : []
@@ -439,6 +444,11 @@ async function requestRoomJoin(user, roomId) {
 
   const profile = await getOrCreateAnonymousProfile(user)
   const anonId = profile.anonymousId
+
+  if (Array.isArray(room.bannedAnonymousIds) && room.bannedAnonymousIds.includes(anonId)) {
+    throw new AppError('Bu odaya girişiniz engellenmiştir.', 403)
+  }
+
   const isOwner = room.createdBy && room.createdBy.toString() === user._id.toString()
   const isAdmin = user.role === 'admin'
   const isMember = Boolean(isOwner || isAdmin || (Array.isArray(room.allowedAnonymousIds) && room.allowedAnonymousIds.includes(anonId)))
@@ -460,6 +470,8 @@ async function requestRoomJoin(user, roomId) {
     anonymousId: anonId,
     alias: profile.alias,
     avatarKey: profile.avatarKey,
+    gender: profile.gender || 'unspecified',
+    ageRange: profile.ageRange || 'unspecified',
     requestedAt: new Date(),
   }
   room.pendingRequests.push(requestItem)
@@ -541,6 +553,72 @@ async function rejectRoomJoin(user, roomId, requesterAnonymousId) {
     roomId: room._id.toString(),
     requesterAnonymousId,
     pendingRequests: room.pendingRequests,
+  }
+}
+
+async function kickRoomMember(user, roomId, targetAnonymousId) {
+  if (!targetAnonymousId || typeof targetAnonymousId !== 'string') {
+    throw new AppError('Geçersiz kullanıcı.', 400)
+  }
+
+  const room = await AnonymousRoom.findById(roomId)
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+
+  const isOwner = Boolean(user && room.createdBy && room.createdBy.toString() === user._id.toString())
+  const isAdmin = Boolean(user && user.role === 'admin')
+  if (!isOwner && !isAdmin) {
+    throw new AppError('Yalnızca oda yöneticisi üyeleri çıkarabilir.', 403)
+  }
+
+  if (Array.isArray(room.allowedAnonymousIds)) {
+    room.allowedAnonymousIds = room.allowedAnonymousIds.filter((id) => id !== targetAnonymousId)
+  }
+  room.activeCount = Math.max(0, (room.activeCount || 1) - 1)
+  await room.save()
+
+  return {
+    success: true,
+    roomId: room._id.toString(),
+    targetAnonymousId,
+    activeCount: room.activeCount,
+  }
+}
+
+async function banRoomMember(user, roomId, targetAnonymousId) {
+  if (!targetAnonymousId || typeof targetAnonymousId !== 'string') {
+    throw new AppError('Geçersiz kullanıcı.', 400)
+  }
+
+  const room = await AnonymousRoom.findById(roomId)
+  if (!room) {
+    throw new AppError('Oda bulunamadı.', 404)
+  }
+
+  const isOwner = Boolean(user && room.createdBy && room.createdBy.toString() === user._id.toString())
+  const isAdmin = Boolean(user && user.role === 'admin')
+  if (!isOwner && !isAdmin) {
+    throw new AppError('Yalnızca oda yöneticisi üyeleri engelleyebilir.', 403)
+  }
+
+  if (!Array.isArray(room.bannedAnonymousIds)) {
+    room.bannedAnonymousIds = []
+  }
+  if (!room.bannedAnonymousIds.includes(targetAnonymousId)) {
+    room.bannedAnonymousIds.push(targetAnonymousId)
+  }
+  if (Array.isArray(room.allowedAnonymousIds)) {
+    room.allowedAnonymousIds = room.allowedAnonymousIds.filter((id) => id !== targetAnonymousId)
+  }
+  room.activeCount = Math.max(0, (room.activeCount || 1) - 1)
+  await room.save()
+
+  return {
+    success: true,
+    roomId: room._id.toString(),
+    targetAnonymousId,
+    activeCount: room.activeCount,
   }
 }
 
@@ -982,4 +1060,6 @@ module.exports = {
   requestRoomJoin,
   approveRoomJoin,
   rejectRoomJoin,
+  kickRoomMember,
+  banRoomMember,
 }

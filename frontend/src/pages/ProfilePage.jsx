@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import Seo from '../components/seo/Seo.jsx'
@@ -328,6 +328,7 @@ function ConfirmDeleteDialog({ open, target, onConfirm, onClose, t }) {
 
 function ProfilePage() {
   const { username, lang } = useParams()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const { t } = useTranslation()
   const { isAuthenticated, status, user, setUser } = useAuth()
@@ -988,6 +989,14 @@ function ProfilePage() {
       imageUrl: resolveMediaUrl(media.thumbnailUrl || media.posterUrl || media.url || ''),
     }
   })
+
+  if (!username && status === 'loading') {
+    return null
+  }
+
+  if (!username && !isAuthenticated) {
+    return <Navigate to={`/${lang}/login`} replace state={{ from: location.pathname }} />
+  }
 
   return (
     <>
