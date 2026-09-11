@@ -162,4 +162,18 @@ export async function rejectRoomJoin(roomId, requesterAnonymousId) {
   })
 }
 
+export async function kickRoomMember(roomId, targetAnonymousId) {
+  return apiRequest(`/anonymous/rooms/${roomId}/kick`, {
+    method: 'POST',
+    body: JSON.stringify({ targetAnonymousId }),
+  })
+}
+
+export async function banRoomMember(roomId, targetAnonymousId) {
+  return apiRequest(`/anonymous/rooms/${roomId}/ban`, {
+    method: 'POST',
+    body: JSON.stringify({ targetAnonymousId }),
+  })
+}
+
 

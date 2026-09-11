@@ -663,6 +663,7 @@ function HomePage() {
       posts: cached?.posts || [],
       isLoading: !cached?.posts?.length,
       error: '',
+      loadMoreError: '',
       hasMore: Boolean(cached?.hasMore),
       nextCursor: cached?.nextCursor || null,
       nextOffset: cached?.nextOffset || null,
@@ -831,11 +832,10 @@ function HomePage() {
       }
     }
 
-    const timer = window.setTimeout(loadStories, 80)
+    loadStories()
 
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
     }
   }, [t])
 
@@ -916,6 +916,7 @@ function HomePage() {
           posts: filterOutStoryPosts(payload.posts || []),
           isLoading: false,
           error: '',
+          loadMoreError: '',
           hasMore: Boolean(payload?.pagination?.hasMore),
           nextCursor: payload?.pagination?.nextCursor || null,
           nextOffset: payload?.pagination?.nextOffset ?? null,
@@ -991,11 +992,10 @@ function HomePage() {
       }
     }
 
-    const timer = window.setTimeout(loadTrends, 160)
+    loadTrends()
 
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
     }
   }, [t])
 
@@ -1125,11 +1125,10 @@ function HomePage() {
       }
     }
 
-    const timer = window.setTimeout(loadSuggestions, 240)
+    loadSuggestions()
 
     return () => {
       cancelled = true
-      window.clearTimeout(timer)
     }
   }, [suggestionsState.mode, t])
 
@@ -1304,6 +1303,7 @@ function HomePage() {
         ]),
         isLoading: false,
         error: '',
+        loadMoreError: '',
         hasMore: payload.pagination.hasMore,
         nextCursor: payload.pagination.nextCursor || null,
         nextOffset: payload.pagination.nextOffset,
@@ -1312,7 +1312,7 @@ function HomePage() {
       setFeedState((currentState) => ({
         ...currentState,
         isLoading: false,
-        error: error.message || 'More posts could not be loaded.',
+        loadMoreError: error.message || t('common.loadMoreFailed', { defaultValue: 'Daha fazla gönderi yüklenemedi.' }),
       }))
     } finally {
       isLoadingMoreRef.current = false
@@ -1767,7 +1767,7 @@ function HomePage() {
               }
               bodyClassName="mt-4"
             >
-              {suggestionsState.isLoading && isAuthenticated ? (
+              {suggestionsState.isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div
@@ -1816,6 +1816,7 @@ function HomePage() {
             title={t('common.storyRailTitle', { defaultValue: 'Hikayeler' })}
             yourStoryLabel={t('common.yourStory', { defaultValue: 'Senin Hikayen' })}
             rails={storyState.rails}
+            isLoading={storyState.isLoading}
             isAuthenticated={isAuthenticated}
             currentUser={user}
             onCreateStory={() => openMobileComposer('story')}
@@ -1941,6 +1942,19 @@ function HomePage() {
           ) : null}
 
           {feedState.isLoading && feedState.posts.length ? <FeedLoadMoreSkeleton /> : null}
+
+          {feedState.loadMoreError ? (
+            <div className="flex flex-col items-center gap-2 py-4">
+              <p className="text-xs text-rose-500">{feedState.loadMoreError}</p>
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-medium text-text transition hover:bg-secondary cursor-pointer"
+              >
+                {t('common.retry', { defaultValue: 'Tekrar Dene' })}
+              </button>
+            </div>
+          ) : null}
 
           {status === 'loading' && !feedState.posts.length && !feedState.isLoading ? (
             <div className="rounded-[28px] border border-border bg-card px-5 py-6 text-sm text-muted shadow-sm">

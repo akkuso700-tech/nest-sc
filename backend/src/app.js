@@ -12,7 +12,7 @@ const morgan = require('morgan')
 const { env } = require('./config/env')
 const { Post } = require('./models/Post')
 const { buildTrendingTopics } = require('./controllers/postsController')
-const { corsOptions } = require('./config/cors')
+const { corsOptions, isOriginAllowed } = require('./config/cors')
 const { apiRouter } = require('./routes')
 const { sanitizeRequest } = require('./middlewares/sanitizeRequest')
 const { notFound } = require('./middlewares/notFound')
@@ -133,13 +133,18 @@ function enforceCookieCsrfProtection(req, res, next) {
 
   const originHeader = normalizeOrigin(req.headers.origin || '')
 
-  if (originHeader && allowedOrigins.has(originHeader)) {
+  if (originHeader && (allowedOrigins.has(originHeader) || isOriginAllowed(originHeader))) {
     return next()
   }
 
   const refererHeader = String(req.headers.referer || '').trim()
   const refererOrigin = normalizeOrigin(refererHeader)
-  if (refererOrigin && allowedOrigins.has(refererOrigin)) {
+  if (refererOrigin && (allowedOrigins.has(refererOrigin) || isOriginAllowed(refererOrigin))) {
+    return next()
+  }
+
+  const secFetchSite = String(req.headers['sec-fetch-site'] || '').trim().toLowerCase()
+  if (!originHeader && !refererHeader && (secFetchSite === 'same-origin' || secFetchSite === 'same-site' || secFetchSite === 'none')) {
     return next()
   }
 

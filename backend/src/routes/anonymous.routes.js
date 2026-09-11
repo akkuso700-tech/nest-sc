@@ -23,6 +23,8 @@ const {
   requestRoomJoin,
   approveRoomJoin,
   rejectRoomJoin,
+  kickRoomMember,
+  banRoomMember,
 } = require('../services/anonymousService')
 const {
   createUploadMiddleware,
@@ -148,6 +150,30 @@ anonymousRouter.post('/rooms/:id/reject-join', authenticate, async (req, res, ne
     const { id } = req.params
     const { requesterAnonymousId } = req.body
     const result = await rejectRoomJoin(req.user, id, requesterAnonymousId)
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/rooms/:id/kick - Kick member from room (creator/admin only)
+anonymousRouter.post('/rooms/:id/kick', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { targetAnonymousId } = req.body
+    const result = await kickRoomMember(req.user, id, targetAnonymousId)
+    res.json(result)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/anonymous/rooms/:id/ban - Ban member from room (creator/admin only)
+anonymousRouter.post('/rooms/:id/ban', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { targetAnonymousId } = req.body
+    const result = await banRoomMember(req.user, id, targetAnonymousId)
     res.json(result)
   } catch (error) {
     next(error)

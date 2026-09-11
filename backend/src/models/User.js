@@ -141,6 +141,7 @@ const userSchema = new mongoose.Schema(
         default: 'unspecified',
       },
       status: { type: String, trim: true, maxlength: 80, default: '' },
+      hasConfigured: { type: Boolean, default: false },
       isOnlineInLounge: { type: Boolean, default: false },
       blockedAnonymousIds: { type: [String], default: [] },
       lastActiveAt: { type: Date, default: null },

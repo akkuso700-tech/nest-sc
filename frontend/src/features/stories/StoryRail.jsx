@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 function StoryRail({
   yourStoryLabel = '',
   rails = [],
+  isLoading = false,
   isAuthenticated = false,
   currentUser = null,
   onCreateStory,
@@ -23,9 +24,7 @@ function StoryRail({
 
   return (
     <section className="md:rounded-lg border border-border bg-card p-1 md:p-3 shadow-sm">
-     
-     
-      <div className="subtle-scrollbar flex gap-1.5 overflow-x-auto ">
+      <div className="subtle-scrollbar flex gap-1.5 overflow-x-auto">
         {isAuthenticated ? (
           <button
             type="button"
@@ -56,6 +55,18 @@ function StoryRail({
             <span className="max-w-[78px] truncate text-xs font-medium text-muted">{resolvedYourStoryLabel}</span>
           </button>
         ) : null}
+
+        {isLoading && !rails.length
+          ? Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={`story-rail-skeleton-${index}`}
+                className="flex min-w-[78px] flex-col items-center gap-1.5 rounded-xl px-2 py-1"
+              >
+                <div className="size-18 md:size-22 animate-pulse rounded-full bg-secondary-hover" />
+                <div className="h-2.5 w-12 animate-pulse rounded bg-secondary-hover" />
+              </div>
+            ))
+          : null}
 
         {rails.map((rail) => (
           <button

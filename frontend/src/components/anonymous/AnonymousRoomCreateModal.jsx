@@ -189,13 +189,6 @@ export function AnonymousRoomCreateModal({ isOpen, onClose, onRoomCreated }) {
                 </div>
               </button>
             </div>
-            {isPrivate && (
-              <p className="mt-1.5 text-[11px] text-primary/90 bg-primary/5 border border-primary/20 rounded p-2">
-                {t('lounge.roomModal.privateNotice', {
-                  defaultValue: 'Bu oda genel listede gizlenir. Otomatik 6 haneli bir oda kodu üretilir ve yalnızca kodu paylaştığınız kişiler katılabilir.',
-                })}
-              </p>
-            )}
           </div>
 
           <div className="pt-2 flex justify-end gap-2">
