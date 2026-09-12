@@ -21,7 +21,9 @@ async function attachUserFromAccessToken(req) {
   }
 
   const payload = verifyAccessToken(accessToken)
-  const user = await User.findById(payload.sub)
+  const user = await User.findById(payload.sub).select(
+    '_id firstName lastName username email role accountStatus isPrivate avatarUrl verification friendIds blockedUserIds preferences lastLoginAt createdAt discovery.interestProfile.hiddenTopicKeys discovery.interestProfile.hiddenPostIds',
+  )
 
   if (!user) {
     throw new AppError('User not found.', 401)

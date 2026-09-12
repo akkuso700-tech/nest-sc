@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs')
+const { hashPassword, verifyPassword } = require('../services/passwordService')
 const { User } = require('../models/User')
 const { Post } = require('../models/Post')
 const { RefreshToken } = require('../models/RefreshToken')
@@ -236,6 +237,30 @@ async function buildConnectionPayload(profileUser, viewer, type) {
   }
 }
 
+const guestSuggestionsCache = new Map()
+const GUEST_SUGGESTIONS_TTL_MS = 60 * 1000
+
+function getCachedGuestSuggestions(cacheKey) {
+  const entry = guestSuggestionsCache.get(cacheKey)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) {
+    guestSuggestionsCache.delete(cacheKey)
+    return null
+  }
+  return entry.data
+}
+
+function setCachedGuestSuggestions(cacheKey, data) {
+  if (guestSuggestionsCache.size > 100) {
+    const oldestKey = guestSuggestionsCache.keys().next().value
+    guestSuggestionsCache.delete(oldestKey)
+  }
+  guestSuggestionsCache.set(cacheKey, {
+    data,
+    expiresAt: Date.now() + GUEST_SUGGESTIONS_TTL_MS,
+  })
+}
+
 async function getGuestDiscoverySuggestions({ mode = 'for-you', limit = 6 }) {
   if (mode === 'nearby') {
     return {
@@ -247,6 +272,12 @@ async function getGuestDiscoverySuggestions({ mode = 'for-you', limit = 6 }) {
         isGuest: true,
       },
     }
+  }
+
+  const cacheKey = `${mode}:${limit}`
+  const cached = getCachedGuestSuggestions(cacheKey)
+  if (cached) {
+    return cached
   }
 
   const candidates = await User.find({
@@ -347,7 +378,7 @@ async function getGuestDiscoverySuggestions({ mode = 'for-you', limit = 6 }) {
     .slice(0, limit)
     .map(({ score, lastLoginAt, ...item }) => item)
 
-  return {
+  const payload = {
     mode,
     items,
     meta: {
@@ -356,6 +387,9 @@ async function getGuestDiscoverySuggestions({ mode = 'for-you', limit = 6 }) {
       isGuest: true,
     },
   }
+
+  setCachedGuestSuggestions(cacheKey, payload)
+  return payload
 }
 
 const getMyProfile = asyncHandler(async (req, res) => {
@@ -1014,16 +1048,15 @@ const changeMyPassword = asyncHandler(async (req, res) => {
     throw new AppError('Current password is incorrect.', 400)
   }
 
-  const nextPasswordMatchesCurrent = await bcrypt.compare(
-    req.validated.body.newPassword,
-    profile.passwordHash,
-  )
+  const nextPasswordMatchesCurrent = (
+    await verifyPassword(req.validated.body.newPassword, profile.passwordHash)
+  ).valid
 
   if (nextPasswordMatchesCurrent) {
     throw new AppError('New password must be different from the current password.', 400)
   }
 
-  profile.passwordHash = await bcrypt.hash(req.validated.body.newPassword, 12)
+  profile.passwordHash = await hashPassword(req.validated.body.newPassword)
   await profile.save()
   await RefreshToken.updateMany(
     { user: profile._id, revokedAt: null },

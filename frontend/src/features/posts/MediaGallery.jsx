@@ -2,29 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js'
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
 import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
-
-let activePreviewVideoElement = null
-
-function stopPreviewVideo(videoElement) {
-  if (!videoElement) {
-    return
-  }
-
-  try {
-    videoElement.pause()
-    videoElement.currentTime = 0
-  } catch {
-    // Ignore pause/reset errors when browser blocks media operations.
-  }
-}
-
-function setActivePreviewVideo(videoElement) {
-  if (activePreviewVideoElement && activePreviewVideoElement !== videoElement) {
-    stopPreviewVideo(activePreviewVideoElement)
-  }
-
-  activePreviewVideoElement = videoElement
-}
+import { videoPlaybackManager } from '../../services/VideoPlaybackManager.js'
 
 function PlayBadge() {
   return (
@@ -121,9 +99,28 @@ function MediaGallery({
     if (node) {
       node.dataset.previewKey = refKey
       videoRefs.current.set(refKey, node)
+      videoPlaybackManager.register(refKey, {
+        play: () => {
+          node.muted = true
+          node.playsInline = true
+          const playPromise = node.play()
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => undefined)
+          }
+        },
+        pause: () => {
+          try {
+            node.pause()
+            node.currentTime = 0
+          } catch {
+            // Ignore pause errors when browser blocks operations
+          }
+        },
+      })
       return
     }
 
+    videoPlaybackManager.unregister(refKey)
     videoRefs.current.delete(refKey)
   }, [])
 
@@ -132,20 +129,7 @@ function MediaGallery({
       return
     }
 
-    const videoElement = videoRefs.current.get(refKey)
-
-    if (!videoElement) {
-      return
-    }
-
-    setActivePreviewVideo(videoElement)
-    videoElement.muted = true
-    videoElement.playsInline = true
-    const playPromise = videoElement.play()
-
-    if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => undefined)
-    }
+    videoPlaybackManager.play(refKey)
   }, [previewEnabled])
 
   const handleVideoPreviewStop = useCallback((refKey) => {
@@ -153,26 +137,13 @@ function MediaGallery({
       return
     }
 
-    const videoElement = videoRefs.current.get(refKey)
-
-    if (!videoElement) {
-      return
-    }
-
-    stopPreviewVideo(videoElement)
-
-    if (activePreviewVideoElement === videoElement) {
-      activePreviewVideoElement = null
-    }
+    videoPlaybackManager.pause(refKey)
   }, [previewEnabled])
 
   useEffect(
     () => () => {
-      videoRefs.current.forEach((videoElement) => {
-        stopPreviewVideo(videoElement)
-        if (activePreviewVideoElement === videoElement) {
-          activePreviewVideoElement = null
-        }
+      videoRefs.current.forEach((_videoElement, refKey) => {
+        videoPlaybackManager.unregister(refKey)
       })
       videoRefs.current.clear()
     },
@@ -184,8 +155,9 @@ function MediaGallery({
       return
     }
 
-    videoRefs.current.forEach((videoElement) => stopPreviewVideo(videoElement))
-    activePreviewVideoElement = null
+    videoRefs.current.forEach((_videoElement, refKey) => {
+      videoPlaybackManager.pause(refKey)
+    })
   }, [previewEnabled])
 
   useEffect(() => {

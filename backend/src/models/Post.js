@@ -258,6 +258,33 @@ postSchema.index({
   'moderation.visibility': 1,
   createdAt: -1,
 })
+postSchema.index({
+  privacy: 1,
+  'moderation.visibility': 1,
+  archivedAt: 1,
+  createdAt: -1,
+})
+postSchema.index({
+  contentType: 1,
+  privacy: 1,
+  'moderation.visibility': 1,
+  archivedAt: 1,
+  createdAt: -1,
+})
+postSchema.index({
+  author: 1,
+  privacy: 1,
+  'moderation.visibility': 1,
+  archivedAt: 1,
+  createdAt: -1,
+})
+postSchema.index({
+  privacy: 1,
+  'moderation.visibility': 1,
+  archivedAt: 1,
+  'stats.likes': -1,
+  createdAt: -1,
+})
 postSchema.index({ storyExpiresAt: 1 }, { expireAfterSeconds: 0 })
 
 const Post = mongoose.model('Post', postSchema)

@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
+const { hashPassword, verifyPassword } = require('../services/passwordService')
 const { User } = require('../models/User')
 const { RefreshToken } = require('../models/RefreshToken')
 const { AppError } = require('../utils/AppError')
@@ -581,7 +582,7 @@ const googleCallback = asyncHandler(async (req, res) => {
 
   if (!user) {
     const resolvedUsername = await buildUniqueUsername(normalizedEmail.split('@')[0])
-    const randomPasswordHash = await bcrypt.hash(crypto.randomUUID(), 12)
+    const randomPasswordHash = await hashPassword(crypto.randomUUID())
     const fallbackBirthDate = new Date()
     fallbackBirthDate.setFullYear(fallbackBirthDate.getFullYear() - 18)
 
@@ -726,7 +727,7 @@ const register = asyncHandler(async (req, res) => {
     ? await buildUniqueUsername(username)
     : await buildUniqueUsername(normalizedEmail.split('@')[0])
 
-  const passwordHash = await bcrypt.hash(password, 12)
+  const passwordHash = await hashPassword(password)
   const acceptedAt = new Date()
   const resolvedLanguage = normalizeLanguage(locale || req.headers['accept-language'] || 'tr')
   const acceptedVersion = String(incomingConsentVersion || signupConsentVersion).trim().slice(0, 60)
@@ -807,10 +808,14 @@ const login = asyncHandler(async (req, res) => {
     throw new AppError('Your account is suspended.', 403)
   }
 
-  const passwordMatches = await user.comparePassword(password)
+  const verification = await user.verifyPasswordWithRehash(password)
 
-  if (!passwordMatches) {
+  if (!verification.valid) {
     throw new AppError('Invalid credentials.', 401)
+  }
+
+  if (verification.needsRehash) {
+    user.passwordHash = await hashPassword(password)
   }
 
   user.lastLoginAt = new Date()
@@ -826,7 +831,9 @@ const checkLoginIdentifier = asyncHandler(async (req, res) => {
   const normalizedValue = req.validated.body.emailOrUsername.toLowerCase()
   const user = await User.findOne({
     $or: [{ email: normalizedValue }, { username: normalizedValue }],
-  }).select('username email accountStatus')
+  })
+    .select('_id username email accountStatus')
+    .lean()
 
   if (!user) {
     throw new AppError('Bu e-posta veya kullanici adi ile kayit bulunamadi.', 404)
@@ -907,16 +914,15 @@ const confirmPasswordReset = asyncHandler(async (req, res) => {
     throw new AppError('Bu sifre sifirlama baglantisi artik kullanilamaz.', 400)
   }
 
-  const nextPasswordMatchesCurrent = await bcrypt.compare(
-    req.validated.body.newPassword,
-    user.passwordHash,
-  )
+  const nextPasswordMatchesCurrent = (
+    await verifyPassword(req.validated.body.newPassword, user.passwordHash)
+  ).valid
 
   if (nextPasswordMatchesCurrent) {
     throw new AppError('Yeni sifre mevcut sifreden farkli olmali.', 400)
   }
 
-  user.passwordHash = await bcrypt.hash(req.validated.body.newPassword, 12)
+  user.passwordHash = await hashPassword(req.validated.body.newPassword)
   await user.save()
   await RefreshToken.updateMany(
     { user: user._id, revokedAt: null },
