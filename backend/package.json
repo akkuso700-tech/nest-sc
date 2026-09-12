@@ -13,6 +13,7 @@
     "worker:loop": "node src/workers/loopVideoWorker.js",
     "worker:message-notification": "node src/workers/messageNotificationWorker.js",
     "verify:loop-backfill": "node scripts/verifyLoopBackfill.js",
+    "db:index": "node scripts/syncDatabaseIndexes.js",
     "test": "node --test test/*.test.js"
   },
   "keywords": [],

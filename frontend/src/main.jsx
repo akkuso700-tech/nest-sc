@@ -2,7 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
+import { QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
+import { queryClient } from './lib/queryClient.js'
 import { AuthProvider } from './store/AuthContext.jsx'
 import { ThemeProvider } from './store/ThemeContext.jsx'
 import { UploadManagerProvider } from './features/uploads/UploadManagerContext.jsx'
@@ -29,17 +31,19 @@ installGlobalErrorReporting({
 root.render(
   <StrictMode>
     <AppErrorBoundary>
-      <HelmetProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <UploadManagerProvider>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </UploadManagerProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <HelmetProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <UploadManagerProvider>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </UploadManagerProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </HelmetProvider>
+      </QueryClientProvider>
     </AppErrorBoundary>
   </StrictMode>,
 )

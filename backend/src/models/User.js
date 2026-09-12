@@ -1,5 +1,5 @@
 const mongoose = require('mongoose')
-const bcrypt = require('bcryptjs')
+const { verifyPassword } = require('../services/passwordService')
 
 function isAdult(value) {
   const minimumBirthDate = new Date()
@@ -309,9 +309,16 @@ const userSchema = new mongoose.Schema(
 )
 
 userSchema.index({ createdAt: -1 })
+userSchema.index({ friendIds: 1 })
+userSchema.index({ accountStatus: 1, isPrivate: 1, lastLoginAt: -1, createdAt: -1 })
 
-userSchema.methods.comparePassword = function comparePassword(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.passwordHash)
+userSchema.methods.comparePassword = async function comparePassword(candidatePassword) {
+  const result = await verifyPassword(candidatePassword, this.passwordHash)
+  return result.valid
+}
+
+userSchema.methods.verifyPasswordWithRehash = async function verifyPasswordWithRehash(candidatePassword) {
+  return verifyPassword(candidatePassword, this.passwordHash)
 }
 
 const User = mongoose.model('User', userSchema)

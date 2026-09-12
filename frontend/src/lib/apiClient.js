@@ -291,17 +291,19 @@ async function refreshSession() {
 export async function apiRequest(path, options = {}, config = {}) {
   const { skipRefreshRetry = false, timeoutMs, retry } = config
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
+  const method = String(options.method || 'GET').toUpperCase()
+  const isSafeRead = (method === 'GET' || method === 'HEAD') && !path.startsWith('/auth/')
+  const defaultCache = isSafeRead ? 'default' : 'no-store'
   let response
   try {
     response = await fetchWithApiFallback(
       path,
       {
-        cache: 'no-store',
+        cache: options.cache || defaultCache,
         credentials: 'include',
         headers: {
           Accept: 'application/json',
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
+          ...(!isSafeRead ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : {}),
           ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
           ...options.headers,
         },
