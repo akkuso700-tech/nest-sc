@@ -255,9 +255,9 @@ function StatusBadge({ type, value }) {
                 : 'border-zinc-200 bg-zinc-50 text-zinc-600'
         }`}
       >
-        {isApproved && '🔷 Doğrulanmış (Mavi Tik)'}
+        {isApproved && '🔷 Doğrulanmış Profil'}
         {isPending && '⏳ Doğrulama Bekliyor'}
-        {isRevoked && '🚫 Mavi Tik İptal'}
+        {isRevoked && '🚫 Doğrulama İptal'}
         {!isApproved && !isPending && !isRevoked && '⚪ Doğrulanmamış'}
       </span>
     )
@@ -471,10 +471,10 @@ function AdminUserDetailPage() {
         ...current,
         data: { ...current.data, user: payload.user },
       }))
-      setToast({ message: payload.message || 'Mavi tik başarıyla kaldırıldı.', tone: 'success' })
+      setToast({ message: payload.message || 'Profil doğrulaması başarıyla kaldırıldı.', tone: 'success' })
       setVerificationDialogOpen(false)
     } catch (error) {
-      setToast({ message: error.message || 'Mavi tik kaldırılamadı.', tone: 'error' })
+      setToast({ message: error.message || 'Profil doğrulaması kaldırılamadı.', tone: 'error' })
     } finally {
       setIsSavingVerification(false)
     }
@@ -845,7 +845,7 @@ function AdminUserDetailPage() {
                     onClick={() => setVerificationDialogOpen(true)}
                     className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                   >
-                    Mavi Tiki Kaldır
+                    Doğrulamayı Kaldır
                   </button>
                 ) : (
                   <Link
@@ -1077,7 +1077,7 @@ function AdminUserDetailPage() {
                       }`}
                     >
                       {user.verification?.status === 'approved'
-                        ? 'Mavi Tik'
+                        ? 'Doğrulanmış'
                         : user.verification?.status === 'pending'
                         ? 'İncelemede'
                         : 'Standart'}
@@ -2684,9 +2684,9 @@ function AdminUserDetailPage() {
 
       <ConfirmActionDialog
         open={verificationDialogOpen}
-        title="Mavi Tiki Kaldır"
-        description="Bu kullanıcının profil doğrulaması derhal iptal edilecek ve mavi tiki kaldırılacaktır."
-        confirmLabel="Mavi Tiki Kaldır"
+        title="Profil Doğrulamasını Kaldır"
+        description="Bu kullanıcının profil doğrulaması derhal iptal edilecek ve doğrulama rozeti kaldırılacaktır."
+        confirmLabel="Doğrulamayı Kaldır"
         confirmTone="danger"
         reasonLabel="Zorunlu Kaldırma Gerekçesi"
         reasonPlaceholder="İptal nedenini detaylıca yazın"

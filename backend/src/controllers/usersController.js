@@ -467,17 +467,59 @@ const createMyVerificationRequest = asyncHandler(async (req, res) => {
     )
   }
 
+  const paymentInput = req.validated.body.payment
+  if (!paymentInput || !paymentInput.cardNumber) {
+    throw new AppError('Abonelik ödeme bilgileri gereklidir.', 400)
+  }
+
+  const cleanedCard = paymentInput.cardNumber.replace(/\D/g, '')
+  if (!cleanedCard || !/^1+$/.test(cleanedCard) || cleanedCard.length < 12) {
+    throw new AppError(
+      'Geçersiz test kartı. Test aşamasında kart numarasının tüm rakamlarını 1 olarak giriniz (Örn: 1111 1111 1111 1111).',
+      400,
+    )
+  }
+
+  let chosenPlan = 'plus'
+  let amount = 99
+  if (paymentInput.plan === 'pro') {
+    chosenPlan = 'pro'
+    amount = 249
+  } else if (paymentInput.plan === 'yearly') {
+    chosenPlan = 'yearly'
+    amount = 990
+  } else if (paymentInput.plan === 'monthly') {
+    chosenPlan = 'monthly'
+    amount = 99
+  }
+
+  const paymentRecord = {
+    status: 'paid',
+    provider: 'mock',
+    plan: chosenPlan,
+    amount,
+    currency: 'TRY',
+    cardLast4: cleanedCard.slice(-4),
+    paidAt: new Date(),
+    transactionId: `mock_tx_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+  }
+
   const request = await VerificationRequest.create({
     user: profile._id,
     category: req.validated.body.category,
+    phoneNumber: req.validated.body.phoneNumber || '',
+    phoneCountryCode: req.validated.body.phoneCountryCode || '+90',
     statement: req.validated.body.statement,
     evidenceLinks: [...new Set(req.validated.body.evidenceLinks || [])],
     termsAcceptedAt: new Date(),
+    payment: paymentRecord,
   })
 
   profile.verification = {
     status: 'pending',
     category: request.category,
+    subscriptionPlan: paymentRecord.plan,
+    subscriptionExpiresAt: null,
     verifiedAt: null,
     verifiedBy: null,
     updatedAt: new Date(),
@@ -485,7 +527,7 @@ const createMyVerificationRequest = asyncHandler(async (req, res) => {
   await profile.save()
 
   res.status(201).json({
-    message: 'Verification request submitted successfully.',
+    message: 'Aylık abonelik ödemeniz onaylandı ve doğrulama başvurunuz alındı.',
     request,
   })
 })
@@ -501,7 +543,7 @@ const updateMyVerificationRequest = asyncHandler(async (req, res) => {
     throw new AppError('No verification request is waiting for additional information.', 404)
   }
 
-  for (const field of ['category', 'statement', 'evidenceLinks']) {
+  for (const field of ['category', 'phoneNumber', 'phoneCountryCode', 'statement', 'evidenceLinks']) {
     if (Object.prototype.hasOwnProperty.call(req.validated.body, field)) {
       request[field] =
         field === 'evidenceLinks'
@@ -551,6 +593,98 @@ const withdrawMyVerificationRequest = asyncHandler(async (req, res) => {
   })
 
   res.json({ message: 'Verification request withdrawn successfully.' })
+})
+
+const changeMySubscriptionPlan = asyncHandler(async (req, res) => {
+  const profile = await User.findById(req.user._id)
+  if (!profile) {
+    throw new AppError('User not found.', 404)
+  }
+
+  const { plan: newPlan } = req.validated.body
+  const currentPlan = profile.verification?.subscriptionPlan || 'none'
+  const isApproved = profile.verification?.status === 'approved'
+
+  const activeRequest = await VerificationRequest.findOne({
+    user: req.user._id,
+    isActive: true,
+  })
+
+  if (!isApproved && !activeRequest) {
+    throw new AppError('Aktif bir aboneliğiniz bulunmamaktadır.', 400)
+  }
+
+  if (currentPlan === newPlan) {
+    throw new AppError(`Zaten Nest ${newPlan === 'pro' ? 'Pro' : 'Plus'} planına abonesiniz.`, 400)
+  }
+
+  const amount = newPlan === 'pro' ? 249 : 99
+
+  profile.verification = {
+    ...(profile.verification ? profile.verification.toObject() : {}),
+    subscriptionPlan: newPlan,
+    updatedAt: new Date(),
+  }
+  await profile.save()
+
+  if (activeRequest) {
+    activeRequest.payment = {
+      ...(activeRequest.payment ? activeRequest.payment.toObject() : {}),
+      plan: newPlan,
+      amount,
+    }
+    await activeRequest.save()
+  }
+
+  res.json({
+    message: `Aboneliğiniz başarıyla Nest ${newPlan === 'pro' ? 'Pro' : 'Plus'} olarak güncellendi.`,
+    user: profile,
+    plan: newPlan,
+    amount,
+  })
+})
+
+const cancelMySubscription = asyncHandler(async (req, res) => {
+  const profile = await User.findById(req.user._id)
+  if (!profile) {
+    throw new AppError('User not found.', 404)
+  }
+
+  const isApproved = profile.verification?.status === 'approved'
+  const activeRequest = await VerificationRequest.findOne({
+    user: req.user._id,
+    isActive: true,
+  })
+
+  if (!isApproved && !activeRequest) {
+    throw new AppError('İptal edilecek aktif bir aboneliğiniz veya başvurunuz bulunmamaktadır.', 400)
+  }
+
+  if (activeRequest) {
+    activeRequest.status = isApproved ? 'revoked' : 'withdrawn'
+    activeRequest.isActive = false
+    activeRequest.reviewedAt = new Date()
+    if (req.validated.body?.reason) {
+      activeRequest.reviewNote = `Kullanıcı tarafından iptal edildi: ${req.validated.body.reason}`
+    }
+    await activeRequest.save()
+  }
+
+  profile.verification = {
+    status: 'none',
+    category: profile.verification?.category || 'individual',
+    subscriptionPlan: 'none',
+    subscriptionExpiresAt: null,
+    verifiedAt: null,
+    verifiedBy: null,
+    updatedAt: new Date(),
+  }
+  await profile.save()
+
+  res.json({
+    message: 'Aboneliğiniz başarıyla iptal edildi. Mavi doğrulama rozetiniz kaldırıldı.',
+    user: profile,
+  })
 })
 
 const getProfileByUsername = asyncHandler(async (req, res) => {
@@ -903,6 +1037,18 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     profile.isPrivate = body.isPrivate
   }
 
+  if (hasField('category')) {
+    if (!profile.verification) {
+      profile.verification = {}
+    }
+    profile.verification.category = body.category
+
+    await VerificationRequest.updateMany(
+      { user: profile._id, isActive: true },
+      { category: body.category },
+    )
+  }
+
   if (verifiedIdentityChanged) {
     profile.verification = {
       status: 'revoked',
@@ -1060,7 +1206,7 @@ const changeMyPassword = asyncHandler(async (req, res) => {
   await profile.save()
   await RefreshToken.updateMany(
     { user: profile._id, revokedAt: null },
-    { revokedAt: new Date(), lastUsedAt: new Date() },
+    { revokedAt: new Date(), revokedReason: 'password_changed', lastUsedAt: new Date() },
   )
 
   clearAuthCookies(res)
@@ -1123,4 +1269,6 @@ module.exports = {
   createMyVerificationRequest,
   updateMyVerificationRequest,
   withdrawMyVerificationRequest,
+  changeMySubscriptionPlan,
+  cancelMySubscription,
 }

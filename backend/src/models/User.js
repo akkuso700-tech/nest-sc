@@ -97,6 +97,8 @@ const userSchema = new mongoose.Schema(
       },
       verifiedAt: { type: Date, default: null },
       verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      subscriptionPlan: { type: String, default: 'none' },
+      subscriptionExpiresAt: { type: Date, default: null },
       updatedAt: { type: Date, default: null },
     },
     moderation: {

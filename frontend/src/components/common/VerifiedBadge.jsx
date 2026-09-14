@@ -11,8 +11,8 @@ export default function VerifiedBadge({ user, size = 'sm', className = '' }) {
     <span
       className={`inline-flex shrink-0 text-sky-500 ${className}`}
       role="img"
-      aria-label="Onaylı profil"
-      title="Onaylı profil"
+      aria-label="Doğrulanmış Profil"
+      title="Doğrulanmış Profil"
     >
       <svg viewBox="0 0 24 24" aria-hidden="true" className={sizeClasses[size] || sizeClasses.sm}>
         <path

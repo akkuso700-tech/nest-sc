@@ -1176,7 +1176,7 @@ function ProfilePage() {
                                   className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 text-xs font-semibold text-text shadow-sm transition hover:bg-secondary-hover"
                                 >
                                   <VerifiedBadge user={{ verification: { isVerified: true } }} size="xs" />
-                                  Mavi Tik
+                                  Profil Doğrulama
                                 </button>
                                 <Link
                                   to={`/${lang}/profile/edit`}
@@ -1432,7 +1432,7 @@ function ProfilePage() {
                                 className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-sm font-semibold text-text shadow-sm transition hover:bg-secondary-hover"
                               >
                                 <VerifiedBadge user={{ verification: { isVerified: true } }} size="xs" />
-                                Mavi Tik
+                                Profil Doğrulama
                               </button>
                               <Link
                                 to={`/${lang}/profile/edit`}

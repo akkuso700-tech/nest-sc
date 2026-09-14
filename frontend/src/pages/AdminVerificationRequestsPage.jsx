@@ -17,6 +17,13 @@ const statusLabels = {
   revoked: 'Kaldırıldı',
 }
 
+const planLabels = {
+  pro: 'Pro (Aylık)',
+  plus: 'Plus (Aylık)',
+  monthly: 'Aylık',
+  yearly: 'Yıllık',
+}
+
 export default function AdminVerificationRequestsPage() {
   const { lang = 'tr' } = useParams()
   const [searchParams] = useSearchParams()
@@ -93,7 +100,14 @@ export default function AdminVerificationRequestsPage() {
                   <p className="truncate text-xs text-zinc-500">@{request.user?.username} · {request.category}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-700">{statusLabels[request.status] || request.status}</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-700">{statusLabels[request.status] || request.status}</span>
+                    {request.payment?.status === 'paid' ? (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                        ₺{request.payment.amount} · {planLabels[request.payment.plan] || 'Aylık'} (Ödendi)
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-[11px] text-zinc-400">{new Date(request.submittedAt).toLocaleDateString('tr-TR')}</p>
                 </div>
               </button>
@@ -112,9 +126,23 @@ export default function AdminVerificationRequestsPage() {
           {!selected ? <p className="text-sm text-zinc-500">İncelemek için bir başvuru seçin.</p> : (
             <div className="space-y-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Başvuru detayı</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Başvuru detayı</p>
+                  {selected.payment?.status === 'paid' ? (
+                    <span className="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                      ₺{selected.payment.amount} · {planLabels[selected.payment.plan] || 'Aylık'} (Ödendi)
+                    </span>
+                  ) : null}
+                </div>
                 <h2 className="mt-2 text-xl font-bold">{getFullName(selected.user)}</h2>
-                <Link to={`/${lang}/admin/users/${selected.user?._id}`} className="text-sm text-sky-600 hover:underline">@{selected.user?.username}</Link>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <Link to={`/${lang}/admin/users/${selected.user?._id}`} className="text-sm text-sky-600 hover:underline">@{selected.user?.username}</Link>
+                  {selected.phoneNumber ? (
+                    <span className="text-xs text-zinc-500 font-mono bg-zinc-100 px-2 py-0.5 rounded-md">
+                      📞 {selected.phoneCountryCode || ''} {selected.phoneNumber}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <div className="rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-700">{selected.statement}</div>
               <div>

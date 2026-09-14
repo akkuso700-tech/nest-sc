@@ -129,10 +129,10 @@ function normalizeUserMedia(user = null) {
       coverUrl: normalizeMediaUrl(plainUser.coverUrl),
       verification: {
         isVerified: plainUser.verification?.status === 'approved',
-        category:
-          plainUser.verification?.status === 'approved'
-            ? plainUser.verification?.category || 'individual'
-            : null,
+        status: plainUser.verification?.status || 'none',
+        category: plainUser.verification?.category || 'individual',
+        subscriptionPlan: plainUser.verification?.subscriptionPlan || 'none',
+        subscriptionExpiresAt: plainUser.verification?.subscriptionExpiresAt || null,
       },
     }
   }
@@ -143,10 +143,10 @@ function normalizeUserMedia(user = null) {
     coverUrl: normalizeMediaUrl(user.coverUrl),
     verification: {
       isVerified: user.verification?.status === 'approved' || user.verification?.isVerified === true,
-      category:
-        user.verification?.status === 'approved' || user.verification?.isVerified === true
-          ? user.verification?.category || 'individual'
-          : null,
+      status: user.verification?.status || 'none',
+      category: user.verification?.category || 'individual',
+      subscriptionPlan: user.verification?.subscriptionPlan || 'none',
+      subscriptionExpiresAt: user.verification?.subscriptionExpiresAt || null,
     },
   }
 }

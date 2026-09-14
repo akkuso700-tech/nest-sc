@@ -26,6 +26,15 @@ const refreshTokenSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    revokedReason: {
+      type: String,
+      enum: ['rotated', 'logout', 'password_changed', 'security_reuse_detected', null],
+      default: null,
+    },
+    replacedByTokenId: {
+      type: String,
+      default: null,
+    },
     lastUsedAt: {
       type: Date,
       default: null,

@@ -30,6 +30,13 @@ const {
   revokeUserVerification,
   deleteAdminConversation,
   deleteAdminMessage,
+  getAdminMonetizationSummary,
+  listAdminCreatorApplications,
+  updateAdminCreatorApplicationStatus,
+  listAdminPayoutRequests,
+  updateAdminPayoutRequestStatus,
+  listAdminCreators,
+  updateAdminCreatorWalletStatus,
 } = require('../controllers/adminController')
 const {
   adminOverviewSchema,
@@ -59,6 +66,15 @@ const {
   revokeUserVerificationSchema,
   deleteAdminConversationSchema,
   deleteAdminMessageSchema,
+  adminCreatorSummarySchema,
+  adminListCreatorApplicationsSchema,
+  adminCreatorApplicationIdSchema,
+  updateCreatorApplicationStatusSchema,
+  adminListPayoutRequestsSchema,
+  adminPayoutRequestIdSchema,
+  updatePayoutRequestStatusSchema,
+  adminListCreatorsSchema,
+  updateCreatorWalletStatusSchema,
 } = require('../validators/adminValidators')
 
 const adminRouter = express.Router()
@@ -159,4 +175,42 @@ adminRouter.delete(
   deleteAdminMessage,
 )
 
+// ==================== İÇERİK ÜRETİCİLERİ & PARA ÇEKME YÖNETİMİ ====================
+adminRouter.get(
+  '/creators/summary',
+  validateRequest(adminCreatorSummarySchema),
+  getAdminMonetizationSummary,
+)
+adminRouter.get(
+  '/creators/applications',
+  validateRequest(adminListCreatorApplicationsSchema),
+  listAdminCreatorApplications,
+)
+adminRouter.patch(
+  '/creators/applications/:applicationId/status',
+  validateRequest(updateCreatorApplicationStatusSchema),
+  updateAdminCreatorApplicationStatus,
+)
+adminRouter.get(
+  '/creators/payouts',
+  validateRequest(adminListPayoutRequestsSchema),
+  listAdminPayoutRequests,
+)
+adminRouter.patch(
+  '/creators/payouts/:payoutId/status',
+  validateRequest(updatePayoutRequestStatusSchema),
+  updateAdminPayoutRequestStatus,
+)
+adminRouter.get(
+  '/creators/users',
+  validateRequest(adminListCreatorsSchema),
+  listAdminCreators,
+)
+adminRouter.patch(
+  '/creators/users/:userId/wallet-status',
+  validateRequest(updateCreatorWalletStatusSchema),
+  updateAdminCreatorWalletStatus,
+)
+
 module.exports = { adminRouter }
+

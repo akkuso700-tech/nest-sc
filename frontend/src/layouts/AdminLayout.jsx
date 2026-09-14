@@ -32,7 +32,8 @@ function formatChange(value) {
 const navigation = [
   { path: '', label: 'Genel Bakış', short: 'GB' },
   { path: '/users', label: 'Kullanıcılar', short: 'KU' },
-  { path: '/verification-requests', label: 'Mavi Tik', short: 'MT' },
+  { path: '/verification-requests', label: 'Doğrulama Talepleri', short: 'DT' },
+  { path: '/creators', label: 'İçerik Üreticileri', short: 'ÜS' },
   { path: '/content', label: 'İçerikler', short: 'İÇ' },
   { path: '/comments', label: 'Yorumlar', short: 'YO' },
   { path: '/reports', label: 'Raporlar', short: 'RA' },
@@ -71,9 +72,16 @@ function getPageMeta(pathname, lang) {
   }
   if (pathname.includes(`${base}/verification-requests`)) {
     return {
-      title: 'Mavi Tik Başvuruları',
+      title: 'Doğrulama Talepleri',
       eyebrow: 'Profil Doğrulama',
-      description: 'Ücretsiz profil doğrulama başvurularını inceleyin ve sonuçlandırın.',
+      description: 'Profil doğrulama ve rozet başvurularını inceleyin ve sonuçlandırın.',
+    }
+  }
+  if (pathname.includes(`${base}/creators`)) {
+    return {
+      title: 'İçerik Üreticileri & Ödemeler',
+      eyebrow: 'Monetizasyon & Finans',
+      description: 'Üretici başvurularını onaylayın, IBAN para çekme taleplerini yönetin ve cüzdan durumlarını kontrol edin.',
     }
   }
   if (pathname.includes(`${base}/content`)) {

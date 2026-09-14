@@ -244,6 +244,11 @@ function SidebarLink({ item, open, onNavigate, badgeCount = 0 }) {
               <span className={`min-w-0 flex-1 truncate ${isActive ? 'text-primary font-semibold' : ''}`}>
                 {item.label}
               </span>
+              {item.badgeText ? (
+                <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                  {item.badgeText}
+                </span>
+              ) : null}
               <UnreadBadge count={badgeCount} />
             </>
           ) : null}
@@ -1518,7 +1523,13 @@ function SocialLayout({
         ? [{ key: 'admin', to: `/${lang}/admin`, label: t('nav.admin'), iconKey: 'settings' }]
         : []),
       { key: 'hiddenProfile', to: `/${lang}/hidden-profile`, label: t('nav.hiddenProfile'), iconKey: 'hiddenProfile' },
-      { key: 'monetization', to: `/${lang}/monetization`, label: t('nav.monetization'), iconKey: 'monetization' },
+      {
+        key: 'monetization',
+        to: `/${lang}/monetization`,
+        label: t('nav.monetization'),
+        iconKey: 'monetization',
+        badgeText: t('common.studioBadge', { defaultValue: 'Stüdyo' }),
+      },
     ]
   }, [isAuthenticated, lang, t, user?.role])
 

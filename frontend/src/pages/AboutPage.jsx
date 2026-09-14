@@ -289,7 +289,7 @@ export default function AboutPage() {
           : 'Toggle hidden profiles, approve followers, block bad actors, and report inappropriate behavior to keep your space comfortable.',
       }),
       bulletPoints: isTr
-        ? ['Gizli profil modu (yalnızca onaylı takipçiler)', 'Telefon ve TC kimlik bilgisi talep edilmez', 'Kullanıcı engelleme ve raporlama sistemi', 'Mavi tik doğrulama başvuru süreci']
+        ? ['Gizli profil modu (yalnızca onaylı takipçiler)', 'Telefon ve TC kimlik bilgisi talep edilmez', 'Kullanıcı engelleme ve raporlama sistemi', 'Profil doğrulama ve rozet başvuru süreci']
         : ['Hidden profile option', 'Zero phone or identity card requirements', 'Block & report protection mechanisms', 'Verification request review workflow'],
     },
   ]

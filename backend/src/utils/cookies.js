@@ -10,6 +10,7 @@ function buildBaseCookieOptions() {
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
+    ...(env.cookieDomain ? { domain: env.cookieDomain } : {}),
   }
 }
 
@@ -19,6 +20,7 @@ function buildMarkerCookieOptions() {
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
+    ...(env.cookieDomain ? { domain: env.cookieDomain } : {}),
   }
 }
 
