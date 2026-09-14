@@ -1,18 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import Seo from '../components/seo/Seo.jsx'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import { useAuth } from '../store/AuthContext.jsx'
+import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
+import VerificationModal, { categories, CheckIcon, ChevronDownIcon } from '../components/profile/VerificationModal.jsx'
 import {
   checkUsernameAvailability,
   changeMyPassword,
   deleteMyAccount,
   getMyProfile,
   updateMyProfile,
+  getMyVerificationRequest,
+  changeMySubscriptionPlan,
+  cancelMySubscription,
+  withdrawMyVerificationRequest,
 } from '../services/usersService.js'
 import { findLocationSuggestions } from '../app/locationSuggestions.js'
+import { getLocationsAutocomplete } from '../services/locationsService.js'
 
 function buildInitialForm(profile) {
   const voiceEnabled = profile?.user?.preferences?.calling?.voiceCallEnabled !== false
@@ -26,6 +33,7 @@ function buildInitialForm(profile) {
     lastName: profile?.user?.lastName || '',
     email: profile?.user?.email || '',
     username: profile?.user?.username || '',
+    category: profile?.user?.verification?.category || 'individual',
     birthDate: profile?.user?.birthDate
       ? new Date(profile.user.birthDate).toISOString().split('T')[0]
       : '',
@@ -122,6 +130,14 @@ function SecurityTabIcon() {
   )
 }
 
+function SubscriptionTabIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-3.5 md:size-4 shrink-0">
+      <path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+    </svg>
+  )
+}
+
 function AlertTriangleIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-5 text-rose-600 dark:text-rose-400 shrink-0">
@@ -140,6 +156,40 @@ function TrashIcon() {
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
     </svg>
   )
+}
+
+function HighlightMatch({ text = '', query = '' }) {
+  if (!query || !query.trim() || !text) {
+    return <span>{text}</span>
+  }
+
+  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+
+  if (!escaped) {
+    return <span>{text}</span>
+  }
+
+  try {
+    const regex = new RegExp(`(${escaped})`, 'gi')
+    const parts = text.split(regex)
+
+    return (
+      <span>
+        {parts.map((part, index) =>
+          regex.test(part) ? (
+            <span key={index} className="font-semibold text-primary">
+              {part}
+            </span>
+          ) : (
+            <span key={index}>{part}</span>
+          )
+        )}
+      </span>
+    )
+  } catch {
+    return <span>{text}</span>
+  }
 }
 
 function InputField({ label, children, helperText = '' }) {
@@ -213,6 +263,7 @@ const validationFieldLabels = {
   lastName: 'Soyad',
   email: 'E-posta',
   username: 'Kullanıcı adı',
+  category: 'Hesap türü',
   bio: 'Biyografi',
   'location.city': 'Şehir',
   'location.country': 'Ülke',
@@ -234,6 +285,7 @@ function buildGeneralPayload(form, locationInputValue, initialForm) {
     lastName: form.lastName.trim(),
     email: form.email.trim().toLowerCase(),
     username: form.username.trim().toLowerCase(),
+    category: form.category || 'individual',
     bio: form.bio.trim(),
     isPrivate: Boolean(form.isPrivate),
   }
@@ -316,6 +368,12 @@ function validateGeneralPayload(payload) {
   ) {
     return 'Kullanıcı adı 3-30 karakter olmalı; yalnızca harf, rakam ve alt çizgi içermelidir.'
   }
+  if (
+    'category' in payload &&
+    !['individual', 'creator', 'business', 'organization', 'public_figure'].includes(payload.category)
+  ) {
+    return 'Lütfen geçerli bir hesap türü seçin.'
+  }
   if ('bio' in payload && payload.bio.length > BIO_MAX_LENGTH) {
     return `Biyografi en fazla ${BIO_MAX_LENGTH} karakter olabilir.`
   }
@@ -336,6 +394,9 @@ function normalizeTabHash(rawHash) {
   if (cleaned === 'hesap-guvenlik' || cleaned === 'hesap' || cleaned === 'guvenlik' || cleaned === 'security') {
     return 'hesap-guvenlik'
   }
+  if (cleaned === 'abonelik-yonetimi' || cleaned === 'abonelik' || cleaned === 'subscription') {
+    return 'abonelik-yonetimi'
+  }
   return 'genel-bilgiler'
 }
 
@@ -343,7 +404,7 @@ function EditProfilePage() {
   const { lang } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { status, isAuthenticated, user, setUser } = useAuth()
   const authUserId = user?._id || user?.id || ''
 
@@ -386,6 +447,10 @@ function EditProfilePage() {
   })
 
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false)
+  const [locationOptions, setLocationOptions] = useState([])
+  const [isLocationLoading, setIsLocationLoading] = useState(false)
+  const [highlightedLocationIndex, setHighlightedLocationIndex] = useState(-1)
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false)
@@ -405,7 +470,106 @@ function EditProfilePage() {
   const [showCommSavedState, setShowCommSavedState] = useState(false)
 
   const locationWrapperRef = useRef(null)
+  const categoryMenuRef = useRef(null)
   const initialSnapshotRef = useRef('')
+
+  const selectedCategoryObj = useMemo(
+    () => categories.find(([val]) => val === formState.category) || categories[0],
+    [formState.category],
+  )
+
+  // Subscription management states
+  const [verificationState, setVerificationState] = useState({
+    isLoading: false,
+    request: null,
+    canApply: true,
+    error: '',
+  })
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
+  const [subscriptionActionState, setSubscriptionActionState] = useState({
+    isSubmitting: false,
+    confirmModal: null,
+    targetPlan: null,
+    error: '',
+  })
+
+  const loadVerificationData = useCallback(async () => {
+    setVerificationState((prev) => ({ ...prev, isLoading: true, error: '' }))
+    try {
+      const res = await getMyVerificationRequest()
+      setVerificationState({
+        isLoading: false,
+        request: res.request || null,
+        canApply: Boolean(res.canApply),
+        error: '',
+      })
+    } catch (err) {
+      setVerificationState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: err.message || 'Abonelik bilgileri yüklenemedi.',
+      }))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'abonelik-yonetimi') {
+      loadVerificationData()
+    }
+  }, [activeTab, loadVerificationData])
+
+  async function confirmPlanChange() {
+    const targetPlan = subscriptionActionState.targetPlan
+    if (!targetPlan) return
+    setSubscriptionActionState((prev) => ({ ...prev, isSubmitting: true, error: '' }))
+    try {
+      const res = await changeMySubscriptionPlan({ plan: targetPlan })
+      setToast({ message: res.message, tone: 'success' })
+      if (res.user) setUser(res.user)
+      await loadVerificationData()
+      setSubscriptionActionState({ isSubmitting: false, confirmModal: null, targetPlan: null, error: '' })
+    } catch (err) {
+      setSubscriptionActionState((prev) => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.message || 'Plan güncellenemedi.',
+      }))
+      setToast({ message: err.message || 'Plan güncellenemedi.', tone: 'error' })
+    }
+  }
+
+  async function confirmCancelSubscription() {
+    setSubscriptionActionState((prev) => ({ ...prev, isSubmitting: true, error: '' }))
+    try {
+      const res = await cancelMySubscription()
+      setToast({ message: res.message, tone: 'success' })
+      if (res.user) setUser(res.user)
+      await loadVerificationData()
+      setSubscriptionActionState({ isSubmitting: false, confirmModal: null, targetPlan: null, error: '' })
+    } catch (err) {
+      setSubscriptionActionState((prev) => ({
+        ...prev,
+        isSubmitting: false,
+        error: err.message || 'Abonelik iptal edilemedi.',
+      }))
+      setToast({ message: err.message || 'Abonelik iptal edilemedi.', tone: 'error' })
+    }
+  }
+
+  async function handleWithdrawPending() {
+    const ok = window.confirm('Bekleyen başvurunuzu ve aylık abonelik talebinizi geri çekmek istediğinizden emin misiniz?')
+    if (!ok) return
+    setSubscriptionActionState((prev) => ({ ...prev, isSubmitting: true, error: '' }))
+    try {
+      const res = await withdrawMyVerificationRequest()
+      setToast({ message: res.message, tone: 'success' })
+      await loadVerificationData()
+      setSubscriptionActionState({ isSubmitting: false, confirmModal: null, targetPlan: null, error: '' })
+    } catch (err) {
+      setToast({ message: err.message || 'Başvuru geri çekilemedi.', tone: 'error' })
+      setSubscriptionActionState((prev) => ({ ...prev, isSubmitting: false, error: err.message }))
+    }
+  }
 
   // URL Hash synchronization
   useEffect(() => {
@@ -555,6 +719,9 @@ function EditProfilePage() {
       if (!locationWrapperRef.current?.contains(event.target)) {
         setIsLocationMenuOpen(false)
       }
+      if (!categoryMenuRef.current?.contains(event.target)) {
+        setIsCategoryMenuOpen(false)
+      }
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -564,7 +731,93 @@ function EditProfilePage() {
     }
   }, [])
 
-  const locationOptions = useMemo(() => findLocationSuggestions(locationInput), [locationInput])
+  useEffect(() => {
+    const trimmed = locationInput.trim()
+    if (trimmed.length < 2) {
+      setLocationOptions([])
+      setHighlightedLocationIndex(-1)
+      setIsLocationLoading(false)
+      return
+    }
+
+    let isMounted = true
+    const controller = new AbortController()
+
+    const activeLang = (lang || i18n.language || 'tr').toLowerCase().split('-')[0]
+    const timer = setTimeout(async () => {
+      setIsLocationLoading(true)
+      try {
+        const response = await getLocationsAutocomplete(
+          { q: trimmed, limit: 8, lang: activeLang },
+          { signal: controller.signal }
+        )
+        if (!isMounted) return
+
+        if (response?.suggestions && Array.isArray(response.suggestions)) {
+          setLocationOptions(response.suggestions)
+        } else {
+          setLocationOptions(findLocationSuggestions(trimmed))
+        }
+      } catch (error) {
+        if (!isMounted) return
+        if (error.name !== 'AbortError') {
+          setLocationOptions(findLocationSuggestions(trimmed))
+        }
+      } finally {
+        if (isMounted) {
+          setIsLocationLoading(false)
+        }
+      }
+    }, 220)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [locationInput, lang, i18n.language])
+
+  const selectLocationOption = useCallback((option) => {
+    const label = option.label || (option.city ? `${option.city}, ${option.country}` : option.country)
+    setLocationInput(label)
+    setFormState((currentState) => ({
+      ...currentState,
+      location: {
+        city: option.city || '',
+        country: option.country || '',
+      },
+    }))
+    setIsLocationMenuOpen(false)
+    setHighlightedLocationIndex(-1)
+  }, [])
+
+  const handleLocationKeyDown = useCallback(
+    (event) => {
+      if (!isLocationMenuOpen || !locationOptions.length) {
+        if (event.key === 'ArrowDown' && locationInput.trim().length >= 2) {
+          setIsLocationMenuOpen(true)
+        }
+        return
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setHighlightedLocationIndex((prev) => (prev + 1 < locationOptions.length ? prev + 1 : 0))
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setHighlightedLocationIndex((prev) => (prev > 0 ? prev - 1 : locationOptions.length - 1))
+      } else if (event.key === 'Enter') {
+        if (highlightedLocationIndex >= 0 && locationOptions[highlightedLocationIndex]) {
+          event.preventDefault()
+          selectLocationOption(locationOptions[highlightedLocationIndex])
+        }
+      } else if (event.key === 'Escape') {
+        setIsLocationMenuOpen(false)
+        setHighlightedLocationIndex(-1)
+      }
+    },
+    [isLocationMenuOpen, locationOptions, highlightedLocationIndex, locationInput, selectLocationOption]
+  )
 
   const hasGeneralChanges = useMemo(() => {
     if (profileState.isLoading || !initialSnapshotRef.current) return false
@@ -708,6 +961,7 @@ function EditProfilePage() {
         lastName: updatedForm.lastName,
         email: updatedForm.email,
         username: updatedForm.username,
+        category: updatedForm.category,
         bio: updatedForm.bio,
         isPrivate: updatedForm.isPrivate,
         location: updatedForm.location,
@@ -724,6 +978,7 @@ function EditProfilePage() {
           lastName: updatedForm.lastName,
           email: updatedForm.email,
           username: updatedForm.username,
+          category: updatedForm.category,
           bio: updatedForm.bio,
           isPrivate: updatedForm.isPrivate,
           location: updatedForm.location,
@@ -732,6 +987,7 @@ function EditProfilePage() {
       })
 
       setIsLocationMenuOpen(false)
+      setIsCategoryMenuOpen(false)
       setGeneralSaveState({
         isSubmitting: false,
         error: '',
@@ -957,6 +1213,12 @@ function EditProfilePage() {
       icon: <SecurityTabIcon />,
       hasBadge: hasSecurityDraft,
     },
+    {
+      id: 'abonelik-yonetimi',
+      label: t('profile.edit.tabsSubscription', 'Abonelik Yönetimi'),
+      icon: <SubscriptionTabIcon />,
+      hasBadge: false,
+    },
   ]
 
   if (status === 'loading') {
@@ -1148,51 +1410,199 @@ function EditProfilePage() {
                         ) : null}
                       </InputField>
 
+                      {/* Hesap Türü (Account Type) */}
+                      <div className="md:col-span-2">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                              Hesap Türü
+                            </label>
+                            <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              Profil Kimliği
+                            </span>
+                          </div>
+                        </div>
+
+                        <div ref={categoryMenuRef} className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCategoryMenuOpen((prev) => !prev)
+                              setIsLocationMenuOpen(false)
+                            }}
+                            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-secondary hover:border-zinc-400 dark:hover:border-zinc-600 px-4 py-3 text-sm font-medium text-text transition cursor-pointer shadow-sm"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-base">
+                                {selectedCategoryObj[2]}
+                              </span>
+                              <div className="text-left min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-sm text-text block truncate">
+                                    {selectedCategoryObj[1]}
+                                  </span>
+                                  {selectedCategoryObj[0] === 'creator' && (
+                                    <span className="rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold px-1.5 py-0.5">
+                                      Üretici
+                                    </span>
+                                  )}
+                                  {selectedCategoryObj[0] === 'business' && (
+                                    <span className="rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold px-1.5 py-0.5">
+                                      Ticari
+                                    </span>
+                                  )}
+                                  {selectedCategoryObj[0] === 'organization' && (
+                                    <span className="rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-1.5 py-0.5">
+                                      Kurum / STK
+                                    </span>
+                                  )}
+                                  {selectedCategoryObj[0] === 'public_figure' && (
+                                    <span className="rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold px-1.5 py-0.5">
+                                      Kamu Figürü
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted block truncate mt-0.5">
+                                  {selectedCategoryObj[3]}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="hidden sm:inline-block text-xs font-medium text-muted">
+                                Değiştir
+                              </span>
+                              <ChevronDownIcon
+                                className={`size-4 shrink-0 transition-transform duration-200 ${
+                                  isCategoryMenuOpen ? 'rotate-180 text-primary' : 'text-muted'
+                                }`}
+                              />
+                            </div>
+                          </button>
+
+                          {isCategoryMenuOpen && (
+                            <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-full max-h-72 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 duration-150">
+                              {categories.map(([value, label, icon, desc]) => {
+                                const isSelected = (formState.category || 'individual') === value
+                                return (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormState((currentState) => ({
+                                        ...currentState,
+                                        category: value,
+                                      }))
+                                      setIsCategoryMenuOpen(false)
+                                    }}
+                                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 text-left text-sm transition cursor-pointer mb-0.5 last:mb-0 ${
+                                      isSelected
+                                        ? 'bg-primary/10 text-primary font-semibold'
+                                        : 'text-text hover:bg-secondary hover:text-text'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-base">
+                                        {icon}
+                                      </span>
+                                      <div className="min-w-0">
+                                        <p className="font-semibold text-sm">{label}</p>
+                                        <p className="text-xs text-muted truncate">{desc}</p>
+                                      </div>
+                                    </div>
+                                    {isSelected && <CheckIcon className="size-4 text-primary shrink-0" />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       <div ref={locationWrapperRef} className="relative md:col-span-2">
                         <InputField
                           label={t('profile.edit.locationLabel')}
                           helperText={t('profile.edit.locationHelper')}
                         >
-                          <input
-                            value={locationInput}
-                            onFocus={() => setIsLocationMenuOpen(locationOptions.length > 0)}
-                            onChange={(event) => {
-                              const nextValue = event.target.value
-                              setLocationInput(nextValue)
-                              setFormState((currentState) => ({
-                                ...currentState,
-                                location: parseLocationInput(nextValue, currentState.location),
-                              }))
-                              setIsLocationMenuOpen(nextValue.trim().length >= 2)
-                            }}
-                            placeholder={t('profile.edit.locationPlaceholder')}
-                            className={inputClassName}
-                          />
+                          <div className="relative">
+                            <input
+                              role="combobox"
+                              aria-autocomplete="list"
+                              aria-expanded={isLocationMenuOpen}
+                              aria-controls="location-options-list"
+                              aria-activedescendant={
+                                highlightedLocationIndex >= 0
+                                  ? `location-option-${highlightedLocationIndex}`
+                                  : undefined
+                              }
+                              value={locationInput}
+                              onFocus={() => setIsLocationMenuOpen(locationOptions.length > 0)}
+                              onKeyDown={handleLocationKeyDown}
+                              onChange={(event) => {
+                                const nextValue = event.target.value
+                                setLocationInput(nextValue)
+                                setFormState((currentState) => ({
+                                  ...currentState,
+                                  location: parseLocationInput(nextValue, currentState.location),
+                                }))
+                                setIsLocationMenuOpen(nextValue.trim().length >= 2)
+                              }}
+                              placeholder={t('profile.edit.locationPlaceholder')}
+                              className={`${inputClassName} ${isLocationLoading ? 'pr-9' : ''}`}
+                            />
+                            {isLocationLoading ? (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted">
+                                <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                </svg>
+                              </div>
+                            ) : null}
+                          </div>
                         </InputField>
 
                         {isLocationMenuOpen && locationOptions.length ? (
-                          <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-border bg-card p-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
-                            {locationOptions.map((option) => {
-                              const label = option.city ? `${option.city}, ${option.country}` : option.country
+                          <div
+                            id="location-options-list"
+                            role="listbox"
+                            className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur-md"
+                          >
+                            {locationOptions.map((option, index) => {
+                              const label = option.label || (option.city ? `${option.city}, ${option.country}` : option.country)
+                              const isHighlighted = highlightedLocationIndex === index
 
                               return (
                                 <button
-                                  key={label}
+                                  key={`${label}-${index}`}
+                                  id={`location-option-${index}`}
+                                  role="option"
+                                  aria-selected={isHighlighted}
                                   type="button"
-                                  onClick={() => {
-                                    setLocationInput(label)
-                                    setFormState((currentState) => ({
-                                      ...currentState,
-                                      location: {
-                                        city: option.city,
-                                        country: option.country,
-                                      },
-                                    }))
-                                    setIsLocationMenuOpen(false)
-                                  }}
-                                  className="block w-full rounded-lg px-4 py-2.5 text-left text-sm text-zinc-700 transition hover:bg-secondary dark:text-zinc-200"
+                                  onClick={() => selectLocationOption(option)}
+                                  onMouseEnter={() => setHighlightedLocationIndex(index)}
+                                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition ${
+                                    isHighlighted
+                                      ? 'bg-secondary text-foreground ring-1 ring-primary/30'
+                                      : 'text-zinc-700 hover:bg-secondary/60 dark:text-zinc-200'
+                                  }`}
                                 >
-                                  {label}
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="text-base shrink-0 select-none">
+                                      {option.flag || '📍'}
+                                    </span>
+                                    <span className="truncate">
+                                      <HighlightMatch text={label} query={locationInput} />
+                                    </span>
+                                  </div>
+                                  {option.kind ? (
+                                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted bg-secondary/80 border border-border/50">
+                                      {option.kind === 'city'
+                                        ? t('profile.edit.locationKindCity')
+                                        : option.kind === 'district'
+                                        ? t('profile.edit.locationKindDistrict')
+                                        : t('profile.edit.locationKindCountry')}
+                                    </span>
+                                  ) : null}
                                 </button>
                               )
                             })}
@@ -1633,10 +2043,451 @@ function EditProfilePage() {
                   </div>
                 </section>
               )}
+
+              {/* TAB 4: ABONELİK YÖNETİMİ */}
+              {activeTab === 'abonelik-yonetimi' && (
+                <section
+                  id="tabpanel-abonelik-yonetimi"
+                  role="tabpanel"
+                  aria-labelledby="tab-abonelik-yonetimi"
+                  className="space-y-6 animate-in fade-in duration-150"
+                >
+                  <div className="rounded-xl border border-border bg-card p-5 md:p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <h2 className="text-base font-bold text-text">
+                            {t('profile.edit.subscriptionTitle', 'Abonelik & Doğrulanmış Profil Yönetimi')}
+                          </h2>
+                          {Boolean(user?.verification?.isVerified || user?.verification?.status === 'approved' || verificationState.request?.status === 'approved') && (
+                            <VerifiedBadge user={{ verification: { isVerified: true } }} size="sm" />
+                          )}
+                        </div>
+                        <p className="text-xs text-soft mt-1">
+                          {t('profile.edit.subscriptionSubtitle', 'Mavi doğrulama rozetinizi, keşfet ve gösterim ayrıcalıklarınızı ve aylık aboneliğinizi bu panelden yönetebilirsiniz.')}
+                        </p>
+                      </div>
+
+                      {verificationState.isLoading && (
+                        <span className="text-xs text-muted">Bilgiler yükleniyor...</span>
+                      )}
+                    </div>
+
+                    {/* Durum 1: Aktif ve Onaylı Abonelik */}
+                    {Boolean(user?.verification?.isVerified || user?.verification?.status === 'approved' || verificationState.request?.status === 'approved') ? (
+                      (() => {
+                        const currentPlanId = user?.verification?.subscriptionPlan && user.verification.subscriptionPlan !== 'none'
+                          ? user.verification.subscriptionPlan
+                          : verificationState.request?.payment?.plan || 'plus'
+                        const currentPlanName = currentPlanId === 'pro' ? 'Nest Pro' : 'Nest Plus'
+                        const currentPlanPrice = currentPlanId === 'pro' ? 249 : 99
+                        const currentMultiplier = currentPlanId === 'pro' ? '5X Gösterim Desteği' : '2X Gösterim Desteği'
+                        const otherPlanId = currentPlanId === 'pro' ? 'plus' : 'pro'
+                        const otherPlanName = otherPlanId === 'pro' ? 'Nest Pro' : 'Nest Plus'
+                        const otherPlanPrice = otherPlanId === 'pro' ? 249 : 99
+
+                        const currentCategory = user?.verification?.category || verificationState.request?.category || formState.category || 'individual'
+                        const currentCategoryObj = categories.find(([val]) => val === currentCategory) || categories[0]
+
+                        return (
+                          <div className="space-y-5">
+                            {/* Aktif Plan Özeti Kartı */}
+                            <div className="rounded-xl border border-primary/30 bg-primary/[0.03] dark:bg-primary/[0.06] p-4 sm:p-5">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="flex items-center gap-3.5">
+                                  <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary font-black text-base">
+                                    {currentPlanId === 'pro' ? 'Pro' : 'Plus'}
+                                  </div>
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-base font-bold text-text">
+                                        {currentPlanName}
+                                      </span>
+                                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Aktif Abonelik
+                                      </span>
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-secondary border border-border px-2 py-0.5 text-[10px] font-semibold text-text">
+                                        <span>{currentCategoryObj[2]}</span>
+                                        <span>{currentCategoryObj[1]}</span>
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted mt-0.5">
+                                      ₺{currentPlanPrice} / ay · {currentMultiplier}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="text-right">
+                                  <span className="rounded-md bg-secondary border border-border px-2.5 py-1 text-xs font-semibold text-text">
+                                    Ödeme: **** 1111 (Test Kartı)
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="my-4 border-t border-border/50" />
+
+                              {/* Ayrıcalık Maddeleri */}
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+                                <div className="flex items-center gap-2 rounded-lg bg-card/70 p-2.5 border border-border/60">
+                                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary font-bold text-xs">
+                                    ✓
+                                  </span>
+                                  <div>
+                                    <p className="font-semibold text-text">{currentMultiplier}</p>
+                                    <p className="text-[11px] text-muted">Akış ve aramalarda üst sıralama</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 rounded-lg bg-card/70 p-2.5 border border-border/60">
+                                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary font-bold text-xs">
+                                    ✓
+                                  </span>
+                                  <div>
+                                    <p className="font-semibold text-text">Mavi Rozet Aktif</p>
+                                    <p className="text-[11px] text-muted">Resmi onaylı profil rozeti</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 rounded-lg bg-card/70 p-2.5 border border-border/60">
+                                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary font-bold text-xs">
+                                    ✓
+                                  </span>
+                                  <div>
+                                    <p className="font-semibold text-text">{currentPlanId === 'pro' ? '300' : '100'} Hediye Jetonu</p>
+                                    <p className="text-[11px] text-muted">Aylık bahşiş bakiyesi</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Plan Değiştirme / Yükseltme Kartı */}
+                            <div className="rounded-xl border border-border bg-secondary/40 p-4 sm:p-5">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div>
+                                  <h3 className="text-sm font-bold text-text">
+                                    {currentPlanId === 'plus'
+                                      ? "Daha Fazla Güç: Nest Pro'ya Yükselt"
+                                      : "Nest Plus Planına Geç"}
+                                  </h3>
+                                  <p className="text-xs text-muted mt-1 leading-relaxed max-w-xl">
+                                    {currentPlanId === 'plus'
+                                      ? "Gösterim desteğinizi 2X'ten 5X seviyesine çıkarın, VIP arama önceliği ve aylık 300 hediye jeton kazanın."
+                                      : "Abonelik planınızı aylık ₺99 tutarındaki Nest Plus (2X Gösterim, 100 jeton) seviyesine geçirebilirsiniz."}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSubscriptionActionState({
+                                      confirmModal: 'change',
+                                      targetPlan: otherPlanId,
+                                      error: '',
+                                      isSubmitting: false,
+                                    })
+                                  }
+                                  className={`shrink-0 rounded-lg px-4 py-2.5 text-xs font-bold transition cursor-pointer shadow-xs ${
+                                    currentPlanId === 'plus'
+                                      ? 'bg-primary text-inverse hover:bg-primary-hover'
+                                      : 'border border-border bg-card hover:bg-secondary text-text'
+                                  }`}
+                                >
+                                  {currentPlanId === 'plus'
+                                    ? "Nest Pro'ya Yükselt (₺249 / ay)"
+                                    : "Nest Plus'a Geç (₺99 / ay)"}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Abonelik İptal Kartı */}
+                            <div className="rounded-xl border border-rose-200/60 bg-rose-50/30 dark:border-rose-900/30 dark:bg-rose-950/10 p-4 sm:p-5">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div>
+                                  <h3 className="text-sm font-bold text-rose-600 dark:text-rose-400">
+                                    Aboneliği İptal Et
+                                  </h3>
+                                  <p className="text-xs text-muted mt-1 leading-relaxed max-w-xl">
+                                    Aboneliğinizi iptal ettiğinizde profilinizdeki onaylı mavi rozet kaldırılır ve gösterim ayrıcalıklarınız sonlandırılır. Dilediğiniz zaman tekrar abone olabilirsiniz.
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSubscriptionActionState({
+                                      confirmModal: 'cancel',
+                                      targetPlan: null,
+                                      error: '',
+                                      isSubmitting: false,
+                                    })
+                                  }
+                                  className="shrink-0 rounded-lg border border-rose-200 bg-card px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-card dark:hover:bg-rose-950/40 transition cursor-pointer"
+                                >
+                                  Aboneliği İptal Et
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })()
+                    ) : verificationState.request?.status === 'pending' || verificationState.request?.status === 'in_review' ? (
+                      /* Durum 2: Başvuru & Abonelik Beklemede / İnceleniyor */
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900/50 dark:bg-amber-950/30">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold uppercase text-amber-700 dark:text-amber-300">
+                                  Başvuru İnceleniyor
+                                </span>
+                                <span className="text-xs font-semibold text-text">
+                                  {verificationState.request.payment?.plan === 'pro' ? 'Nest Pro (₺249/ay)' : 'Nest Plus (₺99/ay)'}
+                                </span>
+                              </div>
+                              <h3 className="mt-2 text-base font-bold text-text">
+                                Abonelik ve Profil Doğrulama Talebiniz Alındı
+                              </h3>
+                              <p className="mt-1 text-xs text-muted leading-relaxed">
+                                Aylık test ödemeniz başarıyla alındı. Yönetim ekibi hesap bilgilerinizi inceledikten sonra mavi onay rozetiniz ve avantajlarınız aktifleşecektir.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleWithdrawPending}
+                              disabled={subscriptionActionState.isSubmitting}
+                              className="rounded-lg border border-rose-200 bg-card px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/40 transition cursor-pointer disabled:opacity-50"
+                            >
+                              {subscriptionActionState.isSubmitting ? 'Geri çekiliyor...' : 'Başvuruyu Geri Çek'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : verificationState.request?.status === 'needs_info' ? (
+                      /* Durum 3: Ek Bilgi Bekleniyor */
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900/50 dark:bg-amber-950/30">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <span className="rounded-md bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold uppercase text-amber-700 dark:text-amber-300">
+                              Ek Bilgi Gerekiyor
+                            </span>
+                            <h3 className="mt-2 text-base font-bold text-text">Yönetim Ekibinden Not Var</h3>
+                            <p className="mt-1 text-xs text-muted">
+                              {verificationState.request.requestedInformation || 'Lütfen istenen ek bilgileri tamamlayınız.'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsVerificationModalOpen(true)}
+                            className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-inverse hover:bg-primary-hover transition cursor-pointer"
+                          >
+                            Bilgileri Tamamla
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Durum 4: Henüz Abone Değil / Yeni Başvuru Yapabilir */
+                      <div className="space-y-5">
+                        <div className="rounded-xl border border-border bg-secondary/40 p-5 sm:p-6 text-center sm:text-left">
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3.5">
+                              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                                <VerifiedBadge user={{ verification: { isVerified: true } }} size="md" />
+                              </span>
+                              <div>
+                                <h3 className="text-base font-bold text-text">Henüz Aktif Bir Aboneliğiniz Yok</h3>
+                                <p className="text-xs text-muted mt-0.5">
+                                  Resmi mavi rozet kazanın, etkileşiminizi 2X veya 5X katlayın ve Üretici Stüdyosu ayrıcalıklarına erişin.
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setIsVerificationModalOpen(true)}
+                              className="shrink-0 rounded-lg bg-primary px-5 py-3 text-xs font-bold text-inverse hover:bg-primary-hover transition cursor-pointer shadow-xs"
+                            >
+                              Abonelik Başlat ve Mavi Rozet Al
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Planlar Karşılaştırma Vitrini */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="rounded-xl border border-border bg-card p-5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-base text-text">Nest Plus</span>
+                              <span className="rounded-full bg-secondary border border-border px-2 py-0.5 text-[10px] font-semibold text-text">Popüler</span>
+                            </div>
+                            <p className="mt-2 text-2xl font-extrabold text-text">₺99 <span className="text-xs font-normal text-muted">/ ay</span></p>
+                            <div className="my-3 border-t border-border/50" />
+                            <ul className="space-y-2 text-xs text-muted">
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> 2X Daha Fazla Gösterim Desteği</li>
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> Profilde Resmi Mavi Onay Rozeti</li>
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> Üretici Stüdyosu Temel Erişim</li>
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> 100 Hediye Jetonu</li>
+                            </ul>
+                          </div>
+
+                          <div className="rounded-xl border border-primary/25 bg-primary/[0.02] p-5 shadow-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-base text-text">Nest Pro</span>
+                              <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary">Maksimum Güç</span>
+                            </div>
+                            <p className="mt-2 text-2xl font-extrabold text-text">₺249 <span className="text-xs font-normal text-muted">/ ay</span></p>
+                            <div className="my-3 border-t border-border/50" />
+                            <ul className="space-y-2 text-xs text-muted">
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> 5X Daha Fazla Gösterim Desteği (Maksimum Keşfet)</li>
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> Mavi Rozet & VIP Öncelikli Destek</li>
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> Üretici Stüdyosu Gelişmiş Gelir Analitiği</li>
+                              <li className="flex items-center gap-2"><span className="text-primary font-bold">✓</span> 300 Hediye Jetonu</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
             </div>
           ) : null}
         </div>
       </SocialLayout>
+
+      {/* Plan Değiştirme ve İptal Onay Modalı */}
+      {subscriptionActionState.confirmModal && (
+        <div
+          className="fixed inset-0 z-[160] flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-150"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {subscriptionActionState.confirmModal === 'change' ? (
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <VerifiedBadge user={{ verification: { isVerified: true } }} size="md" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-text">
+                      {subscriptionActionState.targetPlan === 'pro'
+                        ? "Nest Pro Planına Yükselt"
+                        : "Nest Plus Planına Geç"}
+                    </h3>
+                    <p className="text-xs text-muted">
+                      {subscriptionActionState.targetPlan === 'pro'
+                        ? 'Aylık ₺249 · 5X Gösterim Desteği & VIP Avantajlar'
+                        : 'Aylık ₺99 · 2X Gösterim Desteği'}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-xs leading-relaxed text-muted">
+                  {subscriptionActionState.targetPlan === 'pro'
+                    ? 'Aboneliğinizi Nest Pro seviyesine yükseltmek üzeresiniz. Gösterim desteğiniz 5X seviyesine çıkarılacak, akışta ve aramalarda en üst sırada listeleneceksiniz.'
+                    : 'Aboneliğinizi Nest Plus seviyesine düşürmek üzeresiniz. Bir sonraki yenilenme döneminizde aylık ₺99 tahsil edilecektir.'}
+                </p>
+
+                {subscriptionActionState.error ? (
+                  <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                    {subscriptionActionState.error}
+                  </div>
+                ) : null}
+
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={subscriptionActionState.isSubmitting}
+                    onClick={() =>
+                      setSubscriptionActionState({
+                        confirmModal: null,
+                        targetPlan: null,
+                        error: '',
+                        isSubmitting: false,
+                      })
+                    }
+                    className="rounded-lg border border-border bg-secondary px-4 py-2.5 text-xs font-semibold text-text hover:bg-secondary-hover transition cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="button"
+                    disabled={subscriptionActionState.isSubmitting}
+                    onClick={confirmPlanChange}
+                    className="rounded-lg bg-primary px-5 py-2.5 text-xs font-bold text-inverse hover:bg-primary-hover transition cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    {subscriptionActionState.isSubmitting ? 'İşleniyor...' : 'Onayla ve Değiştir'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="grid size-11 place-items-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                    <AlertTriangleIcon />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-rose-600 dark:text-rose-400">
+                      Aboneliği İptal Et
+                    </h3>
+                    <p className="text-xs text-muted">Mavi rozet ve gösterim avantajları sonlandırılacaktır</p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-xs leading-relaxed text-muted">
+                  Aboneliğinizi iptal ettiğinizde profilinizdeki mavi doğrulama rozeti ve 2X/5X keşfet desteği kaldırılacaktır. Dilediğiniz zaman tekrar abone olabilirsiniz.
+                </p>
+
+                {subscriptionActionState.error ? (
+                  <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                    {subscriptionActionState.error}
+                  </div>
+                ) : null}
+
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={subscriptionActionState.isSubmitting}
+                    onClick={() =>
+                      setSubscriptionActionState({
+                        confirmModal: null,
+                        targetPlan: null,
+                        error: '',
+                        isSubmitting: false,
+                      })
+                    }
+                    className="rounded-lg border border-border bg-secondary px-4 py-2.5 text-xs font-semibold text-text hover:bg-secondary-hover transition cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="button"
+                    disabled={subscriptionActionState.isSubmitting}
+                    onClick={confirmCancelSubscription}
+                    className="rounded-lg bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-700 transition cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    {subscriptionActionState.isSubmitting ? 'İptal Ediliyor...' : 'Evet, Aboneliği İptal Et'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Doğrulama & Abonelik Başlatma Modalı */}
+      <VerificationModal
+        open={isVerificationModalOpen}
+        user={user}
+        onClose={() => {
+          setIsVerificationModalOpen(false)
+          loadVerificationData()
+        }}
+      />
 
       <ActionToast
         toast={toast}

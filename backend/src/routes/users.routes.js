@@ -18,6 +18,8 @@ const {
   createMyVerificationRequest,
   updateMyVerificationRequest,
   withdrawMyVerificationRequest,
+  changeMySubscriptionPlan,
+  cancelMySubscription,
 } = require('../controllers/usersController')
 const {
   getProfileSchema,
@@ -32,6 +34,8 @@ const {
   deleteAccountSchema,
   createVerificationRequestSchema,
   updateVerificationRequestSchema,
+  changeSubscriptionPlanSchema,
+  cancelSubscriptionSchema,
 } = require('../validators/userValidators')
 
 const usersRouter = express.Router()
@@ -75,6 +79,18 @@ usersRouter.patch(
   updateMyVerificationRequest,
 )
 usersRouter.delete('/me/verification-request', authenticate, withdrawMyVerificationRequest)
+usersRouter.post(
+  '/me/subscription/change-plan',
+  authenticate,
+  validateRequest(changeSubscriptionPlanSchema),
+  changeMySubscriptionPlan,
+)
+usersRouter.post(
+  '/me/subscription/cancel',
+  authenticate,
+  validateRequest(cancelSubscriptionSchema),
+  cancelMySubscription,
+)
 usersRouter.get(
   '/me/:connectionType',
   authenticate,

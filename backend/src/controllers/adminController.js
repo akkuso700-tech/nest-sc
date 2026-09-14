@@ -13,6 +13,10 @@ const { EmailVerificationToken } = require('../models/EmailVerificationToken')
 const { VerificationRequest } = require('../models/VerificationRequest')
 const { PostView } = require('../models/PostView')
 const { RecommendationEvent } = require('../models/RecommendationEvent')
+const { CreatorApplication } = require('../models/CreatorApplication')
+const { PayoutRequest } = require('../models/PayoutRequest')
+const { Wallet } = require('../models/Wallet')
+const { Transaction } = require('../models/Transaction')
 const {
   getSignupNotificationEmails,
   updateSignupNotificationEmails,
@@ -1248,19 +1252,25 @@ const updateVerificationRequestStatus = asyncHandler(async (req, res) => {
   await request.save()
 
   const profileStatus = status
+  const planDays = request.payment?.plan === 'yearly' ? 365 : 30
   await User.findByIdAndUpdate(request.user._id, {
     'verification.status': profileStatus,
     'verification.category': request.category,
+    'verification.subscriptionPlan': request.payment?.plan || 'plus',
+    'verification.subscriptionExpiresAt':
+      status === 'approved'
+        ? new Date(now.getTime() + planDays * 24 * 60 * 60 * 1000)
+        : null,
     'verification.verifiedAt': status === 'approved' ? now : null,
     'verification.verifiedBy': status === 'approved' ? req.user._id : null,
     'verification.updatedAt': now,
   })
 
   const notificationCopy = {
-    in_review: ['Basvurunuz inceleniyor', 'Mavi tik basvurunuz incelemeye alindi.'],
+    in_review: ['Basvurunuz inceleniyor', 'Profil dogrulama basvurunuz incelemeye alindi.'],
     needs_info: ['Ek bilgi gerekiyor', note],
-    approved: ['Mavi tik basvurunuz onaylandi', 'Profiliniz artik onayli profil olarak gorunecek.'],
-    rejected: ['Mavi tik basvurunuz sonuclandi', note],
+    approved: ['Profil dogrulamaniz onaylandi', 'Dogrulama rozetiniz profilinizde aktif hale getirildi.'],
+    rejected: ['Profil dogrulama basvurunuz sonuclandi', note],
   }[status]
   await Notification.create({
     user: request.user._id,
@@ -1292,7 +1302,7 @@ const revokeUserVerification = asyncHandler(async (req, res) => {
   const user = await User.findById(userId)
   if (!user) throw new AppError('Kullanici bulunamadi.', 404)
   if (user.verification?.status !== 'approved') {
-    throw new AppError('Kullanicinin aktif bir mavi tiki yok.', 409)
+    throw new AppError('Kullanicinin aktif bir dogrulanmis profil durumu yok.', 409)
   }
 
   const now = new Date()
@@ -1951,6 +1961,393 @@ const deleteAdminMessage = asyncHandler(async (req, res) => {
   })
 })
 
+// ==================== İÇERİK ÜRETİCİLERİ & PARA ÇEKME YÖNETİMİ ====================
+
+const getAdminMonetizationSummary = asyncHandler(async (_req, res) => {
+  const [
+    pendingApplications,
+    approvedCreators,
+    pendingPayoutsCount,
+    payoutTotals,
+  ] = await Promise.all([
+    CreatorApplication.countDocuments({ status: 'pending' }),
+    CreatorApplication.countDocuments({ status: 'approved' }),
+    PayoutRequest.countDocuments({ status: 'pending' }),
+    PayoutRequest.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          totalAmount: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+  ])
+
+  let pendingPayoutsTotal = 0
+  let completedPayoutsTotal = 0
+
+  payoutTotals.forEach((group) => {
+    if (group._id === 'pending') pendingPayoutsTotal = group.totalAmount
+    if (group._id === 'completed') completedPayoutsTotal = group.totalAmount
+  })
+
+  res.json({
+    pendingApplications,
+    approvedCreators,
+    pendingPayoutsCount,
+    pendingPayoutsTotal,
+    completedPayoutsTotal,
+  })
+})
+
+const listAdminCreatorApplications = asyncHandler(async (req, res) => {
+  const { q, status, page, limit } = req.validated.query
+  const filter = {}
+
+  if (status !== 'all') filter.status = status
+
+  if (q) {
+    const searchRegex = new RegExp(escapeRegex(q), 'i')
+    const matchingUsers = await User.find({
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { username: searchRegex },
+        { email: searchRegex },
+      ],
+    }).select('_id')
+    filter.user = { $in: matchingUsers.map((u) => u._id) }
+  }
+
+  const [totalItems, applications] = await Promise.all([
+    CreatorApplication.countDocuments(filter),
+    CreatorApplication.find(filter)
+      .populate('user', 'firstName lastName username email avatarUrl accountStatus verification createdAt')
+      .populate('reviewedBy', 'firstName lastName username')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+  ])
+
+  res.json({
+    applications,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const updateAdminCreatorApplicationStatus = asyncHandler(async (req, res) => {
+  const { applicationId } = req.validated.params
+  const { status, reviewNote = '' } = req.validated.body
+
+  if (!mongoose.isValidObjectId(applicationId)) {
+    throw new AppError('Geçersiz başvuru kimliği.', 400)
+  }
+
+  const application = await CreatorApplication.findById(applicationId).populate('user', 'firstName lastName username email')
+  if (!application) {
+    throw new AppError('Başvuru bulunamadı.', 404)
+  }
+
+  const now = new Date()
+  application.status = status
+  application.reviewedAt = now
+  application.reviewedBy = req.user._id
+  application.reviewNote = reviewNote
+  await application.save()
+
+  if (status === 'approved') {
+    let wallet = await Wallet.findOne({ user: application.user._id })
+    if (!wallet) {
+      wallet = await Wallet.create({
+        user: application.user._id,
+        balance: 0,
+        pendingBalance: 0,
+        lifetimeEarnings: 0,
+        currency: 'TRY',
+        status: 'active',
+      })
+    }
+
+    try {
+      await Notification.create({
+        recipient: application.user._id,
+        sender: req.user._id,
+        type: 'system',
+        content: 'Tebrikler! Nest Social İçerik Üretici Programı başvurunuz onaylandı. Üretici Stüdyosu kullanıma açıldı.',
+        link: '/monetization',
+      })
+    } catch (_) {}
+  } else if (status === 'rejected') {
+    try {
+      await Notification.create({
+        recipient: application.user._id,
+        sender: req.user._id,
+        type: 'system',
+        content: `İçerik Üretici Programı başvurunuz sonuçlandırıldı. Gerekçe: ${reviewNote || 'Belirtilmedi'}`,
+        link: '/monetization',
+      })
+    } catch (_) {}
+  }
+
+  await createAuditLog({
+    actorId: req.user._id,
+    action: `admin.creator_application.${status}`,
+    targetKind: 'user',
+    targetId: application.user._id.toString(),
+    summary: `İçerik üretici başvurusu ${status === 'approved' ? 'onaylandı' : 'reddedildi'}. ${reviewNote ? `Not: ${reviewNote}` : ''}`,
+    metadata: {
+      applicationId,
+      status,
+      reviewNote,
+    },
+  })
+
+  res.json({
+    success: true,
+    message: `Başvuru ${status === 'approved' ? 'onaylandı' : 'reddedildi'}.`,
+    application,
+  })
+})
+
+const listAdminPayoutRequests = asyncHandler(async (req, res) => {
+  const { q, status, page, limit } = req.validated.query
+  const filter = {}
+
+  if (status !== 'all') filter.status = status
+
+  if (q) {
+    const searchRegex = new RegExp(escapeRegex(q), 'i')
+    const matchingUsers = await User.find({
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { username: searchRegex },
+        { email: searchRegex },
+      ],
+    }).select('_id')
+
+    filter.$or = [
+      { user: { $in: matchingUsers.map((u) => u._id) } },
+      { fullName: searchRegex },
+      { iban: searchRegex },
+      { bankName: searchRegex },
+    ]
+  }
+
+  const [totalItems, payouts] = await Promise.all([
+    PayoutRequest.countDocuments(filter),
+    PayoutRequest.find(filter)
+      .populate('user', 'firstName lastName username email avatarUrl')
+      .populate('processedBy', 'firstName lastName username')
+      .sort({ requestedAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+  ])
+
+  res.json({
+    payouts,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const updateAdminPayoutRequestStatus = asyncHandler(async (req, res) => {
+  const { payoutId } = req.validated.params
+  const { status, transferReceiptUrl = '', rejectionReason = '' } = req.validated.body
+
+  if (!mongoose.isValidObjectId(payoutId)) {
+    throw new AppError('Geçersiz çekim talebi kimliği.', 400)
+  }
+
+  const payout = await PayoutRequest.findById(payoutId).populate('user', 'firstName lastName username')
+  if (!payout) {
+    throw new AppError('Çekim talebi bulunamadı.', 404)
+  }
+
+  if (['completed', 'rejected'].includes(payout.status)) {
+    throw new AppError('Bu çekim talebi zaten sonuçlandırılmıştır.', 400)
+  }
+
+  const wallet = await Wallet.findOne({ user: payout.user._id })
+  const now = new Date()
+
+  if (status === 'completed') {
+    if (wallet) {
+      wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - payout.amount)
+      await wallet.save()
+    }
+
+    payout.status = 'completed'
+    payout.processedAt = now
+    payout.processedBy = req.user._id
+    payout.transferReceiptUrl = transferReceiptUrl
+    await payout.save()
+
+    try {
+      await Transaction.create({
+        user: payout.user._id,
+        type: 'payout_withdrawal',
+        grossAmount: -payout.amount,
+        platformFee: 0,
+        netAmount: -payout.amount,
+        currency: payout.currency || 'TRY',
+        status: 'completed',
+        title: `Banka Çekimi (${payout.bankName || 'IBAN'})`,
+        referenceId: `PO-${payout._id.toString().slice(-8).toUpperCase()}`,
+        metadata: {
+          iban: payout.iban,
+          fullName: payout.fullName,
+          transferReceiptUrl,
+        },
+      })
+
+      await Notification.create({
+        recipient: payout.user._id,
+        sender: req.user._id,
+        type: 'system',
+        content: `₺${payout.amount.toLocaleString('tr-TR')} tutarındaki banka çekim talebiniz tamamlandı ve hesabınıza aktarıldı.`,
+        link: '/monetization',
+      })
+    } catch (_) {}
+
+    await createAuditLog({
+      actorId: req.user._id,
+      action: 'admin.payout_request.completed',
+      targetKind: 'user',
+      targetId: payout.user._id.toString(),
+      summary: `₺${payout.amount} tutarındaki çekim talebi onaylandı ve ödendi. IBAN: ${payout.iban}`,
+      metadata: {
+        payoutId,
+        amount: payout.amount,
+        iban: payout.iban,
+        transferReceiptUrl,
+      },
+    })
+  } else if (status === 'rejected') {
+    if (wallet) {
+      wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - payout.amount)
+      wallet.balance = (wallet.balance || 0) + payout.amount
+      await wallet.save()
+    }
+
+    payout.status = 'rejected'
+    payout.processedAt = now
+    payout.processedBy = req.user._id
+    payout.rejectionReason = rejectionReason || 'Yönetici tarafından reddedildi.'
+    await payout.save()
+
+    try {
+      await Notification.create({
+        recipient: payout.user._id,
+        sender: req.user._id,
+        type: 'system',
+        content: `₺${payout.amount.toLocaleString('tr-TR')} tutarındaki çekim talebiniz iptal edildi ve bakiye cüzdanınıza iade edildi. Gerekçe: ${rejectionReason || 'Belirtilmedi'}`,
+        link: '/monetization',
+      })
+    } catch (_) {}
+
+    await createAuditLog({
+      actorId: req.user._id,
+      action: 'admin.payout_request.rejected',
+      targetKind: 'user',
+      targetId: payout.user._id.toString(),
+      summary: `₺${payout.amount} tutarındaki çekim talebi reddedildi, bakiye cüzdana iade edildi. Gerekçe: ${rejectionReason}`,
+      metadata: {
+        payoutId,
+        amount: payout.amount,
+        rejectionReason,
+      },
+    })
+  } else if (status === 'processing') {
+    payout.status = 'processing'
+    payout.processedBy = req.user._id
+    await payout.save()
+  }
+
+  res.json({
+    success: true,
+    message: status === 'completed' ? 'Ödeme onaylandı ve tamamlandı.' : status === 'rejected' ? 'Ödeme reddedildi ve bakiye iade edildi.' : 'Ödeme işleme alındı.',
+    payout,
+  })
+})
+
+const listAdminCreators = asyncHandler(async (req, res) => {
+  const { q, status, page, limit } = req.validated.query
+  const filter = {}
+
+  if (status !== 'all') filter.status = status
+
+  if (q) {
+    const searchRegex = new RegExp(escapeRegex(q), 'i')
+    const matchingUsers = await User.find({
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { username: searchRegex },
+        { email: searchRegex },
+      ],
+    }).select('_id')
+    filter.user = { $in: matchingUsers.map((u) => u._id) }
+  }
+
+  const [totalItems, wallets] = await Promise.all([
+    Wallet.countDocuments(filter),
+    Wallet.find(filter)
+      .populate('user', 'firstName lastName username email avatarUrl accountStatus verification createdAt')
+      .sort({ lifetimeEarnings: -1, balance: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
+  ])
+
+  res.json({
+    creators: wallets,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const updateAdminCreatorWalletStatus = asyncHandler(async (req, res) => {
+  const { userId } = req.validated.params
+  const { status, reason = '' } = req.validated.body
+
+  if (!mongoose.isValidObjectId(userId)) {
+    throw new AppError('Geçersiz kullanıcı kimliği.', 400)
+  }
+
+  let wallet = await Wallet.findOne({ user: userId })
+  if (!wallet) {
+    wallet = await Wallet.create({
+      user: userId,
+      balance: 0,
+      pendingBalance: 0,
+      lifetimeEarnings: 0,
+      currency: 'TRY',
+      status,
+    })
+  } else {
+    wallet.status = status
+    await wallet.save()
+  }
+
+  await createAuditLog({
+    actorId: req.user._id,
+    action: `admin.creator_wallet.${status}`,
+    targetKind: 'user',
+    targetId: userId,
+    summary: `Üretici cüzdan durumu ${status} yapıldı. Gerekçe: ${reason || 'Belirtilmedi'}`,
+    metadata: {
+      userId,
+      status,
+      reason,
+    },
+  })
+
+  res.json({
+    success: true,
+    message: `Cüzdan durumu "${status}" olarak güncellendi.`,
+    wallet,
+  })
+})
+
 module.exports = {
   getOverview,
   listUsers,
@@ -1979,4 +2376,11 @@ module.exports = {
   revokeUserVerification,
   deleteAdminConversation,
   deleteAdminMessage,
+  getAdminMonetizationSummary,
+  listAdminCreatorApplications,
+  updateAdminCreatorApplicationStatus,
+  listAdminPayoutRequests,
+  updateAdminPayoutRequestStatus,
+  listAdminCreators,
+  updateAdminCreatorWalletStatus,
 }

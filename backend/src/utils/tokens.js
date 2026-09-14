@@ -80,10 +80,10 @@ function serializeUser(user) {
     accountStatus: user.accountStatus,
     verification: {
       isVerified: user.verification?.status === 'approved',
-      category:
-        user.verification?.status === 'approved'
-          ? user.verification?.category || 'individual'
-          : null,
+      status: user.verification?.status || 'none',
+      category: user.verification?.category || 'individual',
+      subscriptionPlan: user.verification?.subscriptionPlan || 'none',
+      subscriptionExpiresAt: user.verification?.subscriptionExpiresAt || null,
     },
     moderation: user.moderation,
     bio: user.bio,

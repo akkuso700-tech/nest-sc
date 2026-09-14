@@ -26,6 +26,20 @@ export function withdrawMyVerificationRequest() {
   return apiRequest('/users/me/verification-request', { method: 'DELETE' })
 }
 
+export function changeMySubscriptionPlan(payload) {
+  return apiRequest('/users/me/subscription/change-plan', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function cancelMySubscription(payload = {}) {
+  return apiRequest('/users/me/subscription/cancel', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function checkUsernameAvailability(username) {
   const searchParams = new URLSearchParams({ username })
   return apiRequest(`/users/username-availability?${searchParams.toString()}`)

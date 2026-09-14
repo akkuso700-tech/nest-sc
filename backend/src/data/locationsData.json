@@ -1,0 +1,6008 @@
+[
+  {
+    "city": "Adana",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "adana"
+    ]
+  },
+  {
+    "city": "Adıyaman",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "adıyaman"
+    ]
+  },
+  {
+    "city": "Afyonkarahisar",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "afyonkarahisar"
+    ]
+  },
+  {
+    "city": "Ağrı",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "ağrı"
+    ]
+  },
+  {
+    "city": "Amasya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "amasya"
+    ]
+  },
+  {
+    "city": "Ankara",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "ankara"
+    ]
+  },
+  {
+    "city": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "antalya"
+    ]
+  },
+  {
+    "city": "Artvin",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "artvin"
+    ]
+  },
+  {
+    "city": "Aydın",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "aydın"
+    ]
+  },
+  {
+    "city": "Balıkesir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "balıkesir"
+    ]
+  },
+  {
+    "city": "Bilecik",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bilecik"
+    ]
+  },
+  {
+    "city": "Bingöl",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bingöl"
+    ]
+  },
+  {
+    "city": "Bitlis",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bitlis"
+    ]
+  },
+  {
+    "city": "Bolu",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bolu"
+    ]
+  },
+  {
+    "city": "Burdur",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "burdur"
+    ]
+  },
+  {
+    "city": "Bursa",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bursa"
+    ]
+  },
+  {
+    "city": "Çanakkale",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "çanakkale"
+    ]
+  },
+  {
+    "city": "Çankırı",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "çankırı"
+    ]
+  },
+  {
+    "city": "Çorum",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "çorum"
+    ]
+  },
+  {
+    "city": "Denizli",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "denizli"
+    ]
+  },
+  {
+    "city": "Diyarbakır",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "diyarbakır"
+    ]
+  },
+  {
+    "city": "Edirne",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "edirne"
+    ]
+  },
+  {
+    "city": "Elazığ",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "elazığ"
+    ]
+  },
+  {
+    "city": "Erzincan",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "erzincan"
+    ]
+  },
+  {
+    "city": "Erzurum",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "erzurum"
+    ]
+  },
+  {
+    "city": "Eskişehir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "eskişehir"
+    ]
+  },
+  {
+    "city": "Gaziantep",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "gaziantep"
+    ]
+  },
+  {
+    "city": "Giresun",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "giresun"
+    ]
+  },
+  {
+    "city": "Gümüşhane",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "gümüşhane"
+    ]
+  },
+  {
+    "city": "Hakkari",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "hakkari"
+    ]
+  },
+  {
+    "city": "Hatay",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "hatay"
+    ]
+  },
+  {
+    "city": "Isparta",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "isparta"
+    ]
+  },
+  {
+    "city": "Mersin",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "mersin"
+    ]
+  },
+  {
+    "city": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "i̇stanbul"
+    ]
+  },
+  {
+    "city": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "i̇zmir"
+    ]
+  },
+  {
+    "city": "Kars",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kars"
+    ]
+  },
+  {
+    "city": "Kastamonu",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kastamonu"
+    ]
+  },
+  {
+    "city": "Kayseri",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kayseri"
+    ]
+  },
+  {
+    "city": "Kırklareli",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kırklareli"
+    ]
+  },
+  {
+    "city": "Kırşehir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kırşehir"
+    ]
+  },
+  {
+    "city": "Kocaeli",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kocaeli"
+    ]
+  },
+  {
+    "city": "Konya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "konya"
+    ]
+  },
+  {
+    "city": "Kütahya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kütahya"
+    ]
+  },
+  {
+    "city": "Malatya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "malatya"
+    ]
+  },
+  {
+    "city": "Manisa",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "manisa"
+    ]
+  },
+  {
+    "city": "Kahramanmaraş",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kahramanmaraş"
+    ]
+  },
+  {
+    "city": "Mardin",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "mardin"
+    ]
+  },
+  {
+    "city": "Muğla",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "muğla"
+    ]
+  },
+  {
+    "city": "Muş",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "muş"
+    ]
+  },
+  {
+    "city": "Nevşehir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "nevşehir"
+    ]
+  },
+  {
+    "city": "Niğde",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "niğde"
+    ]
+  },
+  {
+    "city": "Ordu",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "ordu"
+    ]
+  },
+  {
+    "city": "Rize",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "rize"
+    ]
+  },
+  {
+    "city": "Sakarya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "sakarya"
+    ]
+  },
+  {
+    "city": "Samsun",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "samsun"
+    ]
+  },
+  {
+    "city": "Siirt",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "siirt"
+    ]
+  },
+  {
+    "city": "Sinop",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "sinop"
+    ]
+  },
+  {
+    "city": "Sivas",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "sivas"
+    ]
+  },
+  {
+    "city": "Tekirdağ",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "tekirdağ"
+    ]
+  },
+  {
+    "city": "Tokat",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "tokat"
+    ]
+  },
+  {
+    "city": "Trabzon",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "trabzon"
+    ]
+  },
+  {
+    "city": "Tunceli",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "tunceli"
+    ]
+  },
+  {
+    "city": "Şanlıurfa",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "şanlıurfa"
+    ]
+  },
+  {
+    "city": "Uşak",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "uşak"
+    ]
+  },
+  {
+    "city": "Van",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "van"
+    ]
+  },
+  {
+    "city": "Yozgat",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "yozgat"
+    ]
+  },
+  {
+    "city": "Zonguldak",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "zonguldak"
+    ]
+  },
+  {
+    "city": "Aksaray",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "aksaray"
+    ]
+  },
+  {
+    "city": "Bayburt",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bayburt"
+    ]
+  },
+  {
+    "city": "Karaman",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "karaman"
+    ]
+  },
+  {
+    "city": "Kırıkkale",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kırıkkale"
+    ]
+  },
+  {
+    "city": "Batman",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "batman"
+    ]
+  },
+  {
+    "city": "Şırnak",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "şırnak"
+    ]
+  },
+  {
+    "city": "Bartın",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bartın"
+    ]
+  },
+  {
+    "city": "Ardahan",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "ardahan"
+    ]
+  },
+  {
+    "city": "Iğdır",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "iğdır"
+    ]
+  },
+  {
+    "city": "Yalova",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "yalova"
+    ]
+  },
+  {
+    "city": "Karabük",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "karabük"
+    ]
+  },
+  {
+    "city": "Kilis",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kilis"
+    ]
+  },
+  {
+    "city": "Osmaniye",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "osmaniye"
+    ]
+  },
+  {
+    "city": "Düzce",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "düzce"
+    ]
+  },
+  {
+    "city": "Kadıköy, İstanbul",
+    "rawCity": "Kadıköy",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kadıköy",
+      "kadıköy i̇stanbul"
+    ]
+  },
+  {
+    "city": "Beşiktaş, İstanbul",
+    "rawCity": "Beşiktaş",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "beşiktaş",
+      "beşiktaş i̇stanbul"
+    ]
+  },
+  {
+    "city": "Üsküdar, İstanbul",
+    "rawCity": "Üsküdar",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "üsküdar",
+      "üsküdar i̇stanbul"
+    ]
+  },
+  {
+    "city": "Şişli, İstanbul",
+    "rawCity": "Şişli",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "şişli",
+      "şişli i̇stanbul"
+    ]
+  },
+  {
+    "city": "Bakırköy, İstanbul",
+    "rawCity": "Bakırköy",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bakırköy",
+      "bakırköy i̇stanbul"
+    ]
+  },
+  {
+    "city": "Beyoğlu, İstanbul",
+    "rawCity": "Beyoğlu",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "beyoğlu",
+      "beyoğlu i̇stanbul"
+    ]
+  },
+  {
+    "city": "Sarıyer, İstanbul",
+    "rawCity": "Sarıyer",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "sarıyer",
+      "sarıyer i̇stanbul"
+    ]
+  },
+  {
+    "city": "Fatih, İstanbul",
+    "rawCity": "Fatih",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "fatih",
+      "fatih i̇stanbul"
+    ]
+  },
+  {
+    "city": "Maltepe, İstanbul",
+    "rawCity": "Maltepe",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "maltepe",
+      "maltepe i̇stanbul"
+    ]
+  },
+  {
+    "city": "Ataşehir, İstanbul",
+    "rawCity": "Ataşehir",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "ataşehir",
+      "ataşehir i̇stanbul"
+    ]
+  },
+  {
+    "city": "Pendik, İstanbul",
+    "rawCity": "Pendik",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "pendik",
+      "pendik i̇stanbul"
+    ]
+  },
+  {
+    "city": "Kartal, İstanbul",
+    "rawCity": "Kartal",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kartal",
+      "kartal i̇stanbul"
+    ]
+  },
+  {
+    "city": "Beylikdüzü, İstanbul",
+    "rawCity": "Beylikdüzü",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "beylikdüzü",
+      "beylikdüzü i̇stanbul"
+    ]
+  },
+  {
+    "city": "Başakşehir, İstanbul",
+    "rawCity": "Başakşehir",
+    "state": "İstanbul",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "başakşehir",
+      "başakşehir i̇stanbul"
+    ]
+  },
+  {
+    "city": "Çankaya, Ankara",
+    "rawCity": "Çankaya",
+    "state": "Ankara",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "çankaya",
+      "çankaya ankara"
+    ]
+  },
+  {
+    "city": "Keçiören, Ankara",
+    "rawCity": "Keçiören",
+    "state": "Ankara",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "keçiören",
+      "keçiören ankara"
+    ]
+  },
+  {
+    "city": "Yenimahalle, Ankara",
+    "rawCity": "Yenimahalle",
+    "state": "Ankara",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "yenimahalle",
+      "yenimahalle ankara"
+    ]
+  },
+  {
+    "city": "Mamak, Ankara",
+    "rawCity": "Mamak",
+    "state": "Ankara",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "mamak",
+      "mamak ankara"
+    ]
+  },
+  {
+    "city": "Etimesgut, Ankara",
+    "rawCity": "Etimesgut",
+    "state": "Ankara",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "etimesgut",
+      "etimesgut ankara"
+    ]
+  },
+  {
+    "city": "Karşıyaka, İzmir",
+    "rawCity": "Karşıyaka",
+    "state": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "karşıyaka",
+      "karşıyaka i̇zmir"
+    ]
+  },
+  {
+    "city": "Konak, İzmir",
+    "rawCity": "Konak",
+    "state": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "konak",
+      "konak i̇zmir"
+    ]
+  },
+  {
+    "city": "Bornova, İzmir",
+    "rawCity": "Bornova",
+    "state": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bornova",
+      "bornova i̇zmir"
+    ]
+  },
+  {
+    "city": "Buca, İzmir",
+    "rawCity": "Buca",
+    "state": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "buca",
+      "buca i̇zmir"
+    ]
+  },
+  {
+    "city": "Çeşme, İzmir",
+    "rawCity": "Çeşme",
+    "state": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "çeşme",
+      "çeşme i̇zmir"
+    ]
+  },
+  {
+    "city": "Urla, İzmir",
+    "rawCity": "Urla",
+    "state": "İzmir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "urla",
+      "urla i̇zmir"
+    ]
+  },
+  {
+    "city": "Muratpaşa, Antalya",
+    "rawCity": "Muratpaşa",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "muratpaşa",
+      "muratpaşa antalya"
+    ]
+  },
+  {
+    "city": "Konyaaltı, Antalya",
+    "rawCity": "Konyaaltı",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "konyaaltı",
+      "konyaaltı antalya"
+    ]
+  },
+  {
+    "city": "Kepez, Antalya",
+    "rawCity": "Kepez",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kepez",
+      "kepez antalya"
+    ]
+  },
+  {
+    "city": "Alanya, Antalya",
+    "rawCity": "Alanya",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "alanya",
+      "alanya antalya"
+    ]
+  },
+  {
+    "city": "Manavgat, Antalya",
+    "rawCity": "Manavgat",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "manavgat",
+      "manavgat antalya"
+    ]
+  },
+  {
+    "city": "Kemer, Antalya",
+    "rawCity": "Kemer",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kemer",
+      "kemer antalya"
+    ]
+  },
+  {
+    "city": "Kaş, Antalya",
+    "rawCity": "Kaş",
+    "state": "Antalya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kaş",
+      "kaş antalya"
+    ]
+  },
+  {
+    "city": "Bodrum, Muğla",
+    "rawCity": "Bodrum",
+    "state": "Muğla",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "bodrum",
+      "bodrum muğla"
+    ]
+  },
+  {
+    "city": "Fethiye, Muğla",
+    "rawCity": "Fethiye",
+    "state": "Muğla",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "fethiye",
+      "fethiye muğla"
+    ]
+  },
+  {
+    "city": "Marmaris, Muğla",
+    "rawCity": "Marmaris",
+    "state": "Muğla",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "marmaris",
+      "marmaris muğla"
+    ]
+  },
+  {
+    "city": "Datça, Muğla",
+    "rawCity": "Datça",
+    "state": "Muğla",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "datça",
+      "datça muğla"
+    ]
+  },
+  {
+    "city": "Nilüfer, Bursa",
+    "rawCity": "Nilüfer",
+    "state": "Bursa",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "nilüfer",
+      "nilüfer bursa"
+    ]
+  },
+  {
+    "city": "Osmangazi, Bursa",
+    "rawCity": "Osmangazi",
+    "state": "Bursa",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "osmangazi",
+      "osmangazi bursa"
+    ]
+  },
+  {
+    "city": "Yıldırım, Bursa",
+    "rawCity": "Yıldırım",
+    "state": "Bursa",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "yıldırım",
+      "yıldırım bursa"
+    ]
+  },
+  {
+    "city": "Gebze, Kocaeli",
+    "rawCity": "Gebze",
+    "state": "Kocaeli",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "gebze",
+      "gebze kocaeli"
+    ]
+  },
+  {
+    "city": "İzmit, Kocaeli",
+    "rawCity": "İzmit",
+    "state": "Kocaeli",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "i̇zmit",
+      "i̇zmit kocaeli"
+    ]
+  },
+  {
+    "city": "Seyhan, Adana",
+    "rawCity": "Seyhan",
+    "state": "Adana",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "seyhan",
+      "seyhan adana"
+    ]
+  },
+  {
+    "city": "Çukurova, Adana",
+    "rawCity": "Çukurova",
+    "state": "Adana",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "çukurova",
+      "çukurova adana"
+    ]
+  },
+  {
+    "city": "Şahinbey, Gaziantep",
+    "rawCity": "Şahinbey",
+    "state": "Gaziantep",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "şahinbey",
+      "şahinbey gaziantep"
+    ]
+  },
+  {
+    "city": "Şehitkamil, Gaziantep",
+    "rawCity": "Şehitkamil",
+    "state": "Gaziantep",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "şehitkamil",
+      "şehitkamil gaziantep"
+    ]
+  },
+  {
+    "city": "Melikgazi, Kayseri",
+    "rawCity": "Melikgazi",
+    "state": "Kayseri",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "melikgazi",
+      "melikgazi kayseri"
+    ]
+  },
+  {
+    "city": "Kocasinan, Kayseri",
+    "rawCity": "Kocasinan",
+    "state": "Kayseri",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kocasinan",
+      "kocasinan kayseri"
+    ]
+  },
+  {
+    "city": "Odunpazarı, Eskişehir",
+    "rawCity": "Odunpazarı",
+    "state": "Eskişehir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "odunpazarı",
+      "odunpazarı eskişehir"
+    ]
+  },
+  {
+    "city": "Tepebaşı, Eskişehir",
+    "rawCity": "Tepebaşı",
+    "state": "Eskişehir",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "tepebaşı",
+      "tepebaşı eskişehir"
+    ]
+  },
+  {
+    "city": "Selçuklu, Konya",
+    "rawCity": "Selçuklu",
+    "state": "Konya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "selçuklu",
+      "selçuklu konya"
+    ]
+  },
+  {
+    "city": "Meram, Konya",
+    "rawCity": "Meram",
+    "state": "Konya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "meram",
+      "meram konya"
+    ]
+  },
+  {
+    "city": "Karatay, Konya",
+    "rawCity": "Karatay",
+    "state": "Konya",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "karatay",
+      "karatay konya"
+    ]
+  },
+  {
+    "city": "Ortahisar, Trabzon",
+    "rawCity": "Ortahisar",
+    "state": "Trabzon",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "ortahisar",
+      "ortahisar trabzon"
+    ]
+  },
+  {
+    "city": "Akçaabat, Trabzon",
+    "rawCity": "Akçaabat",
+    "state": "Trabzon",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "kind": "district",
+    "flag": "🇹🇷",
+    "aliases": [
+      "akçaabat",
+      "akçaabat trabzon"
+    ]
+  },
+  {
+    "city": "New York",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": [
+      "nyc",
+      "new york city",
+      "ny"
+    ]
+  },
+  {
+    "city": "Los Angeles",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": [
+      "la"
+    ]
+  },
+  {
+    "city": "Chicago",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": [
+      "sikago"
+    ]
+  },
+  {
+    "city": "Houston",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": []
+  },
+  {
+    "city": "Miami",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": []
+  },
+  {
+    "city": "San Francisco",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": [
+      "sf"
+    ]
+  },
+  {
+    "city": "Washington, D.C.",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": [
+      "washington",
+      "dc"
+    ]
+  },
+  {
+    "city": "Boston",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": []
+  },
+  {
+    "city": "Seattle",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": []
+  },
+  {
+    "city": "Las Vegas",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": [
+      "vegas"
+    ]
+  },
+  {
+    "city": "Atlanta",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": []
+  },
+  {
+    "city": "Dallas",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇸",
+    "aliases": []
+  },
+  {
+    "city": "Toronto",
+    "country": "Kanada",
+    "countryEn": "Canada",
+    "code": "CA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇦",
+    "aliases": []
+  },
+  {
+    "city": "Vancouver",
+    "country": "Kanada",
+    "countryEn": "Canada",
+    "code": "CA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇦",
+    "aliases": []
+  },
+  {
+    "city": "Montreal",
+    "country": "Kanada",
+    "countryEn": "Canada",
+    "code": "CA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇦",
+    "aliases": []
+  },
+  {
+    "city": "Ottawa",
+    "country": "Kanada",
+    "countryEn": "Canada",
+    "code": "CA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇦",
+    "aliases": []
+  },
+  {
+    "city": "Mexico City",
+    "country": "Meksika",
+    "countryEn": "Mexico",
+    "code": "MX",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇽",
+    "aliases": [
+      "meksiko",
+      "ciudad de mexico"
+    ]
+  },
+  {
+    "city": "Cancun",
+    "country": "Meksika",
+    "countryEn": "Mexico",
+    "code": "MX",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇽",
+    "aliases": [
+      "kankun"
+    ]
+  },
+  {
+    "city": "Guadalajara",
+    "country": "Meksika",
+    "countryEn": "Mexico",
+    "code": "MX",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇽",
+    "aliases": []
+  },
+  {
+    "city": "São Paulo",
+    "country": "Brezilya",
+    "countryEn": "Brazil",
+    "code": "BR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇷",
+    "aliases": [
+      "sao paulo"
+    ]
+  },
+  {
+    "city": "Rio de Janeiro",
+    "country": "Brezilya",
+    "countryEn": "Brazil",
+    "code": "BR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇷",
+    "aliases": [
+      "rio"
+    ]
+  },
+  {
+    "city": "Brasília",
+    "country": "Brezilya",
+    "countryEn": "Brazil",
+    "code": "BR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇷",
+    "aliases": [
+      "brasilia"
+    ]
+  },
+  {
+    "city": "Buenos Aires",
+    "country": "Arjantin",
+    "countryEn": "Argentina",
+    "code": "AR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇷",
+    "aliases": []
+  },
+  {
+    "city": "Santiago",
+    "country": "Şili",
+    "countryEn": "Chile",
+    "code": "CL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇱",
+    "aliases": [
+      "sili"
+    ]
+  },
+  {
+    "city": "Bogota",
+    "country": "Kolombiya",
+    "countryEn": "Colombia",
+    "code": "CO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇴",
+    "aliases": []
+  },
+  {
+    "city": "Medellin",
+    "country": "Kolombiya",
+    "countryEn": "Colombia",
+    "code": "CO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇴",
+    "aliases": []
+  },
+  {
+    "city": "Lima",
+    "country": "Peru",
+    "countryEn": "Peru",
+    "code": "PE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇪",
+    "aliases": []
+  },
+  {
+    "city": "Havana",
+    "country": "Küba",
+    "countryEn": "Cuba",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "kuba"
+    ]
+  },
+  {
+    "city": "Londra",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇧",
+    "aliases": [
+      "london",
+      "ingiltere",
+      "uk"
+    ]
+  },
+  {
+    "city": "Manchester",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇧",
+    "aliases": []
+  },
+  {
+    "city": "Birmingham",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇧",
+    "aliases": []
+  },
+  {
+    "city": "Liverpool",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇧",
+    "aliases": []
+  },
+  {
+    "city": "Edinburgh",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇧",
+    "aliases": [
+      "edinburg",
+      "iskocya"
+    ]
+  },
+  {
+    "city": "Glasgow",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇧",
+    "aliases": []
+  },
+  {
+    "city": "Dublin",
+    "country": "İrlanda",
+    "countryEn": "Ireland",
+    "code": "IE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇪",
+    "aliases": [
+      "irlanda"
+    ]
+  },
+  {
+    "city": "Paris",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇷",
+    "aliases": [
+      "fransa"
+    ]
+  },
+  {
+    "city": "Marsilya",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇷",
+    "aliases": [
+      "marseille"
+    ]
+  },
+  {
+    "city": "Lyon",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇷",
+    "aliases": []
+  },
+  {
+    "city": "Nice",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇷",
+    "aliases": [
+      "nis"
+    ]
+  },
+  {
+    "city": "Toulouse",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇷",
+    "aliases": []
+  },
+  {
+    "city": "Strazburg",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇷",
+    "aliases": [
+      "strasbourg"
+    ]
+  },
+  {
+    "city": "Berlin",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": [
+      "almanya",
+      "deutschland"
+    ]
+  },
+  {
+    "city": "Münih",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": [
+      "munich",
+      "münchen",
+      "munchen"
+    ]
+  },
+  {
+    "city": "Frankfurt",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Hamburg",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Köln",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": [
+      "cologne",
+      "koln"
+    ]
+  },
+  {
+    "city": "Stuttgart",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Düsseldorf",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": [
+      "dusseldorf"
+    ]
+  },
+  {
+    "city": "Dortmund",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Leipzig",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Bremen",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Dresden",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": []
+  },
+  {
+    "city": "Nürnberg",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": [
+      "nuremberg",
+      "nurnberg"
+    ]
+  },
+  {
+    "city": "Hannover",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇪",
+    "aliases": [
+      "hanover"
+    ]
+  },
+  {
+    "city": "Roma",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": [
+      "rome",
+      "italya",
+      "italia"
+    ]
+  },
+  {
+    "city": "Milano",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": [
+      "milan"
+    ]
+  },
+  {
+    "city": "Napoli",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": [
+      "naples"
+    ]
+  },
+  {
+    "city": "Torino",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": [
+      "turin"
+    ]
+  },
+  {
+    "city": "Floransa",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": [
+      "florence",
+      "firenze"
+    ]
+  },
+  {
+    "city": "Venedik",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": [
+      "venice",
+      "venezia"
+    ]
+  },
+  {
+    "city": "Bologna",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇹",
+    "aliases": []
+  },
+  {
+    "city": "Madrid",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇸",
+    "aliases": [
+      "ispanya",
+      "espana"
+    ]
+  },
+  {
+    "city": "Barselona",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇸",
+    "aliases": [
+      "barcelona"
+    ]
+  },
+  {
+    "city": "Valensiya",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇸",
+    "aliases": [
+      "valencia"
+    ]
+  },
+  {
+    "city": "Sevilla",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇸",
+    "aliases": [
+      "seville"
+    ]
+  },
+  {
+    "city": "Malaga",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇸",
+    "aliases": []
+  },
+  {
+    "city": "Bilbao",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇸",
+    "aliases": []
+  },
+  {
+    "city": "Lizbon",
+    "country": "Portekiz",
+    "countryEn": "Portugal",
+    "code": "PT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇹",
+    "aliases": [
+      "lisbon",
+      "lisboa",
+      "portekiz"
+    ]
+  },
+  {
+    "city": "Porto",
+    "country": "Portekiz",
+    "countryEn": "Portugal",
+    "code": "PT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇹",
+    "aliases": []
+  },
+  {
+    "city": "Amsterdam",
+    "country": "Hollanda",
+    "countryEn": "Netherlands",
+    "code": "NL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇱",
+    "aliases": [
+      "hollanda"
+    ]
+  },
+  {
+    "city": "Rotterdam",
+    "country": "Hollanda",
+    "countryEn": "Netherlands",
+    "code": "NL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇱",
+    "aliases": []
+  },
+  {
+    "city": "Lahey",
+    "country": "Hollanda",
+    "countryEn": "Netherlands",
+    "code": "NL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇱",
+    "aliases": [
+      "the hague",
+      "den haag"
+    ]
+  },
+  {
+    "city": "Utrecht",
+    "country": "Hollanda",
+    "countryEn": "Netherlands",
+    "code": "NL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇱",
+    "aliases": []
+  },
+  {
+    "city": "Eindhoven",
+    "country": "Hollanda",
+    "countryEn": "Netherlands",
+    "code": "NL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇱",
+    "aliases": []
+  },
+  {
+    "city": "Brüksel",
+    "country": "Belçika",
+    "countryEn": "Belgium",
+    "code": "BE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇪",
+    "aliases": [
+      "brussels",
+      "bruxelles",
+      "belcika"
+    ]
+  },
+  {
+    "city": "Antwerp",
+    "country": "Belçika",
+    "countryEn": "Belgium",
+    "code": "BE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇪",
+    "aliases": [
+      "anvers"
+    ]
+  },
+  {
+    "city": "Gent",
+    "country": "Belçika",
+    "countryEn": "Belgium",
+    "code": "BE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇪",
+    "aliases": [
+      "ghent"
+    ]
+  },
+  {
+    "city": "Brugge",
+    "country": "Belçika",
+    "countryEn": "Belgium",
+    "code": "BE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇪",
+    "aliases": [
+      "bruges"
+    ]
+  },
+  {
+    "city": "Viyana",
+    "country": "Avusturya",
+    "countryEn": "Austria",
+    "code": "AT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇹",
+    "aliases": [
+      "vienna",
+      "wien",
+      "avusturya"
+    ]
+  },
+  {
+    "city": "Salzburg",
+    "country": "Avusturya",
+    "countryEn": "Austria",
+    "code": "AT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇹",
+    "aliases": []
+  },
+  {
+    "city": "Innsbruck",
+    "country": "Avusturya",
+    "countryEn": "Austria",
+    "code": "AT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇹",
+    "aliases": []
+  },
+  {
+    "city": "Graz",
+    "country": "Avusturya",
+    "countryEn": "Austria",
+    "code": "AT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇹",
+    "aliases": []
+  },
+  {
+    "city": "Zürih",
+    "country": "İsviçre",
+    "countryEn": "Switzerland",
+    "code": "CH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇭",
+    "aliases": [
+      "zurich",
+      "isvicre"
+    ]
+  },
+  {
+    "city": "Cenevre",
+    "country": "İsviçre",
+    "countryEn": "Switzerland",
+    "code": "CH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇭",
+    "aliases": [
+      "geneva",
+      "geneve"
+    ]
+  },
+  {
+    "city": "Basel",
+    "country": "İsviçre",
+    "countryEn": "Switzerland",
+    "code": "CH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇭",
+    "aliases": []
+  },
+  {
+    "city": "Bern",
+    "country": "İsviçre",
+    "countryEn": "Switzerland",
+    "code": "CH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇭",
+    "aliases": []
+  },
+  {
+    "city": "Lozan",
+    "country": "İsviçre",
+    "countryEn": "Switzerland",
+    "code": "CH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇭",
+    "aliases": [
+      "lausanne"
+    ]
+  },
+  {
+    "city": "Prag",
+    "country": "Çekya",
+    "countryEn": "Czech Republic",
+    "code": "CZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇿",
+    "aliases": [
+      "prague",
+      "praha",
+      "cekya"
+    ]
+  },
+  {
+    "city": "Brno",
+    "country": "Çekya",
+    "countryEn": "Czech Republic",
+    "code": "CZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇿",
+    "aliases": []
+  },
+  {
+    "city": "Varşova",
+    "country": "Polonya",
+    "countryEn": "Poland",
+    "code": "PL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇱",
+    "aliases": [
+      "warsaw",
+      "warszawa",
+      "polonya"
+    ]
+  },
+  {
+    "city": "Krakow",
+    "country": "Polonya",
+    "countryEn": "Poland",
+    "code": "PL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇱",
+    "aliases": []
+  },
+  {
+    "city": "Wroclaw",
+    "country": "Polonya",
+    "countryEn": "Poland",
+    "code": "PL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇱",
+    "aliases": []
+  },
+  {
+    "city": "Gdansk",
+    "country": "Polonya",
+    "countryEn": "Poland",
+    "code": "PL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇱",
+    "aliases": []
+  },
+  {
+    "city": "Budapeşte",
+    "country": "Macaristan",
+    "countryEn": "Hungary",
+    "code": "HU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇭🇺",
+    "aliases": [
+      "budapest",
+      "macaristan"
+    ]
+  },
+  {
+    "city": "Kopenhag",
+    "country": "Danimarka",
+    "countryEn": "Denmark",
+    "code": "DK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇰",
+    "aliases": [
+      "copenhagen",
+      "kobenhavn",
+      "danimarka"
+    ]
+  },
+  {
+    "city": "Aarhus",
+    "country": "Danimarka",
+    "countryEn": "Denmark",
+    "code": "DK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇰",
+    "aliases": []
+  },
+  {
+    "city": "Stockholm",
+    "country": "İsveç",
+    "countryEn": "Sweden",
+    "code": "SE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇪",
+    "aliases": [
+      "isvec"
+    ]
+  },
+  {
+    "city": "Göteborg",
+    "country": "İsveç",
+    "countryEn": "Sweden",
+    "code": "SE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇪",
+    "aliases": [
+      "gothenburg",
+      "goteborg"
+    ]
+  },
+  {
+    "city": "Malmö",
+    "country": "İsveç",
+    "countryEn": "Sweden",
+    "code": "SE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇪",
+    "aliases": [
+      "malmo"
+    ]
+  },
+  {
+    "city": "Oslo",
+    "country": "Norveç",
+    "countryEn": "Norway",
+    "code": "NO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇴",
+    "aliases": [
+      "norvec"
+    ]
+  },
+  {
+    "city": "Bergen",
+    "country": "Norveç",
+    "countryEn": "Norway",
+    "code": "NO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇴",
+    "aliases": []
+  },
+  {
+    "city": "Helsinki",
+    "country": "Finlandiya",
+    "countryEn": "Finland",
+    "code": "FI",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇮",
+    "aliases": [
+      "finlandiya"
+    ]
+  },
+  {
+    "city": "Espoo",
+    "country": "Finlandiya",
+    "countryEn": "Finland",
+    "code": "FI",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇮",
+    "aliases": []
+  },
+  {
+    "city": "Tampere",
+    "country": "Finlandiya",
+    "countryEn": "Finland",
+    "code": "FI",
+    "state": "",
+    "kind": "city",
+    "flag": "🇫🇮",
+    "aliases": []
+  },
+  {
+    "city": "Atina",
+    "country": "Yunanistan",
+    "countryEn": "Greece",
+    "code": "GR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇷",
+    "aliases": [
+      "athens",
+      "athina",
+      "yunanistan"
+    ]
+  },
+  {
+    "city": "Selanik",
+    "country": "Yunanistan",
+    "countryEn": "Greece",
+    "code": "GR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇷",
+    "aliases": [
+      "thessaloniki",
+      "salonika"
+    ]
+  },
+  {
+    "city": "Girit",
+    "country": "Yunanistan",
+    "countryEn": "Greece",
+    "code": "GR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇷",
+    "aliases": [
+      "crete",
+      "heraklion"
+    ]
+  },
+  {
+    "city": "Rodos",
+    "country": "Yunanistan",
+    "countryEn": "Greece",
+    "code": "GR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇷",
+    "aliases": [
+      "rhodes"
+    ]
+  },
+  {
+    "city": "Bükreş",
+    "country": "Romanya",
+    "countryEn": "Romania",
+    "code": "RO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇴",
+    "aliases": [
+      "bucharest",
+      "bucuresti",
+      "romanya"
+    ]
+  },
+  {
+    "city": "Kaloşvar",
+    "country": "Romanya",
+    "countryEn": "Romania",
+    "code": "RO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇴",
+    "aliases": [
+      "cluj-napoca"
+    ]
+  },
+  {
+    "city": "Sofya",
+    "country": "Bulgaristan",
+    "countryEn": "Bulgaria",
+    "code": "BG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇬",
+    "aliases": [
+      "sofia",
+      "bulgaristan"
+    ]
+  },
+  {
+    "city": "Filibe",
+    "country": "Bulgaristan",
+    "countryEn": "Bulgaria",
+    "code": "BG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇬",
+    "aliases": [
+      "plovdiv"
+    ]
+  },
+  {
+    "city": "Varna",
+    "country": "Bulgaristan",
+    "countryEn": "Bulgaria",
+    "code": "BG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇬",
+    "aliases": []
+  },
+  {
+    "city": "Belgrad",
+    "country": "Sırbistan",
+    "countryEn": "Serbia",
+    "code": "RS",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇸",
+    "aliases": [
+      "belgrade",
+      "beograd",
+      "sirbistan"
+    ]
+  },
+  {
+    "city": "Novi Sad",
+    "country": "Sırbistan",
+    "countryEn": "Serbia",
+    "code": "RS",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇸",
+    "aliases": []
+  },
+  {
+    "city": "Zagreb",
+    "country": "Hırvatistan",
+    "countryEn": "Croatia",
+    "code": "HR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇭🇷",
+    "aliases": [
+      "hirvatistan"
+    ]
+  },
+  {
+    "city": "Split",
+    "country": "Hırvatistan",
+    "countryEn": "Croatia",
+    "code": "HR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇭🇷",
+    "aliases": []
+  },
+  {
+    "city": "Dubrovnik",
+    "country": "Hırvatistan",
+    "countryEn": "Croatia",
+    "code": "HR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇭🇷",
+    "aliases": []
+  },
+  {
+    "city": "Saraybosna",
+    "country": "Bosna-Hersek",
+    "countryEn": "Bosnia and Herzegovina",
+    "code": "BA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇦",
+    "aliases": [
+      "sarajevo",
+      "bosna"
+    ]
+  },
+  {
+    "city": "Mostar",
+    "country": "Bosna-Hersek",
+    "countryEn": "Bosnia and Herzegovina",
+    "code": "BA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇦",
+    "aliases": []
+  },
+  {
+    "city": "Üsküp",
+    "country": "Kuzey Makedonya",
+    "countryEn": "North Macedonia",
+    "code": "MK",
+    "state": "",
+    "kind": "city",
+    "flag": "MK",
+    "aliases": [
+      "skopje",
+      "makedonya"
+    ]
+  },
+  {
+    "city": "Ohrid",
+    "country": "Kuzey Makedonya",
+    "countryEn": "North Macedonia",
+    "code": "MK",
+    "state": "",
+    "kind": "city",
+    "flag": "MK",
+    "aliases": []
+  },
+  {
+    "city": "Tiran",
+    "country": "Arnavutluk",
+    "countryEn": "Albania",
+    "code": "AL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇱",
+    "aliases": [
+      "tirana",
+      "arnavutluk"
+    ]
+  },
+  {
+    "city": "Podgorica",
+    "country": "Karadağ",
+    "countryEn": "Montenegro",
+    "code": "ME",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇪",
+    "aliases": [
+      "karadag"
+    ]
+  },
+  {
+    "city": "Kotor",
+    "country": "Karadağ",
+    "countryEn": "Montenegro",
+    "code": "ME",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇪",
+    "aliases": []
+  },
+  {
+    "city": "Priştine",
+    "country": "Kosova",
+    "countryEn": "Kosovo",
+    "code": "XK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇽🇰",
+    "aliases": [
+      "pristina",
+      "kosova"
+    ]
+  },
+  {
+    "city": "Prizren",
+    "country": "Kosova",
+    "countryEn": "Kosovo",
+    "code": "XK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇽🇰",
+    "aliases": []
+  },
+  {
+    "city": "Lefkoşa",
+    "country": "Kuzey Kıbrıs",
+    "countryEn": "Northern Cyprus",
+    "code": "CY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "nicosia",
+      "kibris",
+      "kktc"
+    ]
+  },
+  {
+    "city": "Girne",
+    "country": "Kuzey Kıbrıs",
+    "countryEn": "Northern Cyprus",
+    "code": "CY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kyrenia"
+    ]
+  },
+  {
+    "city": "Gazimağusa",
+    "country": "Kuzey Kıbrıs",
+    "countryEn": "Northern Cyprus",
+    "code": "CY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇷",
+    "aliases": [
+      "famagusta"
+    ]
+  },
+  {
+    "city": "Limasol",
+    "country": "Kıbrıs",
+    "countryEn": "Cyprus",
+    "code": "CY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇾",
+    "aliases": [
+      "limassol"
+    ]
+  },
+  {
+    "city": "Larnaka",
+    "country": "Kıbrıs",
+    "countryEn": "Larnaca",
+    "code": "CY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇾",
+    "aliases": []
+  },
+  {
+    "city": "Valletta",
+    "country": "Malta",
+    "countryEn": "Malta",
+    "code": "MT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇹",
+    "aliases": []
+  },
+  {
+    "city": "Reykjavik",
+    "country": "İzlanda",
+    "countryEn": "Iceland",
+    "code": "IS",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇸",
+    "aliases": [
+      "izlanda"
+    ]
+  },
+  {
+    "city": "Lüksemburg",
+    "country": "Lüksemburg",
+    "countryEn": "Luxembourg",
+    "code": "LU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇱🇺",
+    "aliases": [
+      "luxembourg",
+      "luksemburg"
+    ]
+  },
+  {
+    "city": "Tallinn",
+    "country": "Estonya",
+    "countryEn": "Estonia",
+    "code": "EE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇪",
+    "aliases": [
+      "estonya"
+    ]
+  },
+  {
+    "city": "Riga",
+    "country": "Letonya",
+    "countryEn": "Latvia",
+    "code": "LV",
+    "state": "",
+    "kind": "city",
+    "flag": "🇱🇻",
+    "aliases": [
+      "letonya"
+    ]
+  },
+  {
+    "city": "Vilnius",
+    "country": "Litvanya",
+    "countryEn": "Lithuania",
+    "code": "LT",
+    "state": "",
+    "kind": "city",
+    "flag": "🇱🇹",
+    "aliases": [
+      "litvanya"
+    ]
+  },
+  {
+    "city": "Kiev",
+    "country": "Ukrayna",
+    "countryEn": "Ukraine",
+    "code": "UA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇦",
+    "aliases": [
+      "kyiv",
+      "ukrayna"
+    ]
+  },
+  {
+    "city": "Lviv",
+    "country": "Ukrayna",
+    "countryEn": "Ukraine",
+    "code": "UA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇦",
+    "aliases": []
+  },
+  {
+    "city": "Odessa",
+    "country": "Ukrayna",
+    "countryEn": "Ukraine",
+    "code": "UA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇦",
+    "aliases": []
+  },
+  {
+    "city": "Harkov",
+    "country": "Ukrayna",
+    "countryEn": "Ukraine",
+    "code": "UA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇺🇦",
+    "aliases": [
+      "kharkiv"
+    ]
+  },
+  {
+    "city": "Minsk",
+    "country": "Belarus",
+    "countryEn": "Belarus",
+    "code": "BY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇾",
+    "aliases": [
+      "beyaz rusya"
+    ]
+  },
+  {
+    "city": "Kişinev",
+    "country": "Moldova",
+    "countryEn": "Moldova",
+    "code": "MD",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇩",
+    "aliases": [
+      "chisinau"
+    ]
+  },
+  {
+    "city": "Moskova",
+    "country": "Rusya",
+    "countryEn": "Russia",
+    "code": "RU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇺",
+    "aliases": [
+      "moscow",
+      "moskva",
+      "rusya"
+    ]
+  },
+  {
+    "city": "St. Petersburg",
+    "country": "Rusya",
+    "countryEn": "Russia",
+    "code": "RU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇺",
+    "aliases": [
+      "saint petersburg",
+      "leningrad"
+    ]
+  },
+  {
+    "city": "Kazan",
+    "country": "Rusya",
+    "countryEn": "Russia",
+    "code": "RU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇺",
+    "aliases": []
+  },
+  {
+    "city": "Soçi",
+    "country": "Rusya",
+    "countryEn": "Russia",
+    "code": "RU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇺",
+    "aliases": [
+      "sochi"
+    ]
+  },
+  {
+    "city": "Novosibirsk",
+    "country": "Rusya",
+    "countryEn": "Russia",
+    "code": "RU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇷🇺",
+    "aliases": []
+  },
+  {
+    "city": "Bakü",
+    "country": "Azerbaycan",
+    "countryEn": "Azerbaijan",
+    "code": "AZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇿",
+    "aliases": [
+      "baku",
+      "azerbaycan"
+    ]
+  },
+  {
+    "city": "Gence",
+    "country": "Azerbaycan",
+    "countryEn": "Azerbaijan",
+    "code": "AZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇿",
+    "aliases": [
+      "ganja"
+    ]
+  },
+  {
+    "city": "Sumgayıt",
+    "country": "Azerbaycan",
+    "countryEn": "Azerbaijan",
+    "code": "AZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇿",
+    "aliases": [
+      "sumqayit"
+    ]
+  },
+  {
+    "city": "Tiflis",
+    "country": "Gürcistan",
+    "countryEn": "Georgia",
+    "code": "GE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇪",
+    "aliases": [
+      "tbilisi",
+      "gurcistan"
+    ]
+  },
+  {
+    "city": "Batum",
+    "country": "Gürcistan",
+    "countryEn": "Georgia",
+    "code": "GE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇪",
+    "aliases": [
+      "batumi"
+    ]
+  },
+  {
+    "city": "Erivan",
+    "country": "Ermenistan",
+    "countryEn": "Armenia",
+    "code": "AM",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇲",
+    "aliases": [
+      "yerevan",
+      "ermenistan"
+    ]
+  },
+  {
+    "city": "Astana",
+    "country": "Kazakistan",
+    "countryEn": "Kazakhstan",
+    "code": "KZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇿",
+    "aliases": [
+      "nur-sultan",
+      "kazakistan"
+    ]
+  },
+  {
+    "city": "Almatı",
+    "country": "Kazakistan",
+    "countryEn": "Kazakhstan",
+    "code": "KZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇿",
+    "aliases": [
+      "almaty"
+    ]
+  },
+  {
+    "city": "Şımkent",
+    "country": "Kazakistan",
+    "countryEn": "Kazakhstan",
+    "code": "KZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇿",
+    "aliases": [
+      "shymkent"
+    ]
+  },
+  {
+    "city": "Taşkent",
+    "country": "Özbekistan",
+    "countryEn": "Uzbekistan",
+    "code": "UZ",
+    "state": "",
+    "kind": "city",
+    "flag": "UZ",
+    "aliases": [
+      "tashkent",
+      "ozbekistan"
+    ]
+  },
+  {
+    "city": "Semerkant",
+    "country": "Özbekistan",
+    "countryEn": "Uzbekistan",
+    "code": "UZ",
+    "state": "",
+    "kind": "city",
+    "flag": "UZ",
+    "aliases": [
+      "samarkand"
+    ]
+  },
+  {
+    "city": "Buhara",
+    "country": "Özbekistan",
+    "countryEn": "Uzbekistan",
+    "code": "UZ",
+    "state": "",
+    "kind": "city",
+    "flag": "UZ",
+    "aliases": [
+      "bukhara"
+    ]
+  },
+  {
+    "city": "Aşkabat",
+    "country": "Türkmenistan",
+    "countryEn": "Turkmenistan",
+    "code": "TM",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇲",
+    "aliases": [
+      "ashgabat",
+      "turkmenistan"
+    ]
+  },
+  {
+    "city": "Bişkek",
+    "country": "Kırgızistan",
+    "countryEn": "Kyrgyzstan",
+    "code": "KG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇬",
+    "aliases": [
+      "bishkek",
+      "kirgizistan"
+    ]
+  },
+  {
+    "city": "Duşanbe",
+    "country": "Tacikistan",
+    "countryEn": "Tajikistan",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "dushanbe",
+      "tacikistan"
+    ]
+  },
+  {
+    "city": "Tokyo",
+    "country": "Japonya",
+    "countryEn": "Japan",
+    "code": "JP",
+    "state": "",
+    "kind": "city",
+    "flag": "🇯🇵",
+    "aliases": [
+      "japonya"
+    ]
+  },
+  {
+    "city": "Osaka",
+    "country": "Japonya",
+    "countryEn": "Japan",
+    "code": "JP",
+    "state": "",
+    "kind": "city",
+    "flag": "🇯🇵",
+    "aliases": []
+  },
+  {
+    "city": "Kyoto",
+    "country": "Japonya",
+    "countryEn": "Japan",
+    "code": "JP",
+    "state": "",
+    "kind": "city",
+    "flag": "🇯🇵",
+    "aliases": []
+  },
+  {
+    "city": "Yokohama",
+    "country": "Japonya",
+    "countryEn": "Japan",
+    "code": "JP",
+    "state": "",
+    "kind": "city",
+    "flag": "🇯🇵",
+    "aliases": []
+  },
+  {
+    "city": "Pekin",
+    "country": "Çin",
+    "countryEn": "China",
+    "code": "CN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇳",
+    "aliases": [
+      "beijing",
+      "cin"
+    ]
+  },
+  {
+    "city": "Şanghay",
+    "country": "Çin",
+    "countryEn": "China",
+    "code": "CN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇳",
+    "aliases": [
+      "shanghai"
+    ]
+  },
+  {
+    "city": "Guangzhou",
+    "country": "Çin",
+    "countryEn": "China",
+    "code": "CN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇳",
+    "aliases": [
+      "kanton"
+    ]
+  },
+  {
+    "city": "Shenzhen",
+    "country": "Çin",
+    "countryEn": "China",
+    "code": "CN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇨🇳",
+    "aliases": []
+  },
+  {
+    "city": "Hong Kong",
+    "country": "Hong Kong",
+    "countryEn": "Hong Kong",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "hk"
+    ]
+  },
+  {
+    "city": "Taipei",
+    "country": "Tayvan",
+    "countryEn": "Taiwan",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "tayvan"
+    ]
+  },
+  {
+    "city": "Seul",
+    "country": "Güney Kore",
+    "countryEn": "South Korea",
+    "code": "KR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇷",
+    "aliases": [
+      "seoul",
+      "guney kore",
+      "korea"
+    ]
+  },
+  {
+    "city": "Busan",
+    "country": "Güney Kore",
+    "countryEn": "South Korea",
+    "code": "KR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇷",
+    "aliases": []
+  },
+  {
+    "city": "Singapur",
+    "country": "Singapur",
+    "countryEn": "Singapore",
+    "code": "SG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇬",
+    "aliases": [
+      "singapore"
+    ]
+  },
+  {
+    "city": "Bangkok",
+    "country": "Tayland",
+    "countryEn": "Thailand",
+    "code": "TH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇭",
+    "aliases": [
+      "tayland"
+    ]
+  },
+  {
+    "city": "Phuket",
+    "country": "Tayland",
+    "countryEn": "Thailand",
+    "code": "TH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇭",
+    "aliases": []
+  },
+  {
+    "city": "Kuala Lumpur",
+    "country": "Malezya",
+    "countryEn": "Malaysia",
+    "code": "MY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇾",
+    "aliases": [
+      "kl",
+      "malezya"
+    ]
+  },
+  {
+    "city": "Cakarta",
+    "country": "Endonezya",
+    "countryEn": "Indonesia",
+    "code": "ID",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇩",
+    "aliases": [
+      "jakarta",
+      "endonezya"
+    ]
+  },
+  {
+    "city": "Bali",
+    "country": "Endonezya",
+    "countryEn": "Indonesia",
+    "code": "ID",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇩",
+    "aliases": [
+      "denpasar"
+    ]
+  },
+  {
+    "city": "Manila",
+    "country": "Filipinler",
+    "countryEn": "Philippines",
+    "code": "PH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇭",
+    "aliases": [
+      "filipinler"
+    ]
+  },
+  {
+    "city": "Hanoi",
+    "country": "Vietnam",
+    "countryEn": "Vietnam",
+    "code": "VN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇻🇳",
+    "aliases": []
+  },
+  {
+    "city": "Ho Chi Minh",
+    "country": "Vietnam",
+    "countryEn": "Vietnam",
+    "code": "VN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇻🇳",
+    "aliases": [
+      "saigon"
+    ]
+  },
+  {
+    "city": "Yeni Delhi",
+    "country": "Hindistan",
+    "countryEn": "India",
+    "code": "IN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇳",
+    "aliases": [
+      "new delhi",
+      "delhi",
+      "hindistan"
+    ]
+  },
+  {
+    "city": "Mumbai",
+    "country": "Hindistan",
+    "countryEn": "India",
+    "code": "IN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇳",
+    "aliases": [
+      "bombay"
+    ]
+  },
+  {
+    "city": "Bangalore",
+    "country": "Hindistan",
+    "countryEn": "India",
+    "code": "IN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇳",
+    "aliases": [
+      "bengaluru"
+    ]
+  },
+  {
+    "city": "Kalküta",
+    "country": "Hindistan",
+    "countryEn": "India",
+    "code": "IN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇳",
+    "aliases": [
+      "kolkata"
+    ]
+  },
+  {
+    "city": "Haydarabad",
+    "country": "Hindistan",
+    "countryEn": "India",
+    "code": "IN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇳",
+    "aliases": [
+      "hyderabad"
+    ]
+  },
+  {
+    "city": "İslamabad",
+    "country": "Pakistan",
+    "countryEn": "Pakistan",
+    "code": "PK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇰",
+    "aliases": [
+      "islamabad"
+    ]
+  },
+  {
+    "city": "Karaçi",
+    "country": "Pakistan",
+    "countryEn": "Pakistan",
+    "code": "PK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇰",
+    "aliases": [
+      "karachi"
+    ]
+  },
+  {
+    "city": "Lahor",
+    "country": "Pakistan",
+    "countryEn": "Pakistan",
+    "code": "PK",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇰",
+    "aliases": [
+      "lahore"
+    ]
+  },
+  {
+    "city": "Kabil",
+    "country": "Afganistan",
+    "countryEn": "Afghanistan",
+    "code": "AF",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇫",
+    "aliases": [
+      "kabul",
+      "afganistan"
+    ]
+  },
+  {
+    "city": "Tahran",
+    "country": "İran",
+    "countryEn": "Iran",
+    "code": "IR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇷",
+    "aliases": [
+      "tehran",
+      "iran"
+    ]
+  },
+  {
+    "city": "İsfahan",
+    "country": "İran",
+    "countryEn": "Iran",
+    "code": "IR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇷",
+    "aliases": [
+      "esfahan",
+      "isfahan"
+    ]
+  },
+  {
+    "city": "Şiraz",
+    "country": "İran",
+    "countryEn": "Iran",
+    "code": "IR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇷",
+    "aliases": [
+      "shiraz"
+    ]
+  },
+  {
+    "city": "Tebriz",
+    "country": "İran",
+    "countryEn": "Iran",
+    "code": "IR",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇷",
+    "aliases": [
+      "tabriz"
+    ]
+  },
+  {
+    "city": "Bağdat",
+    "country": "Irak",
+    "countryEn": "Iraq",
+    "code": "IQ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇶",
+    "aliases": [
+      "baghdad",
+      "irak"
+    ]
+  },
+  {
+    "city": "Erbil",
+    "country": "Irak",
+    "countryEn": "Iraq",
+    "code": "IQ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇶",
+    "aliases": []
+  },
+  {
+    "city": "Basra",
+    "country": "Irak",
+    "countryEn": "Iraq",
+    "code": "IQ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇶",
+    "aliases": []
+  },
+  {
+    "city": "Şam",
+    "country": "Suriye",
+    "countryEn": "Syria",
+    "code": "SY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇾",
+    "aliases": [
+      "damascus",
+      "suriye"
+    ]
+  },
+  {
+    "city": "Halep",
+    "country": "Suriye",
+    "countryEn": "Syria",
+    "code": "SY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇾",
+    "aliases": [
+      "aleppo"
+    ]
+  },
+  {
+    "city": "Beyrut",
+    "country": "Lübnan",
+    "countryEn": "Lebanon",
+    "code": "LB",
+    "state": "",
+    "kind": "city",
+    "flag": "🇱🇧",
+    "aliases": [
+      "beirut",
+      "lubnan"
+    ]
+  },
+  {
+    "city": "Amman",
+    "country": "Ürdün",
+    "countryEn": "Jordan",
+    "code": "JO",
+    "state": "",
+    "kind": "city",
+    "flag": "🇯🇴",
+    "aliases": [
+      "urdun"
+    ]
+  },
+  {
+    "city": "Kudüs",
+    "country": "Filistin",
+    "countryEn": "Palestine",
+    "code": "PS",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇸",
+    "aliases": [
+      "jerusalem",
+      "filistin",
+      "al-quds"
+    ]
+  },
+  {
+    "city": "Gazze",
+    "country": "Filistin",
+    "countryEn": "Palestine",
+    "code": "PS",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇸",
+    "aliases": [
+      "gaza"
+    ]
+  },
+  {
+    "city": "Ramallah",
+    "country": "Filistin",
+    "countryEn": "Palestine",
+    "code": "PS",
+    "state": "",
+    "kind": "city",
+    "flag": "🇵🇸",
+    "aliases": []
+  },
+  {
+    "city": "Tel Aviv",
+    "country": "İsrail",
+    "countryEn": "Israel",
+    "code": "IL",
+    "state": "",
+    "kind": "city",
+    "flag": "🇮🇱",
+    "aliases": [
+      "israil"
+    ]
+  },
+  {
+    "city": "Dubai",
+    "country": "Birleşik Arap Emirlikleri",
+    "countryEn": "United Arab Emirates",
+    "code": "AE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇪",
+    "aliases": [
+      "bae",
+      "uae"
+    ]
+  },
+  {
+    "city": "Abu Dabi",
+    "country": "Birleşik Arap Emirlikleri",
+    "countryEn": "United Arab Emirates",
+    "code": "AE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇪",
+    "aliases": [
+      "abu dhabi"
+    ]
+  },
+  {
+    "city": "Şarika",
+    "country": "Birleşik Arap Emirlikleri",
+    "countryEn": "United Arab Emirates",
+    "code": "AE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇪",
+    "aliases": [
+      "sharjah"
+    ]
+  },
+  {
+    "city": "Doha",
+    "country": "Katar",
+    "countryEn": "Qatar",
+    "code": "QA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇶🇦",
+    "aliases": [
+      "qatar",
+      "katar"
+    ]
+  },
+  {
+    "city": "Riyad",
+    "country": "Suudi Arabistan",
+    "countryEn": "Saudi Arabia",
+    "code": "SA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇦",
+    "aliases": [
+      "riyadh",
+      "suudi arabistan"
+    ]
+  },
+  {
+    "city": "Cidde",
+    "country": "Suudi Arabistan",
+    "countryEn": "Saudi Arabia",
+    "code": "SA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇦",
+    "aliases": [
+      "jeddah"
+    ]
+  },
+  {
+    "city": "Mekke",
+    "country": "Suudi Arabistan",
+    "countryEn": "Saudi Arabia",
+    "code": "SA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇦",
+    "aliases": [
+      "mecca",
+      "makkah"
+    ]
+  },
+  {
+    "city": "Medine",
+    "country": "Suudi Arabistan",
+    "countryEn": "Saudi Arabia",
+    "code": "SA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇸🇦",
+    "aliases": [
+      "medina",
+      "madinah"
+    ]
+  },
+  {
+    "city": "Kuveyt",
+    "country": "Kuveyt",
+    "countryEn": "Kuwait",
+    "code": "KW",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇼",
+    "aliases": [
+      "kuwait city",
+      "kuveyt sehri"
+    ]
+  },
+  {
+    "city": "Manama",
+    "country": "Bahreyn",
+    "countryEn": "Bahrain",
+    "code": "BH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇧🇭",
+    "aliases": [
+      "bahreyn"
+    ]
+  },
+  {
+    "city": "Maskat",
+    "country": "Umman",
+    "countryEn": "Oman",
+    "code": "OM",
+    "state": "",
+    "kind": "city",
+    "flag": "🇴🇲",
+    "aliases": [
+      "muscat",
+      "umman"
+    ]
+  },
+  {
+    "city": "Sana",
+    "country": "Yemen",
+    "countryEn": "Yemen",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "sanaa",
+      "yemen"
+    ]
+  },
+  {
+    "city": "Kahire",
+    "country": "Mısır",
+    "countryEn": "Egypt",
+    "code": "EG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇬",
+    "aliases": [
+      "cairo",
+      "misir"
+    ]
+  },
+  {
+    "city": "İskenderiye",
+    "country": "Mısır",
+    "countryEn": "Egypt",
+    "code": "EG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇬",
+    "aliases": [
+      "alexandria"
+    ]
+  },
+  {
+    "city": "Şarm El-Şeyh",
+    "country": "Mısır",
+    "countryEn": "Egypt",
+    "code": "EG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇪🇬",
+    "aliases": [
+      "sharm el sheikh"
+    ]
+  },
+  {
+    "city": "Kazablanka",
+    "country": "Fas",
+    "countryEn": "Morocco",
+    "code": "MA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇦",
+    "aliases": [
+      "casablanca",
+      "fas"
+    ]
+  },
+  {
+    "city": "Marakeş",
+    "country": "Fas",
+    "countryEn": "Morocco",
+    "code": "MA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇦",
+    "aliases": [
+      "marrakech"
+    ]
+  },
+  {
+    "city": "Rabat",
+    "country": "Fas",
+    "countryEn": "Morocco",
+    "code": "MA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇲🇦",
+    "aliases": []
+  },
+  {
+    "city": "Tunus",
+    "country": "Tunus",
+    "countryEn": "Tunisia",
+    "code": "TN",
+    "state": "",
+    "kind": "city",
+    "flag": "🇹🇳",
+    "aliases": [
+      "tunis"
+    ]
+  },
+  {
+    "city": "Cezayir",
+    "country": "Cezayir",
+    "countryEn": "Algeria",
+    "code": "DZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇩🇿",
+    "aliases": [
+      "algiers"
+    ]
+  },
+  {
+    "city": "Trablus",
+    "country": "Libya",
+    "countryEn": "Libya",
+    "code": "LY",
+    "state": "",
+    "kind": "city",
+    "flag": "🇱🇾",
+    "aliases": [
+      "tripoli"
+    ]
+  },
+  {
+    "city": "Hartum",
+    "country": "Sudan",
+    "countryEn": "Sudan",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "khartoum"
+    ]
+  },
+  {
+    "city": "Nairobi",
+    "country": "Kenya",
+    "countryEn": "Kenya",
+    "code": "KE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇪",
+    "aliases": []
+  },
+  {
+    "city": "Mombasa",
+    "country": "Kenya",
+    "countryEn": "Kenya",
+    "code": "KE",
+    "state": "",
+    "kind": "city",
+    "flag": "🇰🇪",
+    "aliases": []
+  },
+  {
+    "city": "Addis Ababa",
+    "country": "Etiyopya",
+    "countryEn": "Ethiopia",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "etiyopya"
+    ]
+  },
+  {
+    "city": "Johannesburg",
+    "country": "Güney Afrika",
+    "countryEn": "South Africa",
+    "code": "ZA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇿🇦",
+    "aliases": [
+      "guney afrika",
+      "joburg"
+    ]
+  },
+  {
+    "city": "Cape Town",
+    "country": "Güney Afrika",
+    "countryEn": "South Africa",
+    "code": "ZA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇿🇦",
+    "aliases": [
+      "kaapstad"
+    ]
+  },
+  {
+    "city": "Pretoria",
+    "country": "Güney Afrika",
+    "countryEn": "South Africa",
+    "code": "ZA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇿🇦",
+    "aliases": []
+  },
+  {
+    "city": "Durban",
+    "country": "Güney Afrika",
+    "countryEn": "South Africa",
+    "code": "ZA",
+    "state": "",
+    "kind": "city",
+    "flag": "🇿🇦",
+    "aliases": []
+  },
+  {
+    "city": "Lagos",
+    "country": "Nijerya",
+    "countryEn": "Nigeria",
+    "code": "NG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇬",
+    "aliases": [
+      "nijerya"
+    ]
+  },
+  {
+    "city": "Abuja",
+    "country": "Nijerya",
+    "countryEn": "Nigeria",
+    "code": "NG",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇬",
+    "aliases": []
+  },
+  {
+    "city": "Akra",
+    "country": "Gana",
+    "countryEn": "Ghana",
+    "code": "GH",
+    "state": "",
+    "kind": "city",
+    "flag": "🇬🇭",
+    "aliases": [
+      "accra",
+      "gana"
+    ]
+  },
+  {
+    "city": "Dakar",
+    "country": "Senegal",
+    "countryEn": "Senegal",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": []
+  },
+  {
+    "city": "Zanzibar",
+    "country": "Tanzanya",
+    "countryEn": "Tanzania",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "tanzanya"
+    ]
+  },
+  {
+    "city": "Darüsselam",
+    "country": "Tanzanya",
+    "countryEn": "Tanzania",
+    "code": "",
+    "state": "",
+    "kind": "city",
+    "flag": "🌍",
+    "aliases": [
+      "dar es salaam"
+    ]
+  },
+  {
+    "city": "Sidney",
+    "country": "Avustralya",
+    "countryEn": "Australia",
+    "code": "AU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇺",
+    "aliases": [
+      "sydney",
+      "avustralya"
+    ]
+  },
+  {
+    "city": "Melbourne",
+    "country": "Avustralya",
+    "countryEn": "Australia",
+    "code": "AU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇺",
+    "aliases": []
+  },
+  {
+    "city": "Brisbane",
+    "country": "Avustralya",
+    "countryEn": "Australia",
+    "code": "AU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇺",
+    "aliases": []
+  },
+  {
+    "city": "Perth",
+    "country": "Avustralya",
+    "countryEn": "Australia",
+    "code": "AU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇺",
+    "aliases": []
+  },
+  {
+    "city": "Adelaide",
+    "country": "Avustralya",
+    "countryEn": "Australia",
+    "code": "AU",
+    "state": "",
+    "kind": "city",
+    "flag": "🇦🇺",
+    "aliases": []
+  },
+  {
+    "city": "Auckland",
+    "country": "Yeni Zelanda",
+    "countryEn": "New Zealand",
+    "code": "NZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇿",
+    "aliases": [
+      "yeni zelanda"
+    ]
+  },
+  {
+    "city": "Wellington",
+    "country": "Yeni Zelanda",
+    "countryEn": "New Zealand",
+    "code": "NZ",
+    "state": "",
+    "kind": "city",
+    "flag": "🇳🇿",
+    "aliases": []
+  },
+  {
+    "city": "",
+    "country": "Türkiye",
+    "countryEn": "Turkey",
+    "code": "TR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇹🇷",
+    "aliases": [
+      "türkiye",
+      "turkey",
+      "tr"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Almanya",
+    "countryEn": "Germany",
+    "code": "DE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇩🇪",
+    "aliases": [
+      "almanya",
+      "germany",
+      "de"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Amerika Birleşik Devletleri",
+    "countryEn": "United States",
+    "code": "US",
+    "state": "",
+    "kind": "country",
+    "flag": "🇺🇸",
+    "aliases": [
+      "amerika birleşik devletleri",
+      "united states",
+      "us"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Birleşik Krallık",
+    "countryEn": "United Kingdom",
+    "code": "GB",
+    "state": "",
+    "kind": "country",
+    "flag": "🇬🇧",
+    "aliases": [
+      "birleşik krallık",
+      "united kingdom",
+      "gb"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Fransa",
+    "countryEn": "France",
+    "code": "FR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇫🇷",
+    "aliases": [
+      "fransa",
+      "france",
+      "fr"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İtalya",
+    "countryEn": "Italy",
+    "code": "IT",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇹",
+    "aliases": [
+      "i̇talya",
+      "italy",
+      "it"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İspanya",
+    "countryEn": "Spain",
+    "code": "ES",
+    "state": "",
+    "kind": "country",
+    "flag": "🇪🇸",
+    "aliases": [
+      "i̇spanya",
+      "spain",
+      "es"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Hollanda",
+    "countryEn": "Netherlands",
+    "code": "NL",
+    "state": "",
+    "kind": "country",
+    "flag": "🇳🇱",
+    "aliases": [
+      "hollanda",
+      "netherlands",
+      "nl"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Belçika",
+    "countryEn": "Belgium",
+    "code": "BE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇪",
+    "aliases": [
+      "belçika",
+      "belgium",
+      "be"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Avusturya",
+    "countryEn": "Austria",
+    "code": "AT",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇹",
+    "aliases": [
+      "avusturya",
+      "austria",
+      "at"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İsviçre",
+    "countryEn": "Switzerland",
+    "code": "CH",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇭",
+    "aliases": [
+      "i̇sviçre",
+      "switzerland",
+      "ch"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İsveç",
+    "countryEn": "Sweden",
+    "code": "SE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇸🇪",
+    "aliases": [
+      "i̇sveç",
+      "sweden",
+      "se"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Norveç",
+    "countryEn": "Norway",
+    "code": "NO",
+    "state": "",
+    "kind": "country",
+    "flag": "🇳🇴",
+    "aliases": [
+      "norveç",
+      "norway",
+      "no"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Danimarka",
+    "countryEn": "Denmark",
+    "code": "DK",
+    "state": "",
+    "kind": "country",
+    "flag": "🇩🇰",
+    "aliases": [
+      "danimarka",
+      "denmark",
+      "dk"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Finlandiya",
+    "countryEn": "Finland",
+    "code": "FI",
+    "state": "",
+    "kind": "country",
+    "flag": "🇫🇮",
+    "aliases": [
+      "finlandiya",
+      "finland",
+      "fi"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Polonya",
+    "countryEn": "Poland",
+    "code": "PL",
+    "state": "",
+    "kind": "country",
+    "flag": "🇵🇱",
+    "aliases": [
+      "polonya",
+      "poland",
+      "pl"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Portekiz",
+    "countryEn": "Portugal",
+    "code": "PT",
+    "state": "",
+    "kind": "country",
+    "flag": "🇵🇹",
+    "aliases": [
+      "portekiz",
+      "portugal",
+      "pt"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Yunanistan",
+    "countryEn": "Greece",
+    "code": "GR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇬🇷",
+    "aliases": [
+      "yunanistan",
+      "greece",
+      "gr"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Rusya",
+    "countryEn": "Russia",
+    "code": "RU",
+    "state": "",
+    "kind": "country",
+    "flag": "🇷🇺",
+    "aliases": [
+      "rusya",
+      "russia",
+      "ru"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Ukrayna",
+    "countryEn": "Ukraine",
+    "code": "UA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇺🇦",
+    "aliases": [
+      "ukrayna",
+      "ukraine",
+      "ua"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Azerbaycan",
+    "countryEn": "Azerbaijan",
+    "code": "AZ",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇿",
+    "aliases": [
+      "azerbaycan",
+      "azerbaijan",
+      "az"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Gürcistan",
+    "countryEn": "Georgia",
+    "code": "GE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇬🇪",
+    "aliases": [
+      "gürcistan",
+      "georgia",
+      "ge"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kazakistan",
+    "countryEn": "Kazakhstan",
+    "code": "KZ",
+    "state": "",
+    "kind": "country",
+    "flag": "🇰🇿",
+    "aliases": [
+      "kazakistan",
+      "kazakhstan",
+      "kz"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Özbekistan",
+    "countryEn": "Uzbekistan",
+    "code": "UZ",
+    "state": "",
+    "kind": "country",
+    "flag": "UZ",
+    "aliases": [
+      "özbekistan",
+      "uzbekistan",
+      "uz"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Türkmenistan",
+    "countryEn": "Turkmenistan",
+    "code": "TM",
+    "state": "",
+    "kind": "country",
+    "flag": "🇹🇲",
+    "aliases": [
+      "türkmenistan",
+      "turkmenistan",
+      "tm"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kırgızistan",
+    "countryEn": "Kyrgyzstan",
+    "code": "KG",
+    "state": "",
+    "kind": "country",
+    "flag": "🇰🇬",
+    "aliases": [
+      "kırgızistan",
+      "kyrgyzstan",
+      "kg"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kuzey Kıbrıs",
+    "countryEn": "Northern Cyprus",
+    "code": "CY",
+    "state": "",
+    "kind": "country",
+    "flag": "🇹🇷",
+    "aliases": [
+      "kuzey kıbrıs",
+      "northern cyprus",
+      "cy"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kıbrıs",
+    "countryEn": "Cyprus",
+    "code": "CY",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇾",
+    "aliases": [
+      "kıbrıs",
+      "cyprus",
+      "cy"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Japonya",
+    "countryEn": "Japan",
+    "code": "JP",
+    "state": "",
+    "kind": "country",
+    "flag": "🇯🇵",
+    "aliases": [
+      "japonya",
+      "japan",
+      "jp"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Çin",
+    "countryEn": "China",
+    "code": "CN",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇳",
+    "aliases": [
+      "çin",
+      "china",
+      "cn"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Güney Kore",
+    "countryEn": "South Korea",
+    "code": "KR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇰🇷",
+    "aliases": [
+      "güney kore",
+      "south korea",
+      "kr"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kanada",
+    "countryEn": "Canada",
+    "code": "CA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇦",
+    "aliases": [
+      "kanada",
+      "canada",
+      "ca"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Avustralya",
+    "countryEn": "Australia",
+    "code": "AU",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇺",
+    "aliases": [
+      "avustralya",
+      "australia",
+      "au"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Yeni Zelanda",
+    "countryEn": "New Zealand",
+    "code": "NZ",
+    "state": "",
+    "kind": "country",
+    "flag": "🇳🇿",
+    "aliases": [
+      "yeni zelanda",
+      "new zealand",
+      "nz"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Brezilya",
+    "countryEn": "Brazil",
+    "code": "BR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇷",
+    "aliases": [
+      "brezilya",
+      "brazil",
+      "br"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Arjantin",
+    "countryEn": "Argentina",
+    "code": "AR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇷",
+    "aliases": [
+      "arjantin",
+      "argentina",
+      "ar"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Meksika",
+    "countryEn": "Mexico",
+    "code": "MX",
+    "state": "",
+    "kind": "country",
+    "flag": "🇲🇽",
+    "aliases": [
+      "meksika",
+      "mexico",
+      "mx"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Hindistan",
+    "countryEn": "India",
+    "code": "IN",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇳",
+    "aliases": [
+      "hindistan",
+      "india",
+      "in"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Endonezya",
+    "countryEn": "Indonesia",
+    "code": "ID",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇩",
+    "aliases": [
+      "endonezya",
+      "indonesia",
+      "id"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Malezya",
+    "countryEn": "Malaysia",
+    "code": "MY",
+    "state": "",
+    "kind": "country",
+    "flag": "🇲🇾",
+    "aliases": [
+      "malezya",
+      "malaysia",
+      "my"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Singapur",
+    "countryEn": "Singapore",
+    "code": "SG",
+    "state": "",
+    "kind": "country",
+    "flag": "🇸🇬",
+    "aliases": [
+      "singapur",
+      "singapore",
+      "sg"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Tayland",
+    "countryEn": "Thailand",
+    "code": "TH",
+    "state": "",
+    "kind": "country",
+    "flag": "🇹🇭",
+    "aliases": [
+      "tayland",
+      "thailand",
+      "th"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Vietnam",
+    "countryEn": "Vietnam",
+    "code": "VN",
+    "state": "",
+    "kind": "country",
+    "flag": "🇻🇳",
+    "aliases": [
+      "vietnam",
+      "vietnam",
+      "vn"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Filipinler",
+    "countryEn": "Philippines",
+    "code": "PH",
+    "state": "",
+    "kind": "country",
+    "flag": "🇵🇭",
+    "aliases": [
+      "filipinler",
+      "philippines",
+      "ph"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Birleşik Arap Emirlikleri",
+    "countryEn": "United Arab Emirates",
+    "code": "AE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇪",
+    "aliases": [
+      "birleşik arap emirlikleri",
+      "united arab emirates",
+      "ae"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Katar",
+    "countryEn": "Qatar",
+    "code": "QA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇶🇦",
+    "aliases": [
+      "katar",
+      "qatar",
+      "qa"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Suudi Arabistan",
+    "countryEn": "Saudi Arabia",
+    "code": "SA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇸🇦",
+    "aliases": [
+      "suudi arabistan",
+      "saudi arabia",
+      "sa"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kuveyt",
+    "countryEn": "Kuwait",
+    "code": "KW",
+    "state": "",
+    "kind": "country",
+    "flag": "🇰🇼",
+    "aliases": [
+      "kuveyt",
+      "kuwait",
+      "kw"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Bahreyn",
+    "countryEn": "Bahrain",
+    "code": "BH",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇭",
+    "aliases": [
+      "bahreyn",
+      "bahrain",
+      "bh"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Umman",
+    "countryEn": "Oman",
+    "code": "OM",
+    "state": "",
+    "kind": "country",
+    "flag": "🇴🇲",
+    "aliases": [
+      "umman",
+      "oman",
+      "om"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İran",
+    "countryEn": "Iran",
+    "code": "IR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇷",
+    "aliases": [
+      "i̇ran",
+      "iran",
+      "ir"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Irak",
+    "countryEn": "Iraq",
+    "code": "IQ",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇶",
+    "aliases": [
+      "irak",
+      "iraq",
+      "iq"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Suriye",
+    "countryEn": "Syria",
+    "code": "SY",
+    "state": "",
+    "kind": "country",
+    "flag": "🇸🇾",
+    "aliases": [
+      "suriye",
+      "syria",
+      "sy"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Lübnan",
+    "countryEn": "Lebanon",
+    "code": "LB",
+    "state": "",
+    "kind": "country",
+    "flag": "🇱🇧",
+    "aliases": [
+      "lübnan",
+      "lebanon",
+      "lb"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Ürdün",
+    "countryEn": "Jordan",
+    "code": "JO",
+    "state": "",
+    "kind": "country",
+    "flag": "🇯🇴",
+    "aliases": [
+      "ürdün",
+      "jordan",
+      "jo"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Filistin",
+    "countryEn": "Palestine",
+    "code": "PS",
+    "state": "",
+    "kind": "country",
+    "flag": "🇵🇸",
+    "aliases": [
+      "filistin",
+      "palestine",
+      "ps"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İsrail",
+    "countryEn": "Israel",
+    "code": "IL",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇱",
+    "aliases": [
+      "i̇srail",
+      "israel",
+      "il"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Mısır",
+    "countryEn": "Egypt",
+    "code": "EG",
+    "state": "",
+    "kind": "country",
+    "flag": "🇪🇬",
+    "aliases": [
+      "mısır",
+      "egypt",
+      "eg"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Fas",
+    "countryEn": "Morocco",
+    "code": "MA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇲🇦",
+    "aliases": [
+      "fas",
+      "morocco",
+      "ma"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Tunus",
+    "countryEn": "Tunisia",
+    "code": "TN",
+    "state": "",
+    "kind": "country",
+    "flag": "🇹🇳",
+    "aliases": [
+      "tunus",
+      "tunisia",
+      "tn"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Cezayir",
+    "countryEn": "Algeria",
+    "code": "DZ",
+    "state": "",
+    "kind": "country",
+    "flag": "🇩🇿",
+    "aliases": [
+      "cezayir",
+      "algeria",
+      "dz"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Libya",
+    "countryEn": "Libya",
+    "code": "LY",
+    "state": "",
+    "kind": "country",
+    "flag": "🇱🇾",
+    "aliases": [
+      "libya",
+      "libya",
+      "ly"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Güney Afrika",
+    "countryEn": "South Africa",
+    "code": "ZA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇿🇦",
+    "aliases": [
+      "güney afrika",
+      "south africa",
+      "za"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Nijerya",
+    "countryEn": "Nigeria",
+    "code": "NG",
+    "state": "",
+    "kind": "country",
+    "flag": "🇳🇬",
+    "aliases": [
+      "nijerya",
+      "nigeria",
+      "ng"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kenya",
+    "countryEn": "Kenya",
+    "code": "KE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇰🇪",
+    "aliases": [
+      "kenya",
+      "kenya",
+      "ke"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Gana",
+    "countryEn": "Ghana",
+    "code": "GH",
+    "state": "",
+    "kind": "country",
+    "flag": "🇬🇭",
+    "aliases": [
+      "gana",
+      "ghana",
+      "gh"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kolombiya",
+    "countryEn": "Colombia",
+    "code": "CO",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇴",
+    "aliases": [
+      "kolombiya",
+      "colombia",
+      "co"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Şili",
+    "countryEn": "Chile",
+    "code": "CL",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇱",
+    "aliases": [
+      "şili",
+      "chile",
+      "cl"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Peru",
+    "countryEn": "Peru",
+    "code": "PE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇵🇪",
+    "aliases": [
+      "peru",
+      "peru",
+      "pe"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Venezuela",
+    "countryEn": "Venezuela",
+    "code": "VE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇻🇪",
+    "aliases": [
+      "venezuela",
+      "venezuela",
+      "ve"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Çekya",
+    "countryEn": "Czech Republic",
+    "code": "CZ",
+    "state": "",
+    "kind": "country",
+    "flag": "🇨🇿",
+    "aliases": [
+      "çekya",
+      "czech republic",
+      "cz"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Macaristan",
+    "countryEn": "Hungary",
+    "code": "HU",
+    "state": "",
+    "kind": "country",
+    "flag": "🇭🇺",
+    "aliases": [
+      "macaristan",
+      "hungary",
+      "hu"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Romanya",
+    "countryEn": "Romania",
+    "code": "RO",
+    "state": "",
+    "kind": "country",
+    "flag": "🇷🇴",
+    "aliases": [
+      "romanya",
+      "romania",
+      "ro"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Bulgaristan",
+    "countryEn": "Bulgaria",
+    "code": "BG",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇬",
+    "aliases": [
+      "bulgaristan",
+      "bulgaria",
+      "bg"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Sırbistan",
+    "countryEn": "Serbia",
+    "code": "RS",
+    "state": "",
+    "kind": "country",
+    "flag": "🇷🇸",
+    "aliases": [
+      "sırbistan",
+      "serbia",
+      "rs"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Hırvatistan",
+    "countryEn": "Croatia",
+    "code": "HR",
+    "state": "",
+    "kind": "country",
+    "flag": "🇭🇷",
+    "aliases": [
+      "hırvatistan",
+      "croatia",
+      "hr"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Bosna-Hersek",
+    "countryEn": "Bosnia and Herzegovina",
+    "code": "BA",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇦",
+    "aliases": [
+      "bosna-hersek",
+      "bosnia and herzegovina",
+      "ba"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kuzey Makedonya",
+    "countryEn": "North Macedonia",
+    "code": "MK",
+    "state": "",
+    "kind": "country",
+    "flag": "MK",
+    "aliases": [
+      "kuzey makedonya",
+      "north macedonia",
+      "mk"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Arnavutluk",
+    "countryEn": "Albania",
+    "code": "AL",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇱",
+    "aliases": [
+      "arnavutluk",
+      "albania",
+      "al"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Karadağ",
+    "countryEn": "Montenegro",
+    "code": "ME",
+    "state": "",
+    "kind": "country",
+    "flag": "🇲🇪",
+    "aliases": [
+      "karadağ",
+      "montenegro",
+      "me"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Kosova",
+    "countryEn": "Kosovo",
+    "code": "XK",
+    "state": "",
+    "kind": "country",
+    "flag": "🇽🇰",
+    "aliases": [
+      "kosova",
+      "kosovo",
+      "xk"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İrlanda",
+    "countryEn": "Ireland",
+    "code": "IE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇪",
+    "aliases": [
+      "i̇rlanda",
+      "ireland",
+      "ie"
+    ]
+  },
+  {
+    "city": "",
+    "country": "İzlanda",
+    "countryEn": "Iceland",
+    "code": "IS",
+    "state": "",
+    "kind": "country",
+    "flag": "🇮🇸",
+    "aliases": [
+      "i̇zlanda",
+      "iceland",
+      "is"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Lüksemburg",
+    "countryEn": "Luxembourg",
+    "code": "LU",
+    "state": "",
+    "kind": "country",
+    "flag": "🇱🇺",
+    "aliases": [
+      "lüksemburg",
+      "luxembourg",
+      "lu"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Malta",
+    "countryEn": "Malta",
+    "code": "MT",
+    "state": "",
+    "kind": "country",
+    "flag": "🇲🇹",
+    "aliases": [
+      "malta",
+      "malta",
+      "mt"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Estonya",
+    "countryEn": "Estonia",
+    "code": "EE",
+    "state": "",
+    "kind": "country",
+    "flag": "🇪🇪",
+    "aliases": [
+      "estonya",
+      "estonia",
+      "ee"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Letonya",
+    "countryEn": "Latvia",
+    "code": "LV",
+    "state": "",
+    "kind": "country",
+    "flag": "🇱🇻",
+    "aliases": [
+      "letonya",
+      "latvia",
+      "lv"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Litvanya",
+    "countryEn": "Lithuania",
+    "code": "LT",
+    "state": "",
+    "kind": "country",
+    "flag": "🇱🇹",
+    "aliases": [
+      "litvanya",
+      "lithuania",
+      "lt"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Slovakya",
+    "countryEn": "Slovakia",
+    "code": "SK",
+    "state": "",
+    "kind": "country",
+    "flag": "🇸🇰",
+    "aliases": [
+      "slovakya",
+      "slovakia",
+      "sk"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Slovenya",
+    "countryEn": "Slovenia",
+    "code": "SI",
+    "state": "",
+    "kind": "country",
+    "flag": "🇸🇮",
+    "aliases": [
+      "slovenya",
+      "slovenia",
+      "si"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Belarus",
+    "countryEn": "Belarus",
+    "code": "BY",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇾",
+    "aliases": [
+      "belarus",
+      "belarus",
+      "by"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Moldova",
+    "countryEn": "Moldova",
+    "code": "MD",
+    "state": "",
+    "kind": "country",
+    "flag": "🇲🇩",
+    "aliases": [
+      "moldova",
+      "moldova",
+      "md"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Ermenistan",
+    "countryEn": "Armenia",
+    "code": "AM",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇲",
+    "aliases": [
+      "ermenistan",
+      "armenia",
+      "am"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Pakistan",
+    "countryEn": "Pakistan",
+    "code": "PK",
+    "state": "",
+    "kind": "country",
+    "flag": "🇵🇰",
+    "aliases": [
+      "pakistan",
+      "pakistan",
+      "pk"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Afganistan",
+    "countryEn": "Afghanistan",
+    "code": "AF",
+    "state": "",
+    "kind": "country",
+    "flag": "🇦🇫",
+    "aliases": [
+      "afganistan",
+      "afghanistan",
+      "af"
+    ]
+  },
+  {
+    "city": "",
+    "country": "Bangladeş",
+    "countryEn": "Bangladesh",
+    "code": "BD",
+    "state": "",
+    "kind": "country",
+    "flag": "🇧🇩",
+    "aliases": [
+      "bangladeş",
+      "bangladesh",
+      "bd"
+    ]
+  }
+]

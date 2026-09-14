@@ -35,7 +35,9 @@ const AdminNotificationsSettingsPage = lazy(
 const AdminVerificationRequestsPage = lazy(
   () => import('./pages/AdminVerificationRequestsPage.jsx'),
 )
+const AdminCreatorsPage = lazy(() => import('./pages/AdminCreatorsPage.jsx'))
 const SimpleInfoPage = lazy(() => import('./pages/SimpleInfoPage.jsx'))
+const MonetizationPage = lazy(() => import('./pages/MonetizationPage.jsx'))
 const AnonymousLoungePage = lazy(() => import('./pages/AnonymousLoungePage.jsx'))
 const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
 const ContactPage = lazy(() => import('./pages/ContactPage.jsx'))
@@ -186,6 +188,7 @@ function App() {
               <Route path="comments" element={<AdminCommentsPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="verification-requests" element={<AdminVerificationRequestsPage />} />
+              <Route path="creators" element={<AdminCreatorsPage />} />
               <Route path="audit-logs" element={<AdminAuditLogsPage />} />
               <Route
                 path="settings/notifications"
@@ -224,13 +227,7 @@ function App() {
             />
             <Route
               path="monetization"
-              element={
-                <SimpleInfoPage
-                  pageKey="monetization"
-                  title="Monetization"
-                  description="Creator earnings, payouts, and eligibility tracking will live on this screen."
-                />
-              }
+              element={<MonetizationPage />}
             />
             <Route
               path="about"

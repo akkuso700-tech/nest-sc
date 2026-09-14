@@ -961,14 +961,21 @@ const refreshSession = asyncHandler(async (req, res) => {
     throw new AppError('Refresh token is missing.', 401)
   }
 
-  const payload = verifyRefreshToken(refreshToken)
+  let payload
+  try {
+    payload = verifyRefreshToken(refreshToken)
+  } catch {
+    throw new AppError('Refresh token is invalid or has expired.', 401)
+  }
+
+  const tokenHash = hashToken(refreshToken)
   const session = await RefreshToken.findOne({
     tokenId: payload.tokenId,
     user: payload.sub,
-    revokedAt: null,
+    expiresAt: { $gt: new Date() },
   })
 
-  if (!session || session.tokenHash !== hashToken(refreshToken)) {
+  if (!session || session.tokenHash !== tokenHash) {
     throw new AppError('Refresh session is invalid.', 401)
   }
 
@@ -982,11 +989,45 @@ const refreshSession = asyncHandler(async (req, res) => {
     throw new AppError('Your account is suspended.', 403)
   }
 
+  const gracePeriodMs = env.jwt?.refreshGracePeriodMs ?? 30000
+  const isRevoked = Boolean(session.revokedAt)
+
+  if (isRevoked) {
+    const isGracePeriodValid =
+      session.revokedReason === 'rotated' &&
+      session.revokedAt &&
+      Date.now() - session.revokedAt.getTime() <= gracePeriodMs
+
+    if (isGracePeriodValid) {
+      // Legitimate concurrent request during rotation window (e.g. parallel tab / socket reconnect).
+      // Issue a fresh token pair so the client stays fully authenticated without racing.
+      const tokens = createTokenPair(user)
+      await persistRefreshToken(user, tokens.refreshTokenId, tokens.refreshToken, req)
+      session.lastUsedAt = new Date()
+      await session.save()
+
+      return sendAuthResponse(res, user, tokens)
+    }
+
+    // Outside grace period or revoked by logout/password change -> token theft / replay detection
+    if (session.replacedByTokenId) {
+      await RefreshToken.updateMany(
+        { tokenId: session.replacedByTokenId, revokedAt: null },
+        { revokedAt: new Date(), revokedReason: 'security_reuse_detected', lastUsedAt: new Date() },
+      )
+    }
+
+    throw new AppError('Refresh session is invalid or has expired.', 401)
+  }
+
+  // Active unrevoked token -> standard rotation
+  const tokens = createTokenPair(user)
   session.revokedAt = new Date()
+  session.revokedReason = 'rotated'
+  session.replacedByTokenId = tokens.refreshTokenId
   session.lastUsedAt = new Date()
   await session.save()
 
-  const tokens = createTokenPair(user)
   await persistRefreshToken(user, tokens.refreshTokenId, tokens.refreshToken, req)
 
   sendAuthResponse(res, user, tokens)
@@ -1000,7 +1041,7 @@ const logout = asyncHandler(async (req, res) => {
       const payload = verifyRefreshToken(refreshToken)
       await RefreshToken.updateOne(
         { tokenId: payload.tokenId, revokedAt: null },
-        { revokedAt: new Date(), lastUsedAt: new Date() },
+        { revokedAt: new Date(), revokedReason: 'logout', lastUsedAt: new Date() },
       )
     } catch (error) {
       // Ignore token parsing errors on logout to keep the endpoint idempotent.

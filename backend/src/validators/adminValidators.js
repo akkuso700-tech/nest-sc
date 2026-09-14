@@ -311,6 +311,95 @@ const adminOverviewSchema = z.object({
   }),
 })
 
+const adminCreatorSummarySchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({}).default({}),
+})
+
+const adminListCreatorApplicationsSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({
+    q: z.string().trim().max(120).optional().default(''),
+    status: z.enum(['all', 'pending', 'approved', 'rejected']).optional().default('all'),
+    page: z.coerce.number().int().positive().optional().default(1),
+    limit: z.coerce.number().int().positive().max(100).optional().default(15),
+  }),
+})
+
+const adminCreatorApplicationIdSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({
+    applicationId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
+const updateCreatorApplicationStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['approved', 'rejected']),
+    reviewNote: z.string().trim().max(1000).optional().default(''),
+  }),
+  params: z.object({
+    applicationId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
+const adminListPayoutRequestsSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({
+    q: z.string().trim().max(120).optional().default(''),
+    status: z.enum(['all', 'pending', 'processing', 'completed', 'rejected']).optional().default('all'),
+    page: z.coerce.number().int().positive().optional().default(1),
+    limit: z.coerce.number().int().positive().max(100).optional().default(15),
+  }),
+})
+
+const adminPayoutRequestIdSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({
+    payoutId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
+const updatePayoutRequestStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['processing', 'completed', 'rejected']),
+    transferReceiptUrl: z.string().trim().max(500).optional().default(''),
+    rejectionReason: z.string().trim().max(500).optional().default(''),
+  }),
+  params: z.object({
+    payoutId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
+const adminListCreatorsSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({
+    q: z.string().trim().max(120).optional().default(''),
+    status: z.enum(['all', 'active', 'frozen', 'restricted']).optional().default('all'),
+    page: z.coerce.number().int().positive().optional().default(1),
+    limit: z.coerce.number().int().positive().max(100).optional().default(15),
+  }),
+})
+
+const updateCreatorWalletStatusSchema = z.object({
+  body: z.object({
+    status: z.enum(['active', 'frozen', 'restricted']),
+    reason: z.string().trim().max(300).optional().default(''),
+  }),
+  params: z.object({
+    userId: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
 module.exports = {
   adminOverviewSchema,
   updateUserRoleSchema,
@@ -339,4 +428,13 @@ module.exports = {
   updateAdminSignupContractsSettingsSchema,
   deleteAdminConversationSchema,
   deleteAdminMessageSchema,
+  adminCreatorSummarySchema,
+  adminListCreatorApplicationsSchema,
+  adminCreatorApplicationIdSchema,
+  updateCreatorApplicationStatusSchema,
+  adminListPayoutRequestsSchema,
+  adminPayoutRequestIdSchema,
+  updatePayoutRequestStatusSchema,
+  adminListCreatorsSchema,
+  updateCreatorWalletStatusSchema,
 }

@@ -168,3 +168,41 @@ export function deleteAdminMessage(messageId, reason = '') {
     body: JSON.stringify({ reason }),
   })
 }
+
+export function getAdminMonetizationSummary() {
+  return apiRequest('/admin/creators/summary')
+}
+
+export function getAdminCreatorApplications(params = {}) {
+  return apiRequest(`/admin/creators/applications${buildQuery(params)}`)
+}
+
+export function updateAdminCreatorApplicationStatus(applicationId, payload) {
+  return apiRequest(`/admin/creators/applications/${applicationId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAdminPayoutRequests(params = {}) {
+  return apiRequest(`/admin/creators/payouts${buildQuery(params)}`)
+}
+
+export function updateAdminPayoutRequestStatus(payoutId, payload) {
+  return apiRequest(`/admin/creators/payouts/${payoutId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAdminCreators(params = {}) {
+  return apiRequest(`/admin/creators/users${buildQuery(params)}`)
+}
+
+export function updateAdminCreatorWalletStatus(userId, payload) {
+  return apiRequest(`/admin/creators/users/${userId}/wallet-status`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+

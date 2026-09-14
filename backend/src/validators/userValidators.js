@@ -128,6 +128,14 @@ const getProfileConnectionsSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const verificationCategorySchema = z.enum([
+  'individual',
+  'creator',
+  'business',
+  'organization',
+  'public_figure',
+])
+
 const updateProfileSchema = z.object({
   body: z.object({
     firstName: z.string().trim().min(2).max(15).optional(),
@@ -138,6 +146,7 @@ const updateProfileSchema = z.object({
     bio: z.string().trim().max(120).optional(),
     avatarUrl: imageSourceSchema.optional(),
     coverUrl: imageSourceSchema.optional(),
+    category: verificationCategorySchema.optional(),
     location: z.object({
       city: z.string().trim().max(80).optional().default(''),
       country: z.string().trim().max(80).optional().default(''),
@@ -175,14 +184,6 @@ const deleteAccountSchema = z.object({
   query: z.object({}).default({}),
 })
 
-const verificationCategorySchema = z.enum([
-  'individual',
-  'creator',
-  'business',
-  'organization',
-  'public_figure',
-])
-
 const evidenceLinkSchema = z
   .string()
   .trim()
@@ -190,12 +191,23 @@ const evidenceLinkSchema = z
   .max(500)
   .refine((value) => value.startsWith('https://'), 'Evidence links must use HTTPS.')
 
+const paymentInfoSchema = z.object({
+  plan: z.enum(['plus', 'pro', 'monthly', 'yearly']).default('plus'),
+  cardNumber: z.string().trim().min(1, 'Kart numarası gereklidir.'),
+  cardHolder: z.string().trim().min(2, 'Kart üzerindeki isim gereklidir.'),
+  cardExpiry: z.string().trim().min(4, 'Son kullanma tarihi gereklidir.'),
+  cardCvc: z.string().trim().min(3, 'Güvenlik kodu gereklidir.'),
+})
+
 const createVerificationRequestSchema = z.object({
   body: z.object({
     category: verificationCategorySchema,
-    statement: z.string().trim().min(40).max(1000),
+    phoneNumber: z.string().trim().min(6, 'Lütfen geçerli bir cep telefonu numarası giriniz.').max(25).optional().default(''),
+    phoneCountryCode: z.string().trim().min(1).max(8).optional().default('+90'),
+    statement: z.string().trim().max(1000).optional().default('Doğrulanmış profil abonelik başvurusu.'),
     evidenceLinks: z.array(evidenceLinkSchema).max(5).optional().default([]),
     termsAccepted: z.literal(true),
+    payment: paymentInfoSchema.optional(),
   }),
   params: z.object({}).default({}),
   query: z.object({}).default({}),
@@ -205,10 +217,28 @@ const updateVerificationRequestSchema = z.object({
   body: z
     .object({
       category: verificationCategorySchema.optional(),
-      statement: z.string().trim().min(40).max(1000).optional(),
+      phoneNumber: z.string().trim().min(6).max(25).optional(),
+      phoneCountryCode: z.string().trim().min(1).max(8).optional(),
+      statement: z.string().trim().max(1000).optional(),
       evidenceLinks: z.array(evidenceLinkSchema).max(5).optional(),
     })
     .refine((value) => Object.keys(value).length > 0, 'At least one field is required.'),
+  params: z.object({}).default({}),
+  query: z.object({}).default({}),
+})
+
+const changeSubscriptionPlanSchema = z.object({
+  body: z.object({
+    plan: z.enum(['plus', 'pro']),
+  }),
+  params: z.object({}).default({}),
+  query: z.object({}).default({}),
+})
+
+const cancelSubscriptionSchema = z.object({
+  body: z.object({
+    reason: z.string().trim().max(500).optional().default(''),
+  }),
   params: z.object({}).default({}),
   query: z.object({}).default({}),
 })
@@ -226,4 +256,6 @@ module.exports = {
   deleteAccountSchema,
   createVerificationRequestSchema,
   updateVerificationRequestSchema,
+  changeSubscriptionPlanSchema,
+  cancelSubscriptionSchema,
 }
