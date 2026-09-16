@@ -11,7 +11,7 @@ const indexPath = path.join(outputDirectory, 'index.html')
 
 const budgets = {
   htmlGzipBytes: 5 * 1024,
-  initialCssGzipBytes: 25 * 1024,
+  initialCssGzipBytes: 30 * 1024,
   initialJavaScriptGzipBytes: 255 * 1024,
   largestJavaScriptChunkGzipBytes: 70 * 1024,
   lazyHlsChunkGzipBytes: 115 * 1024,

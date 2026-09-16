@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
 import Seo from '../components/seo/Seo.jsx'
@@ -15,9 +16,11 @@ import { EligibilityGateView } from '../features/monetization/EligibilityGateVie
 import { CreatorDashboardView } from '../features/monetization/CreatorDashboardView.jsx'
 import { CreatorApplicationView } from '../features/monetization/CreatorApplicationView.jsx'
 import { ApplicationPendingView } from '../features/monetization/ApplicationPendingView.jsx'
+import { GuestCreatorLandingView } from '../features/monetization/GuestCreatorLandingView.jsx'
 
 export function MonetizationPage() {
   const { t } = useTranslation()
+  const { lang = 'tr' } = useParams()
   const { user, isAuthenticated } = useAuth()
 
   const [isLoading, setIsLoading] = useState(true)
@@ -223,31 +226,53 @@ export function MonetizationPage() {
         activeKey="monetization"
         showDesktopPageHeader={false}
         desktopSidebarMode="drawer"
+        hideMobileBottomBar={true}
+        hideMobileCreateButton={true}
       >
-        <div className="mx-auto max-w-5xl py-2 px-1 sm:px-0">
+        <div className="mx-auto max-w-5xl py-0 px-0 sm:py-2">
           {isLoading ? (
-            <div className="space-y-4 animate-pulse">
-              <div className="h-44 rounded-2xl bg-card border border-border" />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="h-28 rounded-xl bg-card border border-border" />
-                <div className="h-28 rounded-xl bg-card border border-border" />
-                <div className="h-28 rounded-xl bg-card border border-border" />
+            <div className="space-y-3 animate-pulse">
+              <div className="h-44 rounded-none border-x-0 sm:border-x sm:rounded-md bg-card border border-border" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="h-28 rounded-none border-x-0 sm:border-x sm:rounded-md bg-card border border-border" />
+                <div className="h-28 rounded-none border-x-0 sm:border-x sm:rounded-md bg-card border border-border" />
+                <div className="h-28 rounded-none border-x-0 sm:border-x sm:rounded-md bg-card border border-border" />
               </div>
             </div>
-          ) : isApproved ? (
-            <div className="space-y-4">
+          ) : !isAuthenticated && !forceDashboardPreview ? (
+            <GuestCreatorLandingView
+              onSwitchToDemo={() => setForceDashboardPreview(true)}
+            />
+          ) : isApproved || forceDashboardPreview ? (
+            <div className="space-y-3">
               {forceDashboardPreview ? (
-                <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 p-3 text-xs text-primary">
-                  <span>
-                    ✨ <strong>Canlı Önizleme Modundasınız:</strong> Bu ekran, içerik üreticileri onaylandığında görünen tam finansal kokpiti simüle etmektedir.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setForceDashboardPreview(false)}
-                    className="font-semibold underline cursor-pointer hover:opacity-80"
-                  >
-                    Geri Dön
-                  </button>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-none border-x-0 sm:border-x sm:rounded-xl border border-primary/30 bg-primary/10 p-3.5 text-xs text-primary shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">✨</span>
+                    <span>
+                      <strong>{isAuthenticated ? 'Canlı Önizleme Modundasınız:' : 'Misafir Canlı Kokpit Demosu:'}</strong>{' '}
+                      {isAuthenticated
+                        ? 'Bu ekran onaylanan içerik üreticilerinin tam finansal kokpitini simüle etmektedir.'
+                        : 'Onaylı üreticilerin gerçek kokpitini deneyimliyorsunuz. Kazanç simülasyonunu test edebilirsiniz!'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {!isAuthenticated ? (
+                      <Link
+                        to={`/${lang}/signup`}
+                        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold !text-white shadow-xs hover:bg-primary-hover"
+                      >
+                        Hemen Kayıt Ol & Başvur
+                      </Link>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setForceDashboardPreview(false)}
+                      className="font-semibold underline cursor-pointer hover:opacity-80 px-2 py-1 text-text"
+                    >
+                      {isAuthenticated ? 'Geri Dön' : 'Tanıtım Vitrinine Dön'}
+                    </button>
+                  </div>
                 </div>
               ) : null}
 

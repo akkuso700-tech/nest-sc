@@ -189,7 +189,6 @@ export default function ProfileDropdown({
             to={`/${lang}/monetization`}
             icon={<MonetizationIcon className="size-4" />}
             label={t('nav.monetization')}
-            badgeText={t('common.studioBadge', { defaultValue: 'Stüdyo' })}
             onClick={onClose}
           />
           <DropdownMenuItem

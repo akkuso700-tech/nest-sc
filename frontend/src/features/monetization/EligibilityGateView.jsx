@@ -60,59 +60,9 @@ export function EligibilityGateView({
   const isEligible = Boolean(statusData?.isEligible && isProfileVerified)
 
   return (
-    <div className="space-y-8">
-      {/* 1. Süreç Adımları (Step Indicator) */}
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {/* Adım 1 - Onaylandı */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-emerald-500/5 p-3">
-            <span className="grid size-7 place-items-center rounded-full bg-emerald-500 text-xs font-bold !text-white shrink-0">
-              ✓
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                {t('creatorStudio.steps.step1Approved', '1. Başvuru & Admin Onayı')}
-              </p>
-              <p className="truncate text-[11px] text-muted">
-                {t('creatorStudio.steps.step1ApprovedDesc', 'Yönetici Onayladı')}
-              </p>
-            </div>
-          </div>
-
-          {/* Adım 2 - Aktif Kriterler & Sayaçlar */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-xs">
-            <span className="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold !text-white shrink-0">
-              2
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-text">
-                {t('creatorStudio.steps.step2Title', '2. Uygunluk & Profil Doğrulama')}
-              </p>
-              <p className="truncate text-[11px] text-muted">
-                {t('creatorStudio.steps.step2Counting', 'Sayaçlar & Kriterler Aktif')}
-              </p>
-            </div>
-          </div>
-
-          {/* Adım 3 - Sıradaki */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3 opacity-60">
-            <span className="grid size-7 place-items-center rounded-full bg-border text-xs font-bold text-muted shrink-0">
-              3
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-muted">
-                {t('creatorStudio.steps.step3Title', '3. Üretici Stüdyosu')}
-              </p>
-              <p className="truncate text-[11px] text-muted">
-                {t('creatorStudio.steps.step3Subtitle', 'Kokpit ve kazançlar')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-3">
       {/* 2. Başvuru Onay Durumu & Hero Bannerı */}
-      <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:p-8 shadow-sm">
+      <section className="relative overflow-hidden rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 md:p-8 shadow-sm">
         <div className="absolute -right-12 -top-12 size-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
         <div className="relative z-10 max-w-2xl space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -121,7 +71,7 @@ export function EligibilityGateView({
               <span>
                 {applicationStatus === 'rejected'
                   ? t('creatorStudio.eligibility.rejectedBadge', 'Yeniden İncelemede')
-                  : t('creatorStudio.eligibility.adminApprovedBadge', 'Yönetici Başvurunuzu Onayladı')}
+                  : t('creatorStudio.eligibility.adminApprovedBadge', 'Başvurunuz Onaylandı')}
               </span>
             </span>
 
@@ -136,15 +86,9 @@ export function EligibilityGateView({
             ) : null}
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-text md:text-3xl">
+          <h1 className="text-xl font-bold tracking-tight text-text">
             {t('creatorStudio.eligibility.trackingTitle', 'Uygunluk & Değerlendirme Takibi')}
           </h1>
-          <p className="text-sm leading-relaxed text-muted md:text-base">
-            {t(
-              'creatorStudio.eligibility.trackingDescAfterApproval',
-              'Başvurunuz yönetici tarafından onaylanmıştır. İzlenme ve 14 günlük aktiflik sayaçlarınız onay tarihinizden itibaren sayılmaktadır. Kriterleri tamamlayıp profilinize doğrulama rozeti aldığınızda Üretici Stüdyosu kokpitiniz tam erişime açılacaktır.',
-            )}
-          </p>
 
           {/* Hızlı Demo & Başvuruya Dönüş Düğmeleri */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -152,7 +96,7 @@ export function EligibilityGateView({
               <button
                 type="button"
                 onClick={onSwitchToDemo}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-text transition hover:bg-secondary-hover cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-text transition hover:bg-secondary-hover cursor-pointer"
               >
                 <span>✨</span>
                 <span>{t('creatorStudio.demo.badge', 'Üretici Kokpiti Canlı Önizleme')}</span>
@@ -172,11 +116,11 @@ export function EligibilityGateView({
         </div>
       </section>
 
-      {/* 3. 4 Gelir Kaynağı Kartları */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 3. 4 Gelir Kaynağı Kartları - Mobilde Yatay Kaydırmalı */}
+      <section className="flex overflow-x-auto snap-x snap-mandatory gap-3 px-4 py-1 no-scrollbar sm:grid sm:grid-cols-2 sm:px-0 sm:py-0 lg:grid-cols-4 sm:snap-none sm:overflow-visible">
         {/* Loop Fonu */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
-          <div className="mb-3 inline-flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
+          <div className="mb-3 inline-flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
             <FilmIcon className="size-5" />
           </div>
           <h2 className="text-base font-semibold text-text">
@@ -191,9 +135,9 @@ export function EligibilityGateView({
         </div>
 
         {/* Topluluk Bahşişleri & Hediyeler */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
           <div className="mb-3 flex items-center justify-between">
-            <div className="inline-flex size-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+            <div className="inline-flex size-10 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-500">
               <GiftIcon className="size-5" />
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
@@ -213,9 +157,9 @@ export function EligibilityGateView({
         </div>
 
         {/* Özel Gruplar & VIP İçerik */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
           <div className="mb-3 flex items-center justify-between">
-            <div className="inline-flex size-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+            <div className="inline-flex size-10 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-500">
               <UsersIcon className="size-5" />
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
@@ -235,9 +179,9 @@ export function EligibilityGateView({
         </div>
 
         {/* Profil Aboneliği */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
           <div className="mb-3 flex items-center justify-between">
-            <div className="inline-flex size-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <div className="inline-flex size-10 items-center justify-center rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <UserCheckIcon className="size-5" />
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
@@ -258,7 +202,7 @@ export function EligibilityGateView({
       </section>
 
       {/* 4. Uygunluk Kriterleri & İlerleme Çubukları */}
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
+      <section className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 shadow-sm space-y-6">
         <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-text">
@@ -284,9 +228,9 @@ export function EligibilityGateView({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {/* Takipçi Sayısı */}
-          <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+          <div className="rounded-none sm:rounded-md border border-border bg-secondary/50 p-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium text-text">
                 {t('creatorStudio.eligibility.followersRequirement', 'Takipçi Sayısı')}
@@ -310,7 +254,7 @@ export function EligibilityGateView({
           </div>
 
           {/* Onay Sonrası İzlenme */}
-          <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+          <div className="rounded-none sm:rounded-md border border-border bg-secondary/50 p-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium text-text">
                 {t('creatorStudio.eligibility.viewsRequirement', 'Onay Sonrası Gösterim / İzlenme')}
@@ -334,7 +278,7 @@ export function EligibilityGateView({
           </div>
 
           {/* Hesap Güvenliği / Onay Sonrası Süreç */}
-          <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+          <div className="rounded-none sm:rounded-md border border-border bg-secondary/50 p-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium text-text">
                 {t('creatorStudio.eligibility.accountAge', 'Hesap Güvenliği (Onaydan İtibaren 14 Gün)')}
@@ -358,7 +302,7 @@ export function EligibilityGateView({
           </div>
 
           {/* Güvenlik & Doğrulama Kontrolleri */}
-          <div className="flex flex-col justify-center rounded-xl border border-border bg-secondary/50 p-4 space-y-2.5">
+          <div className="flex flex-col justify-center rounded-none sm:rounded-md border border-border bg-secondary/50 p-4 space-y-2.5">
             {/* Doğrulanmış Profil Şartı */}
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-2 font-medium text-text">
@@ -424,7 +368,7 @@ export function EligibilityGateView({
 
         {/* Profil Doğrulama Bilgilendirme / Başvuru Kartı */}
         {!isProfileVerified ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 text-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-none sm:rounded-md border border-sky-500/30 bg-sky-500/5 p-4 text-xs">
             <div className="flex items-start gap-3">
               <BadgeCheckIcon className="size-5 text-sky-500 shrink-0 mt-0.5" />
               <div className="space-y-0.5">
@@ -442,7 +386,7 @@ export function EligibilityGateView({
             <button
               type="button"
               onClick={() => setShowVerificationModal(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-3.5 py-1.5 font-semibold !text-white shadow-xs hover:bg-sky-600 cursor-pointer"
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-sky-500 px-3.5 py-1.5 font-semibold !text-white shadow-xs hover:bg-sky-600 cursor-pointer"
             >
               <BadgeCheckIcon className="size-3.5" />
               <span>
@@ -455,7 +399,7 @@ export function EligibilityGateView({
         ) : null}
 
         {/* 5. Durum & Sonraki Adımlar Kartı */}
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-none sm:rounded-md border border-border bg-card p-5">
           {isEligible ? (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="space-y-1">
@@ -472,7 +416,7 @@ export function EligibilityGateView({
                   )}
                 </p>
               </div>
-              <span className="shrink-0 rounded-xl bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="shrink-0 rounded-md bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                 {t('creatorStudio.eligibility.inApprovalQueue', 'Onay Sırasında')}
               </span>
             </div>

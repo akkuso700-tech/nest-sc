@@ -42,62 +42,12 @@ export function CreatorApplicationView({
   }
 
   return (
-    <div className="space-y-8">
-      {/* 1. Süreç Adımları (Step Indicator) */}
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {/* Adım 1 - Aktif */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-xs">
-            <span className="grid size-7 place-items-center rounded-full bg-primary text-xs font-bold !text-white shrink-0">
-              1
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-text">
-                {t('creatorStudio.steps.step1Title', '1. Başvuru Formu')}
-              </p>
-              <p className="truncate text-[11px] text-muted">
-                {t('creatorStudio.steps.step1Subtitle', 'Kanal ve içerik planı')}
-              </p>
-            </div>
-          </div>
-
-          {/* Adım 2 - Sıradaki */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3 opacity-80">
-            <span className="grid size-7 place-items-center rounded-full bg-border text-xs font-bold text-muted shrink-0">
-              2
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-muted">
-                {t('creatorStudio.steps.step2TitlePending', '2. Yönetici İncelemesi')}
-              </p>
-              <p className="truncate text-[11px] text-muted">
-                {t('creatorStudio.steps.step2SubtitlePending', 'Admin değerlendirmesi')}
-              </p>
-            </div>
-          </div>
-
-          {/* Adım 3 - Sonuç */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3 opacity-60">
-            <span className="grid size-7 place-items-center rounded-full bg-border text-xs font-bold text-muted shrink-0">
-              3
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-muted">
-                {t('creatorStudio.steps.step3Title', '3. Uygunluk & Stüdyo')}
-              </p>
-              <p className="truncate text-[11px] text-muted">
-                {t('creatorStudio.steps.step3Subtitle', 'Sayaçlar ve kokpit')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-3">
       {/* 2. Hero Tanıtım Bannerı */}
-      <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 md:p-8 shadow-sm">
+      <section className="relative overflow-hidden rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 md:p-8 shadow-sm">
         <div className="absolute -right-12 -top-12 size-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
         <div className="relative z-10 max-w-2xl space-y-3">
-          <h1 className="text-2xl font-bold tracking-tight text-text md:text-3xl">
+          <h1 className="text-xl font-bold tracking-tight text-text md:text-2xl">
             {t('creatorStudio.application.heroTitle', 'Nest Social İçerik Üretici Başvurusu')}
           </h1>
           <p className="text-sm leading-relaxed text-muted md:text-base">
@@ -112,7 +62,7 @@ export function CreatorApplicationView({
               <button
                 type="button"
                 onClick={onSwitchToDemo}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-text transition hover:bg-secondary-hover cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-text transition hover:bg-secondary-hover cursor-pointer"
               >
                 <span>✨</span>
                 <span>{t('creatorStudio.demo.badge', 'Üretici Kokpiti Canlı Önizleme')}</span>
@@ -122,11 +72,11 @@ export function CreatorApplicationView({
         </div>
       </section>
 
-      {/* 3. 4 Gelir Kaynağı Kartları */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 3. 4 Gelir Kaynağı Kartları - Mobilde Yatay Kaydırmalı */}
+      <section className="flex overflow-x-auto snap-x snap-mandatory gap-3 px-4 py-1 no-scrollbar sm:grid sm:grid-cols-2 sm:px-0 sm:py-0 lg:grid-cols-4 sm:snap-none sm:overflow-visible">
         {/* Loop Fonu */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
-          <div className="mb-3 inline-flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
+          <div className="mb-3 inline-flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
             <FilmIcon className="size-5" />
           </div>
           <h2 className="text-base font-semibold text-text">
@@ -141,9 +91,9 @@ export function CreatorApplicationView({
         </div>
 
         {/* Topluluk Bahşişleri & Hediyeler */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
           <div className="mb-3 flex items-center justify-between">
-            <div className="inline-flex size-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+            <div className="inline-flex size-10 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-500">
               <GiftIcon className="size-5" />
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
@@ -163,9 +113,9 @@ export function CreatorApplicationView({
         </div>
 
         {/* Özel Gruplar & VIP İçerik */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
           <div className="mb-3 flex items-center justify-between">
-            <div className="inline-flex size-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+            <div className="inline-flex size-10 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-500">
               <UsersIcon className="size-5" />
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
@@ -185,9 +135,9 @@ export function CreatorApplicationView({
         </div>
 
         {/* Profil Aboneliği */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-border-strong">
+        <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs transition hover:border-border-strong sm:w-auto sm:shrink">
           <div className="mb-3 flex items-center justify-between">
-            <div className="inline-flex size-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <div className="inline-flex size-10 items-center justify-center rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <UserCheckIcon className="size-5" />
             </div>
             <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-400">
@@ -208,7 +158,7 @@ export function CreatorApplicationView({
       </section>
 
       {/* 4. Başvuru Formu */}
-      <section className="rounded-2xl border border-border bg-card p-6 md:p-8 shadow-sm space-y-6">
+      <section className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 md:p-8 shadow-sm space-y-6">
         <div>
           <h2 className="text-lg font-bold text-text">
             {t('creatorStudio.application.formTitle', 'Başvuru Formu')}
@@ -223,7 +173,7 @@ export function CreatorApplicationView({
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Başvuran Üretici Profili */}
-          <div className="flex items-center gap-3.5 rounded-xl border border-border bg-secondary/50 p-4">
+          <div className="flex items-center gap-3.5 rounded-none sm:rounded-md border border-border bg-secondary/50 p-4">
             <UserAvatar user={user} className="size-12 ring-2 ring-border" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -249,7 +199,7 @@ export function CreatorApplicationView({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     selectedCategory === cat
                       ? 'bg-primary text-white shadow-xs'
                       : 'border border-border bg-secondary text-muted hover:bg-secondary-hover hover:text-text'
@@ -271,7 +221,7 @@ export function CreatorApplicationView({
               value={statement}
               onChange={(e) => setStatement(e.target.value)}
               placeholder="Nest Social üzerinde ürettiğiniz veya üretmeyi planladığınız video formatları, konular ve topluluğunuz hakkında kısa bilgi verin..."
-              className="w-full rounded-xl border border-border bg-secondary p-3.5 text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none leading-relaxed"
+              className="w-full rounded-none sm:rounded-md border border-border bg-secondary p-3.5 text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none leading-relaxed"
             />
             <p className="text-[11px] text-muted">
               İçerik türünüz editörlerimiz ve sistem değerlendirmesi tarafından referans alınır.
@@ -279,7 +229,7 @@ export function CreatorApplicationView({
           </div>
 
           {/* Sözleşme Onay Kutusu */}
-          <label className="flex items-start gap-3 rounded-xl border border-border bg-secondary/30 p-3.5 cursor-pointer text-xs leading-relaxed text-muted hover:bg-secondary/50 transition">
+          <label className="flex items-start gap-3 rounded-none sm:rounded-md border border-border bg-secondary/30 p-3.5 cursor-pointer text-xs leading-relaxed text-muted hover:bg-secondary/50 transition">
             <input
               type="checkbox"
               checked={agreeTerms}
@@ -299,7 +249,7 @@ export function CreatorApplicationView({
             <button
               type="submit"
               disabled={!agreeTerms || isApplying}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-7 py-3 text-sm font-semibold !text-inverse shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-md bg-primary px-7 py-3 text-sm font-semibold !text-inverse shadow-sm transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               <span>{isApplying ? 'Başvuru İletiliyor...' : t('creatorStudio.application.submitButton', 'İçerik Üretici Başvurusunu Gönder')}</span>
               {!isApplying ? <ArrowUpRightIcon className="size-4" /> : null}

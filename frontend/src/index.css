@@ -83,6 +83,10 @@
   color: rgb(var(--color-text));
 }
 
+@utility bg-text {
+  background-color: rgb(var(--color-text));
+}
+
 @utility bg-card {
   background-color: rgb(var(--color-card));
 }

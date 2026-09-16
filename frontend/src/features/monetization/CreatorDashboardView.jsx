@@ -62,16 +62,16 @@ export function CreatorDashboardView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* 1. Üst Bakiye & KPI Kartları */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Kullanılabilir Bakiye & Çekim Butonu */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <div className="relative overflow-hidden rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between text-muted">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {t('creatorStudio.metrics.availableBalance', 'Kullanılabilir Bakiye')}
             </span>
-            <div className="grid size-8 place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="grid size-8 place-items-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <WalletIcon className="size-4" />
             </div>
           </div>
@@ -85,7 +85,7 @@ export function CreatorDashboardView({
               type="button"
               onClick={() => setIsPayoutModalOpen(true)}
               disabled={availableBalance < minPayoutAmount}
-              className="w-full rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold !text-inverse shadow-xs transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              className="w-full rounded-md bg-primary px-3.5 py-2 text-xs font-semibold !text-inverse shadow-xs transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
               {t('creatorStudio.metrics.requestPayout', 'Parayı Çek')}
             </button>
@@ -93,12 +93,12 @@ export function CreatorDashboardView({
         </div>
 
         {/* Toplam Kazanç */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between text-muted">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {t('creatorStudio.metrics.lifetimeEarnings', 'Toplam Kazanç')}
             </span>
-            <div className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+            <div className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
               <TrendingUpIcon className="size-4" />
             </div>
           </div>
@@ -113,12 +113,12 @@ export function CreatorDashboardView({
         </div>
 
         {/* Bekleyen Bakiye */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between text-muted">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {t('creatorStudio.metrics.pendingBalance', 'Bekleyen / Onayda')}
             </span>
-            <div className="grid size-8 place-items-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <div className="grid size-8 place-items-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <ClockIcon className="size-4" />
             </div>
           </div>
@@ -133,12 +133,12 @@ export function CreatorDashboardView({
         </div>
 
         {/* Sonraki Ödeme Tarihi */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
+        <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between text-muted">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {t('creatorStudio.metrics.nextPayout', 'Sonraki Ödeme')}
             </span>
-            <div className="grid size-8 place-items-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+            <div className="grid size-8 place-items-center rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
               <BankIcon className="size-4" />
             </div>
           </div>
@@ -164,7 +164,7 @@ export function CreatorDashboardView({
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer ${
+              className={`rounded-md px-4 py-2 text-xs font-semibold transition cursor-pointer ${
                 activeTab === tab.id
                   ? 'bg-nav-active text-primary shadow-xs'
                   : 'text-muted hover:bg-secondary hover:text-text'
@@ -180,7 +180,7 @@ export function CreatorDashboardView({
           <button
             type="button"
             onClick={onSimulateEarning}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 cursor-pointer"
           >
             <SparklesIcon className="size-3.5" />
             <span>{t('creatorStudio.demo.addSampleEarning', 'Örnek ₺150 Kazanç Ekle')}</span>
@@ -192,9 +192,9 @@ export function CreatorDashboardView({
 
       {/* SEKME 1: GENEL BAKIŞ */}
       {activeTab === 'overview' ? (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* Kazanç Grafiği */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-bold text-text">Son 7 Günlük Gelir Grafiği</h3>
@@ -218,14 +218,15 @@ export function CreatorDashboardView({
                   >
                     {/* Tooltip */}
                     {isHovered ? (
-                      <div className="absolute -top-9 z-20 rounded-lg bg-text px-2 py-1 text-[11px] font-semibold text-text-inverse shadow-md whitespace-nowrap">
+                      <div className="pointer-events-none absolute -top-9.5 z-20 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg border border-slate-800 dark:bg-slate-700 dark:text-white dark:border-slate-600 whitespace-nowrap">
                         ₺{item.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                        <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 size-2 rotate-45 bg-slate-900 border-r border-b border-slate-800 dark:bg-slate-700 dark:border-slate-600" />
                       </div>
                     ) : null}
 
                     {/* Çubuk */}
                     <div
-                      className={`w-full max-w-[40px] rounded-t-lg transition-all duration-300 ${
+                      className={`w-full max-w-[40px] rounded-t-md transition-all duration-300 ${
                         item.amount > 0
                           ? 'bg-primary group-hover:bg-primary-hover'
                           : 'bg-border'
@@ -242,7 +243,7 @@ export function CreatorDashboardView({
           </div>
 
           {/* Son İşlemler Tablosu */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 shadow-sm">
             <h3 className="text-sm font-bold text-text mb-4">Son Finansal Hareketler</h3>
             {transactions.length ? (
               <div className="divide-y divide-border">
@@ -305,11 +306,11 @@ export function CreatorDashboardView({
 
       {/* SEKME 2: GELİR KANALLARI */}
       {activeTab === 'streams' ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 px-4 py-1 no-scrollbar sm:grid sm:grid-cols-2 sm:px-0 sm:py-0 lg:grid-cols-4 sm:snap-none sm:overflow-visible">
           {/* Loop Fonu */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+          <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs space-y-4 sm:w-auto sm:shrink">
             <div className="flex items-center justify-between">
-              <div className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="inline-flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <FilmIcon className="size-5" />
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">
@@ -336,9 +337,9 @@ export function CreatorDashboardView({
           </div>
 
           {/* Bahşişler */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+          <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs space-y-4 sm:w-auto sm:shrink">
             <div className="flex items-center justify-between">
-              <div className="inline-flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+              <div className="inline-flex size-10 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600">
                 <GiftIcon className="size-5" />
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">
@@ -365,9 +366,9 @@ export function CreatorDashboardView({
           </div>
 
           {/* Özel Gruplar */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+          <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs space-y-4 sm:w-auto sm:shrink">
             <div className="flex items-center justify-between">
-              <div className="inline-flex size-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600">
+              <div className="inline-flex size-10 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-600">
                 <UsersIcon className="size-5" />
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">
@@ -394,9 +395,9 @@ export function CreatorDashboardView({
           </div>
 
           {/* Profil Aboneliği */}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+          <div className="w-[270px] shrink-0 snap-start rounded-none sm:rounded-md border border-border bg-card p-5 shadow-xs space-y-4 sm:w-auto sm:shrink">
             <div className="flex items-center justify-between">
-              <div className="inline-flex size-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              <div className="inline-flex size-10 items-center justify-center rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
                 <UserCheckIcon className="size-5" />
               </div>
               <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">
@@ -426,9 +427,9 @@ export function CreatorDashboardView({
 
       {/* SEKME 3: ÖDEMELER & CÜZDAN */}
       {activeTab === 'payouts' ? (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* Kayıtlı Banka Bilgisi */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text">Varsayılan Banka Hesabı</h3>
               <button
@@ -442,7 +443,7 @@ export function CreatorDashboardView({
             </div>
 
             {wallet?.defaultPayoutAccount?.iban ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-xl border border-border bg-secondary/40 p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-none sm:rounded-md border border-border bg-secondary/40 p-4">
                 <div>
                   <span className="text-[11px] text-muted block">Hesap Sahibi</span>
                   <p className="text-xs font-semibold text-text mt-0.5">
@@ -463,14 +464,14 @@ export function CreatorDashboardView({
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted">
+              <div className="rounded-none sm:rounded-md border border-dashed border-border p-4 text-center text-xs text-muted">
                 Henüz kayıtlı bir IBAN bulunmuyor. İlk para çekim talebinizde otomatik olarak kaydedilecektir.
               </div>
             )}
           </div>
 
           {/* Çekim Talepleri Geçmişi */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 shadow-sm">
             <h3 className="text-sm font-bold text-text mb-4">Para Çekim Talepleri Geçmişi</h3>
             {payoutRequests.length ? (
               <div className="divide-y divide-border">
@@ -518,7 +519,7 @@ export function CreatorDashboardView({
 
       {/* SEKME 4: ÜRETİCİ REHBERİ */}
       {activeTab === 'insights' ? (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
+        <div className="rounded-none border-x-0 sm:border-x sm:rounded-md border border-border bg-card p-6 shadow-sm space-y-6">
           <div>
             <h3 className="text-base font-bold text-text">
               Nest Social İçerik Üretici Rehberi & En İyi Uygulamalar
@@ -528,8 +529,8 @@ export function CreatorDashboardView({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-none sm:rounded-md border border-border bg-secondary/30 p-4 space-y-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-primary">
                 <CheckCircleIcon className="size-4" />
                 Loop Tamamlanma Oranını Artırın
@@ -539,7 +540,7 @@ export function CreatorDashboardView({
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-2">
+            <div className="rounded-none sm:rounded-md border border-border bg-secondary/30 p-4 space-y-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                 <CheckCircleIcon className="size-4" />
                 Yasal Vergi Uyum Kolaylığı
@@ -549,7 +550,7 @@ export function CreatorDashboardView({
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-2">
+            <div className="rounded-none sm:rounded-md border border-border bg-secondary/30 p-4 space-y-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
                 <CheckCircleIcon className="size-4" />
                 Topluluğunuzla Düzenli İletişim
@@ -559,7 +560,7 @@ export function CreatorDashboardView({
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-2">
+            <div className="rounded-none sm:rounded-md border border-border bg-secondary/30 p-4 space-y-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
                 <CheckCircleIcon className="size-4" />
                 Özgün ve Kaliteli İçerik

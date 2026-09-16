@@ -89,10 +89,10 @@ export function RequestPayoutModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
+      <div className="w-full max-w-md rounded-md border border-border bg-card p-6 shadow-2xl space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <div className="grid size-9 place-items-center rounded-md bg-primary/10 text-primary">
               <BankIcon className="size-5" />
             </div>
             <div>
@@ -107,14 +107,14 @@ export function RequestPayoutModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-muted hover:bg-secondary cursor-pointer"
+            className="rounded-md p-1 text-muted hover:bg-secondary cursor-pointer"
           >
             ✕
           </button>
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">
+          <div className="rounded-md border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">
             {error}
           </div>
         ) : null}
@@ -149,7 +149,7 @@ export function RequestPayoutModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder={`${minPayoutAmount}.00`}
-                className="w-full rounded-xl border border-border bg-secondary py-2.5 pl-8 pr-3 text-sm font-semibold text-text placeholder:text-muted focus:border-primary focus:outline-none"
+                className="w-full rounded-md border border-border bg-secondary py-2.5 pl-8 pr-3 text-sm font-semibold text-text placeholder:text-muted focus:border-primary focus:outline-none"
                 required
               />
             </div>
@@ -165,7 +165,7 @@ export function RequestPayoutModal({
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Adınız Soyadınız"
-              className="w-full rounded-xl border border-border bg-secondary p-2.5 text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-secondary p-2.5 text-sm text-text placeholder:text-muted focus:border-primary focus:outline-none"
               required
             />
           </div>
@@ -180,7 +180,7 @@ export function RequestPayoutModal({
               value={iban}
               onChange={handleIbanChange}
               placeholder="TR00 0000 0000 0000 0000 0000 00"
-              className="w-full rounded-xl border border-border bg-secondary p-2.5 font-mono text-xs tracking-wider text-text placeholder:text-muted focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-secondary p-2.5 font-mono text-xs tracking-wider text-text placeholder:text-muted focus:border-primary focus:outline-none"
               required
             />
           </div>
@@ -196,7 +196,7 @@ export function RequestPayoutModal({
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
                 placeholder="Örn: Garanti BBVA"
-                className="w-full rounded-xl border border-border bg-secondary p-2 text-xs text-text placeholder:text-muted focus:border-primary focus:outline-none"
+                className="w-full rounded-md border border-border bg-secondary p-2 text-xs text-text placeholder:text-muted focus:border-primary focus:outline-none"
               />
             </div>
             <div>
@@ -208,7 +208,7 @@ export function RequestPayoutModal({
                 value={taxOrIdNumber}
                 onChange={(e) => setTaxOrIdNumber(e.target.value)}
                 placeholder="Yasal uyum için"
-                className="w-full rounded-xl border border-border bg-secondary p-2 text-xs text-text placeholder:text-muted focus:border-primary focus:outline-none"
+                className="w-full rounded-md border border-border bg-secondary p-2 text-xs text-text placeholder:text-muted focus:border-primary focus:outline-none"
               />
             </div>
           </div>
@@ -217,14 +217,14 @@ export function RequestPayoutModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted hover:bg-secondary cursor-pointer"
+              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-muted hover:bg-secondary cursor-pointer"
             >
               {t('common.cancel', 'Vazgeç')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting || availableBalance < minPayoutAmount}
-              className="rounded-xl bg-primary px-5 py-2 text-sm font-semibold !text-inverse shadow-sm transition hover:bg-primary-hover disabled:opacity-50 cursor-pointer"
+              className="rounded-md bg-primary px-5 py-2 text-sm font-semibold !text-inverse shadow-sm transition hover:bg-primary-hover disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? 'İşleniyor...' : t('creatorStudio.payoutModal.submit', 'Talebi Gönder')}
             </button>

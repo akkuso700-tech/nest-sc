@@ -1508,6 +1508,12 @@ function SocialLayout({
         { key: 'home', to: `/${lang}/`, label: t('nav.home'), iconKey: 'home' },
         { key: 'loop', to: `/${lang}/loop`, label: t('nav.loop'), iconKey: 'loop' },
         { key: 'hiddenProfile', to: `/${lang}/hidden-profile`, label: t('nav.hiddenProfile'), iconKey: 'hiddenProfile' },
+        {
+          key: 'monetization',
+          to: `/${lang}/monetization`,
+          label: t('nav.monetization'),
+          iconKey: 'monetization',
+        },
         { key: 'login', to: `/${lang}/login`, label: t('common.login'), iconKey: 'login' },
       ]
     }
@@ -1528,7 +1534,6 @@ function SocialLayout({
         to: `/${lang}/monetization`,
         label: t('nav.monetization'),
         iconKey: 'monetization',
-        badgeText: t('common.studioBadge', { defaultValue: 'Stüdyo' }),
       },
     ]
   }, [isAuthenticated, lang, t, user?.role])
@@ -2300,7 +2305,7 @@ function SocialLayout({
         className={`${mobileBleed ? 'px-0' : 'px-0'} ${
           hideHeaderOnMobile ? 'pt-0' : mobileFlushTop ? 'pt-12' : 'pt-12'
         } md:pr-5 md:pt-[60px] ${
-          fixedViewport ? 'h-[100dvh] overflow-hidden pb-0' : 'pb-24'
+          fixedViewport ? 'h-[100dvh] overflow-hidden pb-0' : hideMobileBottomBar ? 'pb-6 md:pb-24' : 'pb-24'
         } ${desktopSidebarMode === 'fixed' ? 'md:pl-[calc(var(--sidebar-width)+20px)]' : 'md:pl-5'}`}
       >
         <div className={`mx-auto max-w-[1500px] ${fixedViewport ? 'h-full' : ''}`}>

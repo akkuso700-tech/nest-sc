@@ -1,1 +1,0 @@
-var e=[`en`,`tr`,`de`,`es`];function t(t){if(!t)return`en`;let n=t.toLowerCase().split(`-`)[0];return e.includes(n)?n:`en`}function n(t){return e.includes(t)}export{n,e as r,t};

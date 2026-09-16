@@ -41,6 +41,7 @@ const MonetizationPage = lazy(() => import('./pages/MonetizationPage.jsx'))
 const AnonymousLoungePage = lazy(() => import('./pages/AnonymousLoungePage.jsx'))
 const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
 const ContactPage = lazy(() => import('./pages/ContactPage.jsx'))
+const AdsPage = lazy(() => import('./pages/AdsPage.jsx'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
 const PostDetailModal = lazy(() => import('./features/posts/PostDetailModal.jsx'))
 const AdminLayout = lazy(() => import('./layouts/AdminLayout.jsx'))
@@ -239,13 +240,7 @@ function App() {
             />
             <Route
               path="ads"
-              element={
-                <SimpleInfoPage
-                  pageKey="ads"
-                  title="Advertising"
-                  description="Advertising packages, audience reach, and campaign entry points will be shown here."
-                />
-              }
+              element={<AdsPage />}
             />
             <Route path="posts/:postId" element={<PostDetailModal />} />
             <Route path="posts/:postId/:slug" element={<PostDetailModal />} />
