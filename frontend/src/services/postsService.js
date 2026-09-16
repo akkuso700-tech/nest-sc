@@ -260,8 +260,12 @@ export function getPostLikes(postId, { page = 1, limit = 20, q = '' } = {}) {
   return apiRequest(`/posts/${postId}/likes${query.toString() ? `?${query.toString()}` : ''}`)
 }
 
-export function getPostInsights(postId) {
-  return apiRequest(`/posts/${postId}/insights`)
+export function getPostInsights(postId, days = 7) {
+  const query = new URLSearchParams()
+  if (days) {
+    query.set('days', String(days))
+  }
+  return apiRequest(`/posts/${postId}/insights?${query.toString()}`)
 }
 
 export function togglePostLike(postId, recommendation = null) {

@@ -3,6 +3,7 @@ import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
 import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
 import { videoPlaybackManager } from '../../services/VideoPlaybackManager.js'
+import { VolumeOffIcon, VolumeOnIcon } from './PostCardIcons.jsx'
 
 function PlayBadge() {
   return (
@@ -56,10 +57,23 @@ function getFeedGridClass(count) {
 
 function getFeedItemClass(count, index) {
   if (count === 3 && index === 0) {
-    return 'row-span-2'
+    return 'col-span-1 row-span-2'
   }
 
-  return ''
+  return 'col-span-1 row-span-1'
+}
+
+function clampFeedAspectRatio(ratio, mediaType = 'image') {
+  if (!ratio || !Number.isFinite(ratio) || ratio <= 0) {
+    return mediaType === 'video' ? 16 / 9 : 16 / 10
+  }
+  // Twitter/X standard:
+  // - Videos preserve natural aspect ratios down to 9:16 (~0.5625) without stretching or cropping
+  // - Photos are capped between 0.75 (3:4 portrait) and 1.91 (approx 16:9 landscape)
+  const minRatio = mediaType === 'video' ? 9 / 16 : 0.75
+  const maxRatio = 1.91
+
+  return Math.min(Math.max(ratio, minRatio), maxRatio)
 }
 
 function getAspectClass(item, count) {
@@ -91,6 +105,50 @@ function MediaGallery({
   const previewEnabled =
     interactive && !reducedDataMode && (hoverPlayVideos || autoplayOnVisible)
 
+  const firstItem = limitedItems[0]
+  const firstMediaType = firstItem?.type === 'video' ? 'video' : 'image'
+  const initialSingleRatio = clampFeedAspectRatio(
+    firstItem?.aspectRatio ||
+      (firstItem?.width && firstItem?.height ? firstItem.width / firstItem.height : null) ||
+      (firstMediaType === 'video'
+        ? firstItem?.durationSeconds > 60
+          ? 9 / 16
+          : 16 / 9
+        : 16 / 10),
+    firstMediaType,
+  )
+  const [singleAspectRatio, setSingleAspectRatio] = useState(initialSingleRatio)
+
+  const firstUrl = firstItem?.url
+  const firstHlsUrl = firstItem?.hlsUrl
+  const firstAspect = firstItem?.aspectRatio
+  const firstWidth = firstItem?.width
+  const firstHeight = firstItem?.height
+  const firstDuration = firstItem?.durationSeconds
+  const firstType = firstItem?.type
+
+  useEffect(() => {
+    if (!firstUrl && !firstHlsUrl) return
+    const mediaType = firstType === 'video' ? 'video' : 'image'
+    const ratio = clampFeedAspectRatio(
+      firstAspect ||
+        (firstWidth && firstHeight ? firstWidth / firstHeight : null) ||
+        (mediaType === 'video'
+          ? firstDuration > 60
+            ? 9 / 16
+            : 16 / 9
+          : 16 / 10),
+      mediaType,
+    )
+    setSingleAspectRatio(ratio)
+  }, [firstUrl, firstHlsUrl, firstAspect, firstWidth, firstHeight, firstDuration, firstType])
+
+  const handleRatioMeasured = useCallback((measuredRatio) => {
+    if (measuredRatio && Number.isFinite(measuredRatio) && measuredRatio > 0) {
+      setSingleAspectRatio(clampFeedAspectRatio(measuredRatio, firstMediaType))
+    }
+  }, [firstMediaType])
+
   const setVideoRef = useCallback((refKey, node) => {
     if (!refKey) {
       return
@@ -101,7 +159,7 @@ function MediaGallery({
       videoRefs.current.set(refKey, node)
       videoPlaybackManager.register(refKey, {
         play: () => {
-          node.muted = true
+          node.muted = videoPlaybackManager.getMuted()
           node.playsInline = true
           const playPromise = node.play()
           if (playPromise && typeof playPromise.catch === 'function') {
@@ -210,50 +268,124 @@ function MediaGallery({
     return null
   }
 
-  return (
-    <div
-      className={`mt-1 overflow-hidden border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 ${className}`.trim()}
-    >
-      <div
-        className={
-          feedLayout
-            ? limitedItems.length === 1
-              ? 'w-full max-h-[440px] md:max-h-[540px] overflow-hidden'
-              : 'w-full aspect-square max-h-[440px] md:max-h-[540px] overflow-hidden'
-            : ''
-        }
-      >
+  if (feedLayout) {
+    // Single feed item: dynamic proportional width & height, preserving natural aspect ratio without horizontal stretching
+    if (limitedItems.length === 1) {
+      const item = limitedItems[0]
+      const mediaSource = item?.url || item?.hlsUrl || ''
+      const mediaCandidates = resolveMediaUrlCandidates(mediaSource)
+      const posterCandidates = resolveMediaUrlCandidates(
+        item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
+      )
+      const mediaType = item?.type === 'video' ? 'video' : 'image'
+      const mediaIsProcessing =
+        mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
+      const refKey = `${mediaSource || item?.name || 'media'}-0`
+      const isPortrait = singleAspectRatio < 1
+
+      return (
         <div
-          className={`grid w-full ${
-            feedLayout
-              ? `h-full ${getFeedGridClass(limitedItems.length)} gap-1`
-              : `${getGridClass(limitedItems.length)} gap-3`
-          }`.trim()}
+          className={`mt-2 overflow-hidden rounded-md border border-zinc-200/90 bg-zinc-100 dark:border-zinc-800/90 dark:bg-zinc-900 mx-auto max-h-[min(440px,calc(100dvh-160px))] md:max-h-[540px] [--media-max-h:min(440px,calc(100dvh-160px))] md:[--media-max-h:540px] ${
+            isPortrait ? 'w-fit max-w-full' : 'w-full'
+          } ${className}`.trim()}
+          style={
+            isPortrait
+              ? {
+                  width: `min(100%, calc(var(--media-max-h, 440px) * ${singleAspectRatio}))`,
+                  aspectRatio: `${singleAspectRatio}`,
+                }
+              : {
+                  width: '100%',
+                  aspectRatio: `${singleAspectRatio}`,
+                }
+          }
         >
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onItemClick ? () => onItemClick(item, 0) : undefined}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onItemClick?.(item, 0)
+              }
+            }}
+            className={`group relative flex size-full max-h-[min(440px,calc(100dvh-160px))] md:max-h-[540px] items-center justify-center overflow-hidden text-left ${
+              interactive ? 'cursor-pointer' : 'cursor-default'
+            }`}
+            onMouseEnter={() => handleVideoPreviewStart(refKey)}
+            onMouseLeave={() => handleVideoPreviewStop(refKey)}
+            onFocus={() => handleVideoPreviewStart(refKey)}
+            onBlur={() => handleVideoPreviewStop(refKey)}
+          >
+            {mediaIsProcessing ? (
+              <ProcessingBadge
+                progress={item?.processingProgress}
+                posterUrl={posterCandidates[0] || ''}
+              />
+            ) : mediaType === 'video' ? (
+              <MediaVideo
+                refKey={refKey}
+                candidates={mediaCandidates}
+                posterUrl={posterCandidates[0] || ''}
+                interactive={interactive}
+                previewEnabled={previewEnabled}
+                setVideoRef={setVideoRef}
+                feedLayout={feedLayout}
+                preserveNaturalRatio={false}
+                reducedDataMode={reducedDataMode}
+                hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
+                onRatioMeasured={handleRatioMeasured}
+              />
+            ) : (
+              <MediaImage
+                candidates={mediaCandidates}
+                index={0}
+                preserveNaturalRatio={false}
+                priority={priority}
+                onRatioMeasured={handleRatioMeasured}
+              />
+            )}
+
+            {interactive ? (
+              <span className="pointer-events-none absolute inset-0 bg-black/0 transition duration-200 group-hover:bg-black/5 dark:group-hover:bg-white/5" />
+            ) : null}
+          </div>
+        </div>
+      )
+    }
+
+    // Multiple feed items (2, 3, 4 items) in X.com-style 16:9 mosaic grid
+    return (
+      <div
+        className={`mt-2 relative w-full aspect-[16/9] max-h-[460px] md:max-h-[520px] overflow-hidden rounded-md border border-zinc-200/90 bg-zinc-200 dark:border-zinc-800/90 dark:bg-zinc-800 mx-auto ${className}`.trim()}
+      >
+        <div className={`grid size-full ${getFeedGridClass(limitedItems.length)} gap-[2px]`}>
           {limitedItems.map((item, index) => {
             const mediaSource = item?.url || item?.hlsUrl || ''
             const mediaCandidates = resolveMediaUrlCandidates(mediaSource)
             const posterCandidates = resolveMediaUrlCandidates(
               item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
             )
-            const mediaType = item.type === 'video' ? 'video' : 'image'
+            const mediaType = item?.type === 'video' ? 'video' : 'image'
             const mediaIsProcessing =
               mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
-            const isSingleFeedItem = feedLayout && limitedItems.length === 1
-            const aspectClass = feedLayout
-              ? isSingleFeedItem
-                ? 'aspect-[16/10] w-full'
-                : 'h-full'
-              : getAspectClass(item, limitedItems.length)
-            const refKey = `${mediaSource || item.name || 'media'}-${index}`
-            const feedItemClass = feedLayout ? getFeedItemClass(limitedItems.length, index) : ''
+            const refKey = `${mediaSource || item?.name || 'media'}-${index}`
+            const feedItemClass = getFeedItemClass(limitedItems.length, index)
 
             return (
-              <button
+              <div
                 key={refKey}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={onItemClick ? () => onItemClick(item, index) : undefined}
-                className={`group relative overflow-hidden bg-black text-left ${aspectClass} ${feedItemClass} ${
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onItemClick?.(item, index)
+                  }
+                }}
+                className={`group relative size-full overflow-hidden bg-zinc-100 text-left dark:bg-zinc-900 ${feedItemClass} ${
                   interactive ? 'cursor-pointer' : 'cursor-default'
                 }`}
                 onMouseEnter={() => handleVideoPreviewStart(refKey)}
@@ -275,7 +407,7 @@ function MediaGallery({
                     previewEnabled={previewEnabled}
                     setVideoRef={setVideoRef}
                     feedLayout={feedLayout}
-                    preserveNaturalRatio={isSingleFeedItem}
+                    preserveNaturalRatio={false}
                     reducedDataMode={reducedDataMode}
                     hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
                   />
@@ -283,24 +415,105 @@ function MediaGallery({
                   <MediaImage
                     candidates={mediaCandidates}
                     index={index}
-                    preserveNaturalRatio={isSingleFeedItem}
+                    preserveNaturalRatio={false}
                     priority={priority && index === 0}
                   />
                 )}
 
                 {interactive ? (
-                  <span className="pointer-events-none absolute inset-0 bg-zinc-950/0 transition group-hover:bg-zinc-950/8" />
+                  <span className="pointer-events-none absolute inset-0 bg-black/0 transition duration-200 group-hover:bg-black/5 dark:group-hover:bg-white/5" />
                 ) : null}
-              </button>
+              </div>
             )
           })}
         </div>
+      </div>
+    )
+  }
+
+  // Non-feed layout fallback (e.g. comments, messages)
+  return (
+    <div
+      className={`mt-1 overflow-hidden rounded-md border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 mx-auto ${className}`.trim()}
+    >
+      <div className={`grid w-full ${getGridClass(limitedItems.length)} gap-2`}>
+        {limitedItems.map((item, index) => {
+          const mediaSource = item?.url || item?.hlsUrl || ''
+          const mediaCandidates = resolveMediaUrlCandidates(mediaSource)
+          const posterCandidates = resolveMediaUrlCandidates(
+            item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
+          )
+          const mediaType = item.type === 'video' ? 'video' : 'image'
+          const mediaIsProcessing =
+            mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
+          const aspectClass = getAspectClass(item, limitedItems.length)
+          const refKey = `${mediaSource || item.name || 'media'}-${index}`
+
+          return (
+            <div
+              key={refKey}
+              role="button"
+              tabIndex={0}
+              onClick={onItemClick ? () => onItemClick(item, index) : undefined}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onItemClick?.(item, index)
+                }
+              }}
+              className={`group relative overflow-hidden bg-zinc-100 text-left dark:bg-zinc-900 ${aspectClass} ${
+                interactive ? 'cursor-pointer' : 'cursor-default'
+              }`}
+              onMouseEnter={() => handleVideoPreviewStart(refKey)}
+              onMouseLeave={() => handleVideoPreviewStop(refKey)}
+              onFocus={() => handleVideoPreviewStart(refKey)}
+              onBlur={() => handleVideoPreviewStop(refKey)}
+            >
+              {mediaIsProcessing ? (
+                <ProcessingBadge
+                  progress={item?.processingProgress}
+                  posterUrl={posterCandidates[0] || ''}
+                />
+              ) : mediaType === 'video' ? (
+                <MediaVideo
+                  refKey={refKey}
+                  candidates={mediaCandidates}
+                  posterUrl={posterCandidates[0] || ''}
+                  interactive={interactive}
+                  previewEnabled={previewEnabled}
+                  setVideoRef={setVideoRef}
+                  feedLayout={false}
+                  preserveNaturalRatio={false}
+                  reducedDataMode={reducedDataMode}
+                  hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
+                />
+              ) : (
+                <MediaImage
+                  candidates={mediaCandidates}
+                  index={index}
+                  preserveNaturalRatio={false}
+                  priority={priority && index === 0}
+                />
+              )}
+
+              {interactive ? (
+                <span className="pointer-events-none absolute inset-0 bg-black/0 transition duration-200 group-hover:bg-black/5 dark:group-hover:bg-white/5" />
+              ) : null}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function MediaImage({ candidates, index, preserveNaturalRatio = false, priority = false }) {
+function MediaImage({
+  candidates,
+  index,
+  preserveNaturalRatio = false,
+  priority = false,
+  onRatioMeasured,
+}) {
   const [activeIndex, setActiveIndex] = useState(0)
   const src = candidates[activeIndex] || ''
 
@@ -311,6 +524,15 @@ function MediaImage({ candidates, index, preserveNaturalRatio = false, priority 
       loading={priority ? 'eager' : 'lazy'}
       decoding="async"
       fetchPriority={priority ? 'high' : 'low'}
+      onLoad={(e) => {
+        if (onRatioMeasured) {
+          const nw = e.currentTarget?.naturalWidth
+          const nh = e.currentTarget?.naturalHeight
+          if (nw && nh && nh > 0) {
+            onRatioMeasured(nw / nh)
+          }
+        }
+      }}
       onError={() => {
         setActiveIndex((current) => {
           if (current >= candidates.length - 1) {
@@ -319,10 +541,8 @@ function MediaImage({ candidates, index, preserveNaturalRatio = false, priority 
           return current + 1
         })
       }}
-      className={`w-full ${
-        preserveNaturalRatio
-          ? 'h-full max-h-[440px] md:max-h-[540px] object-contain'
-          : 'h-full object-cover'
+      className={`size-full ${
+        preserveNaturalRatio ? 'object-contain' : 'object-cover'
       } object-center transition duration-300 group-hover:scale-[1.01]`}
     />
   )
@@ -339,8 +559,10 @@ function MediaVideo({
   preserveNaturalRatio = false,
   reducedDataMode = false,
   hlsUrl = '',
+  onRatioMeasured,
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const [isMuted, setIsMuted] = useState(() => videoPlaybackManager.getMuted())
   const src = candidates[activeIndex] || ''
   const internalVideoRef = useRef(null)
   const adaptiveSource = useAdaptiveVideoSource({
@@ -349,6 +571,32 @@ function MediaVideo({
     fallbackUrl: src,
     enabled: Boolean(hlsUrl),
   })
+
+  useEffect(() => {
+    return videoPlaybackManager.onMuteChange((newMuted) => {
+      setIsMuted(newMuted)
+      if (internalVideoRef.current) {
+        internalVideoRef.current.muted = newMuted
+      }
+    })
+  }, [])
+
+  const handleToggleMute = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const nextMuted = videoPlaybackManager.toggleMuted()
+    const video = internalVideoRef.current
+    if (video) {
+      video.muted = nextMuted
+      if (!nextMuted) {
+        video.playsInline = true
+        const playPromise = video.play()
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => undefined)
+        }
+      }
+    }
+  }, [])
 
   return (
     <>
@@ -361,9 +609,18 @@ function MediaVideo({
         poster={posterUrl || undefined}
         controls={!interactive && !feedLayout}
         playsInline
-        muted={previewEnabled}
+        muted={isMuted}
         loop={previewEnabled}
         preload={interactive || reducedDataMode ? 'none' : 'metadata'}
+        onLoadedMetadata={(e) => {
+          if (onRatioMeasured) {
+            const vw = e.currentTarget?.videoWidth
+            const vh = e.currentTarget?.videoHeight
+            if (vw && vh && vh > 0) {
+              onRatioMeasured(vw / vh)
+            }
+          }
+        }}
         onError={() => {
           setActiveIndex((current) => {
             if (current >= candidates.length - 1) {
@@ -372,13 +629,30 @@ function MediaVideo({
             return current + 1
           })
         }}
-        className={`w-full ${
-          preserveNaturalRatio
-            ? 'h-full max-h-[440px] md:max-h-[540px] object-contain'
-            : 'h-full object-cover'
+        className={`size-full ${
+          preserveNaturalRatio ? 'object-contain' : 'object-cover'
         } object-center`}
       />
+
       {interactive && (!feedLayout || reducedDataMode) ? <PlayBadge /> : null}
+
+      {/* X.com Style Bottom-Right Mute/Unmute Sound Button */}
+      {interactive ? (
+        <button
+          type="button"
+          aria-label={isMuted ? 'Sesi aç' : 'Sesi kapat'}
+          title={isMuted ? 'Sesi aç' : 'Sesi kapat'}
+          onClick={handleToggleMute}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute bottom-2.5 right-2.5 z-30 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-md transition-all duration-150 hover:scale-110 hover:bg-black/85 active:scale-95 shadow-md border border-white/15 cursor-pointer"
+        >
+          {isMuted ? (
+            <VolumeOffIcon className="size-4 text-white" />
+          ) : (
+            <VolumeOnIcon className="size-4 text-white" />
+          )}
+        </button>
+      ) : null}
     </>
   )
 }

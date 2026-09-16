@@ -9,6 +9,36 @@ class VideoPlaybackManager {
   constructor() {
     this.activeVideoKey = null
     this.subscribers = new Map()
+    this.isMuted = true
+    this.muteListeners = new Set()
+  }
+
+  getMuted() {
+    return this.isMuted
+  }
+
+  setMuted(muted) {
+    this.isMuted = Boolean(muted)
+    this.muteListeners.forEach((listener) => {
+      try {
+        listener(this.isMuted)
+      } catch {
+        // ignore listener callback errors
+      }
+    })
+  }
+
+  toggleMuted() {
+    this.setMuted(!this.isMuted)
+    return this.isMuted
+  }
+
+  onMuteChange(listener) {
+    if (typeof listener !== 'function') return () => {}
+    this.muteListeners.add(listener)
+    return () => {
+      this.muteListeners.delete(listener)
+    }
   }
 
   register(key, handlers) {

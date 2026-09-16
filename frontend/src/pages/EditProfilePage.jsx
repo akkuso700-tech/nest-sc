@@ -170,26 +170,28 @@ function HighlightMatch({ text = '', query = '' }) {
     return <span>{text}</span>
   }
 
+  let parts = null
+  let regex = null
   try {
-    const regex = new RegExp(`(${escaped})`, 'gi')
-    const parts = text.split(regex)
-
-    return (
-      <span>
-        {parts.map((part, index) =>
-          regex.test(part) ? (
-            <span key={index} className="font-semibold text-primary">
-              {part}
-            </span>
-          ) : (
-            <span key={index}>{part}</span>
-          )
-        )}
-      </span>
-    )
+    regex = new RegExp(`(${escaped})`, 'gi')
+    parts = text.split(regex)
   } catch {
     return <span>{text}</span>
   }
+
+  return (
+    <span>
+      {parts.map((part, index) =>
+        regex.test(part) ? (
+          <span key={index} className="font-semibold text-primary">
+            {part}
+          </span>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      )}
+    </span>
+  )
 }
 
 function InputField({ label, children, helperText = '' }) {
@@ -2074,7 +2076,7 @@ function EditProfilePage() {
                     </div>
 
                     {/* Durum 1: Aktif ve Onaylı Abonelik */}
-                    {Boolean(user?.verification?.isVerified || user?.verification?.status === 'approved' || verificationState.request?.status === 'approved') ? (
+                    {(user?.verification?.isVerified || user?.verification?.status === 'approved' || verificationState.request?.status === 'approved') ? (
                       (() => {
                         const currentPlanId = user?.verification?.subscriptionPlan && user.verification.subscriptionPlan !== 'none'
                           ? user.verification.subscriptionPlan

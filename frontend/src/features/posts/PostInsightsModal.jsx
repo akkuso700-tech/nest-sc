@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getPostInsights } from '../../services/postsService.js'
 import { resolveMediaUrl } from '../../utils/media.js'
@@ -109,32 +109,38 @@ function ReplayIcon({ className = '' }) {
 
 function InsightsSkeleton() {
   return (
-    <div className="space-y-4 p-5 animate-pulse">
+    <div className="space-y-3 p-5 animate-pulse">
       <div className="flex items-center gap-3">
-        <div className="size-14 rounded-xl bg-secondary shrink-0" />
+        <div className="size-14 rounded-md bg-secondary shrink-0" />
         <div className="space-y-2 flex-1">
-          <div className="h-4 w-3/4 rounded bg-secondary" />
-          <div className="h-3 w-1/3 rounded bg-secondary" />
+          <div className="h-4 w-3/4 rounded-md bg-secondary" />
+          <div className="h-3 w-1/3 rounded-md bg-secondary" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="h-20 rounded-2xl bg-secondary" />
-        <div className="h-20 rounded-2xl bg-secondary" />
+        <div className="h-20 rounded-md bg-secondary" />
+        <div className="h-20 rounded-md bg-secondary" />
       </div>
       <div className="grid grid-cols-4 gap-2">
-        <div className="h-16 rounded-xl bg-secondary" />
-        <div className="h-16 rounded-xl bg-secondary" />
-        <div className="h-16 rounded-xl bg-secondary" />
-        <div className="h-16 rounded-xl bg-secondary" />
+        <div className="h-16 rounded-md bg-secondary" />
+        <div className="h-16 rounded-md bg-secondary" />
+        <div className="h-16 rounded-md bg-secondary" />
+        <div className="h-16 rounded-md bg-secondary" />
       </div>
-      <div className="h-32 rounded-2xl bg-secondary" />
+      <div className="h-32 rounded-md bg-secondary" />
     </div>
   )
 }
 
-function formatDayLabel(dateStr, lang = 'tr') {
+function formatDayLabel(dateStr, lang = 'tr', includeMonth = false) {
   try {
     const d = new Date(dateStr)
+    if (includeMonth) {
+      return d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', {
+        day: 'numeric',
+        month: 'short',
+      })
+    }
     return d.toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', {
       weekday: 'short',
       day: 'numeric',
@@ -142,6 +148,316 @@ function formatDayLabel(dateStr, lang = 'tr') {
   } catch {
     return dateStr
   }
+}
+
+function TrendLineChart({
+  trend = [],
+  timeRange = 7,
+  lang = 'tr',
+  activeTrendIndex,
+  setActiveTrendIndex,
+  t,
+}) {
+  const svgRef = useRef(null)
+
+  const maxTrendViews = Math.max(...trend.map((t) => t.views), 1)
+  const periodTotalViews = trend.reduce((sum, d) => sum + (d.views || 0), 0)
+  const peakDay = trend.reduce(
+    (max, d) => (d.views > (max?.views || 0) ? d : max),
+    trend[0] || null
+  )
+  const activeDay = activeTrendIndex !== null ? trend[activeTrendIndex] : null
+
+  // SVG dimensions & coordinate space
+  const svgWidth = 500
+  const svgHeight = 150
+  const paddingLeft = 34
+  const paddingRight = 16
+  const paddingTop = 18
+  const baselineY = 120
+  const chartWidth = svgWidth - paddingLeft - paddingRight
+  const chartHeight = baselineY - paddingTop
+
+  // Calculate coordinates for each data point
+  const points = trend.map((day, idx) => {
+    const x =
+      trend.length <= 1
+        ? paddingLeft + chartWidth / 2
+        : paddingLeft + (idx / (trend.length - 1)) * chartWidth
+    const ratio = maxTrendViews > 0 ? day.views / maxTrendViews : 0
+    const y = baselineY - ratio * (chartHeight - 12)
+    return { x, y, day, idx }
+  })
+
+  // Smooth Bezier spline
+  const linePath = (() => {
+    if (points.length === 0) return ''
+    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`
+    if (points.length === 2) {
+      return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`
+    }
+
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(i - 1, 0)]
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      const p3 = points[Math.min(i + 2, points.length - 1)]
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6
+      let cp1y = p1.y + (p2.y - p0.y) / 6
+      const cp2x = p2.x - (p3.x - p1.x) / 6
+      let cp2y = p2.y - (p3.y - p1.y) / 6
+
+      cp1y = Math.min(baselineY, Math.max(paddingTop, cp1y))
+      cp2y = Math.min(baselineY, Math.max(paddingTop, cp2y))
+
+      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    }
+    return d
+  })()
+
+  const areaPath =
+    points.length > 0
+      ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${baselineY} L ${points[0].x.toFixed(1)} ${baselineY} Z`
+      : ''
+
+  // Date tick indexes for X-axis labels
+  const tickIndices = (() => {
+    const len = trend.length
+    if (len <= 7) return Array.from({ length: len }, (_, i) => i)
+    if (timeRange === 28) {
+      return [0, Math.floor(len * 0.25), Math.floor(len * 0.5), Math.floor(len * 0.75), len - 1]
+    }
+    return [0, Math.floor(len * 0.33), Math.floor(len * 0.66), len - 1]
+  })()
+
+  // Pointer event tracking for scrubber
+  const handlePointer = (e) => {
+    if (!svgRef.current || points.length === 0) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const clientX = e.clientX ?? (e.touches && e.touches[0]?.clientX)
+    if (clientX === undefined) return
+    const relX = (clientX - rect.left) / rect.width
+    const svgX = relX * svgWidth
+    const clampedX = Math.max(paddingLeft, Math.min(svgWidth - paddingRight, svgX))
+    const ratio = (clampedX - paddingLeft) / chartWidth
+    const idx = Math.min(points.length - 1, Math.max(0, Math.round(ratio * (points.length - 1))))
+    setActiveTrendIndex(idx)
+  }
+
+  const activePoint = activeTrendIndex !== null ? points[activeTrendIndex] : null
+
+  return (
+    <div className="space-y-3">
+      {/* Dynamic Stats Banner */}
+      {activeDay ? (
+        <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/10 px-3 py-2 transition-all">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-xs font-semibold text-text">
+              {formatDayLabel(activeDay.date, lang, timeRange > 7)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-black text-primary">
+              {activeDay.views.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-medium text-muted">
+              {t('insights.views', { defaultValue: 'görüntülenme' })}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between rounded-md border border-border bg-secondary/50 px-3 py-2 text-xs">
+          <div className="flex items-center gap-1.5 text-muted">
+            <span>{timeRange} {t('insights.daysTotal', { defaultValue: 'günlük toplam' })}:</span>
+            <strong className="text-text font-bold">{periodTotalViews.toLocaleString()}</strong>
+          </div>
+          {peakDay && peakDay.views > 0 ? (
+            <div className="text-[11px] text-muted">
+              <span>{t('insights.peak', { defaultValue: 'Zirve' })}: </span>
+              <strong className="text-primary font-bold">{peakDay.views.toLocaleString()}</strong>
+              <span className="text-muted/80 ml-1">({formatDayLabel(peakDay.date, lang, true)})</span>
+            </div>
+          ) : (
+            <span className="text-[11px] text-muted/70">
+              {t('insights.tapHint', { defaultValue: 'İncelemek için grafiğe dokunun' })}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* SVG Chart Frame */}
+      <div className="relative w-full overflow-hidden rounded-md border border-border bg-secondary/30 p-1.5">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          className="w-full h-36 select-none touch-none cursor-crosshair overflow-visible"
+          onPointerDown={handlePointer}
+          onPointerMove={(e) => {
+            if (e.buttons > 0 || e.pointerType === 'touch' || e.pointerType === 'mouse') {
+              handlePointer(e)
+            }
+          }}
+          onPointerLeave={() => setActiveTrendIndex(null)}
+        >
+          <defs>
+            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgb(var(--color-primary))" stopOpacity="0.32" />
+              <stop offset="95%" stopColor="rgb(var(--color-primary))" stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Top dashed line & Max views label */}
+          <line
+            x1={paddingLeft}
+            y1={paddingTop + 6}
+            x2={svgWidth - paddingRight}
+            y2={paddingTop + 6}
+            stroke="rgb(var(--color-border-soft))"
+            strokeDasharray="4 4"
+            strokeWidth="1"
+          />
+          <text
+            x={paddingLeft - 6}
+            y={paddingTop + 10}
+            textAnchor="end"
+            className="text-[9px] fill-muted font-medium select-none"
+          >
+            {maxTrendViews >= 1000 ? `${(maxTrendViews / 1000).toFixed(1)}k` : maxTrendViews}
+          </text>
+
+          {/* Middle dashed line */}
+          <line
+            x1={paddingLeft}
+            y1={(paddingTop + 6 + baselineY) / 2}
+            x2={svgWidth - paddingRight}
+            y2={(paddingTop + 6 + baselineY) / 2}
+            stroke="rgb(var(--color-border-soft))"
+            strokeDasharray="4 4"
+            strokeWidth="1"
+          />
+
+          {/* Bottom baseline & 0 label */}
+          <line
+            x1={paddingLeft}
+            y1={baselineY}
+            x2={svgWidth - paddingRight}
+            y2={baselineY}
+            stroke="rgb(var(--color-border))"
+            strokeWidth="1"
+          />
+          <text
+            x={paddingLeft - 6}
+            y={baselineY + 3}
+            textAnchor="end"
+            className="text-[9px] fill-muted font-medium select-none"
+          >
+            0
+          </text>
+
+          {/* Gradient Area */}
+          {areaPath && <path d={areaPath} fill="url(#trendGradient)" />}
+
+          {/* Smooth Line */}
+          {linePath && (
+            <path
+              d={linePath}
+              fill="none"
+              stroke="rgb(var(--color-primary))"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* 7-day data dots */}
+          {timeRange === 7 &&
+            points.map((pt, i) => {
+              const isSelected = activeTrendIndex === i
+              return (
+                <circle
+                  key={i}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={isSelected ? 4.5 : 3}
+                  fill={isSelected ? 'rgb(var(--color-primary))' : 'rgb(var(--color-card))'}
+                  stroke="rgb(var(--color-primary))"
+                  strokeWidth="2"
+                  className="transition-all duration-150"
+                />
+              )
+            })}
+
+          {/* Interactive Scrubber Cursor */}
+          {activePoint && (
+            <g>
+              <line
+                x1={activePoint.x}
+                y1={paddingTop}
+                x2={activePoint.x}
+                y2={baselineY}
+                stroke="rgb(var(--color-primary))"
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+                opacity="0.8"
+              />
+              <circle
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r="9"
+                fill="rgb(var(--color-primary))"
+                fillOpacity="0.22"
+              />
+              <circle
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r="4.5"
+                fill="rgb(var(--color-primary))"
+                stroke="rgb(var(--color-card))"
+                strokeWidth="2"
+              />
+            </g>
+          )}
+
+          {/* X-axis date labels */}
+          {tickIndices.map((idx, i) => {
+            const pt = points[idx]
+            if (!pt) return null
+            const isFirst = i === 0
+            const isLast = i === tickIndices.length - 1
+            const textAnchor = isFirst ? 'start' : isLast ? 'end' : 'middle'
+            return (
+              <text
+                key={pt.day.date}
+                x={pt.x}
+                y={svgHeight - 6}
+                textAnchor={textAnchor}
+                className="text-[10px] fill-muted font-medium select-none"
+              >
+                {formatDayLabel(pt.day.date, lang, timeRange > 7)}
+              </text>
+            )
+          })}
+        </svg>
+      </div>
+
+      {/* Footer hint & Reset button */}
+      <div className="flex items-center justify-between text-[11px] text-muted px-1">
+        <span>{t('insights.chartHint', { defaultValue: 'Tarih detayları için grafiğe dokunun veya kaydırın' })}</span>
+        {activeTrendIndex !== null && (
+          <button
+            type="button"
+            onClick={() => setActiveTrendIndex(null)}
+            className="font-medium text-primary hover:underline cursor-pointer"
+          >
+            {t('common.reset', { defaultValue: 'Sıfırla' })}
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function PostInsightsModal({
@@ -155,6 +471,8 @@ export default function PostInsightsModal({
   const [data, setData] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [timeRange, setTimeRange] = useState(7)
+  const [activeTrendIndex, setActiveTrendIndex] = useState(null)
 
   useEffect(() => {
     if (!open || !postId) return
@@ -162,8 +480,9 @@ export default function PostInsightsModal({
     let isMounted = true
     setIsLoading(true)
     setError('')
+    setActiveTrendIndex(null)
 
-    getPostInsights(postId)
+    getPostInsights(postId, timeRange)
       .then((res) => {
         if (isMounted) {
           setData(res)
@@ -183,7 +502,7 @@ export default function PostInsightsModal({
     return () => {
       isMounted = false
     }
-  }, [open, postId, t])
+  }, [open, postId, timeRange, t])
 
   // ESC key listener
   useEffect(() => {
@@ -211,7 +530,6 @@ export default function PostInsightsModal({
     : null
 
   const totalInteractions = kpi.totalInteractions || 0
-  const maxTrendViews = Math.max(...trend.map((t) => t.views), 1)
 
   function getEngagementTone(rate) {
     if (rate >= 10) return { label: t('insights.viral', { defaultValue: 'Çok Yüksek 🚀' }), color: 'text-emerald-500 bg-emerald-500/10' }
@@ -236,7 +554,7 @@ export default function PostInsightsModal({
             onClick={() => {
               setIsLoading(true)
               setError('')
-              getPostInsights(postId)
+              getPostInsights(postId, timeRange)
                 .then(setData)
                 .catch((e) => setError(e.message))
                 .finally(() => setIsLoading(false))
@@ -250,11 +568,11 @@ export default function PostInsightsModal({
     }
 
     return (
-      <div className="space-y-5 p-5">
+      <div className="space-y-3 p-5">
         {/* Post Snippet Banner */}
-        <div className="flex items-center gap-3.5 rounded-2xl border border-border bg-secondary/40 p-3">
+        <div className="flex items-center gap-3.5 rounded-md border border-border bg-secondary/40 p-3">
           {thumbnail ? (
-            <div className="size-13 shrink-0 overflow-hidden rounded-xl border border-border bg-black">
+            <div className="size-13 shrink-0 overflow-hidden rounded-md border border-border bg-black">
               <img
                 src={thumbnail}
                 alt=""
@@ -262,14 +580,14 @@ export default function PostInsightsModal({
               />
             </div>
           ) : (
-            <div className="grid size-13 shrink-0 place-items-center rounded-xl border border-border bg-secondary text-muted">
+            <div className="grid size-13 shrink-0 place-items-center rounded-md border border-border bg-secondary text-muted">
               <ChartBarIcon className="size-6 opacity-60" />
             </div>
           )}
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary uppercase">
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary uppercase">
                 {post.contentType === 'loop' ? 'Loop' : 'Gönderi'}
               </span>
               <span className="text-xs text-muted">
@@ -284,7 +602,7 @@ export default function PostInsightsModal({
 
         {/* KPI Overview Cards */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="rounded-md border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-muted">
                 {t('insights.totalViews', { defaultValue: 'Görüntülenme' })}
@@ -301,12 +619,12 @@ export default function PostInsightsModal({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="rounded-md border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-muted">
                 {t('insights.engagementRate', { defaultValue: 'Etkileşim Oranı' })}
               </span>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${engagementTone.color}`}>
+              <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${engagementTone.color}`}>
                 {engagementTone.label}
               </span>
             </div>
@@ -320,13 +638,13 @@ export default function PostInsightsModal({
         </div>
 
         {/* Interaction Breakdown Grid */}
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-md border border-border bg-card p-4 shadow-sm">
           <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">
             {t('insights.interactionBreakdown', { defaultValue: 'Etkileşim Dağılımı' })}
           </h3>
 
           <div className="grid grid-cols-4 gap-2 text-center">
-            <div className="rounded-xl bg-rose-500/10 p-2.5 dark:bg-rose-950/30">
+            <div className="rounded-md bg-rose-500/10 p-2.5 dark:bg-rose-950/30">
               <span className="text-rose-500 mx-auto block mb-1">
                 <HeartIcon className="mx-auto" />
               </span>
@@ -334,7 +652,7 @@ export default function PostInsightsModal({
               <p className="text-[10px] font-medium text-muted">{t('common.like', { defaultValue: 'Beğeni' })}</p>
             </div>
 
-            <div className="rounded-xl bg-blue-500/10 p-2.5 dark:bg-blue-950/30">
+            <div className="rounded-md bg-blue-500/10 p-2.5 dark:bg-blue-950/30">
               <span className="text-blue-500 mx-auto block mb-1">
                 <CommentIcon className="mx-auto" />
               </span>
@@ -342,7 +660,7 @@ export default function PostInsightsModal({
               <p className="text-[10px] font-medium text-muted">{t('common.comment', { defaultValue: 'Yorum' })}</p>
             </div>
 
-            <div className="rounded-xl bg-emerald-500/10 p-2.5 dark:bg-emerald-950/30">
+            <div className="rounded-md bg-emerald-500/10 p-2.5 dark:bg-emerald-950/30">
               <span className="text-emerald-500 mx-auto block mb-1">
                 <ShareIcon className="mx-auto" />
               </span>
@@ -350,7 +668,7 @@ export default function PostInsightsModal({
               <p className="text-[10px] font-medium text-muted">{t('common.share', { defaultValue: 'Paylaşım' })}</p>
             </div>
 
-            <div className="rounded-xl bg-amber-500/10 p-2.5 dark:bg-amber-950/30">
+            <div className="rounded-md bg-amber-500/10 p-2.5 dark:bg-amber-950/30">
               <span className="text-amber-500 mx-auto block mb-1">
                 <BookmarkIcon className="mx-auto" />
               </span>
@@ -362,9 +680,9 @@ export default function PostInsightsModal({
 
         {/* Video / Loop Metrics (if applicable) */}
         {videoMetrics.isVideo ? (
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-3">
+          <div className="rounded-md border border-border bg-card p-4 shadow-sm space-y-3">
             <div className="flex items-center gap-2">
-              <span className="rounded-lg bg-indigo-500/10 p-1.5 text-indigo-500">
+              <span className="rounded-md bg-indigo-500/10 p-1.5 text-indigo-500">
                 <ReplayIcon />
               </span>
               <h3 className="text-xs font-bold text-muted uppercase tracking-wider">
@@ -373,34 +691,34 @@ export default function PostInsightsModal({
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="rounded-xl border border-border bg-secondary/50 p-3">
+              <div className="rounded-md border border-border bg-secondary/50 p-3">
                 <p className="text-xs text-muted">{t('insights.retentionRate', { defaultValue: 'İzlenme Oranı' })}</p>
                 <p className="mt-1 text-lg font-black text-text">%{videoMetrics.averageWatchRatio || 0}</p>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-md bg-border">
                   <div
-                    className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                    className="h-full bg-indigo-500 rounded-md transition-all duration-500"
                     style={{ width: `${Math.min(100, videoMetrics.averageWatchRatio || 0)}%` }}
                   />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-secondary/50 p-3">
+              <div className="rounded-md border border-border bg-secondary/50 p-3">
                 <p className="text-xs text-muted">{t('insights.completionRate', { defaultValue: 'Tamamlama Oranı' })}</p>
                 <p className="mt-1 text-lg font-black text-text">%{videoMetrics.completionRate || 0}</p>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-md bg-border">
                   <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    className="h-full bg-emerald-500 rounded-md transition-all duration-500"
                     style={{ width: `${Math.min(100, videoMetrics.completionRate || 0)}%` }}
                   />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-secondary/50 p-3">
+              <div className="rounded-md border border-border bg-secondary/50 p-3">
                 <p className="text-xs text-muted">{t('insights.replays', { defaultValue: 'Tekrar Oynatma' })}</p>
                 <p className="mt-1 text-lg font-black text-text">{(videoMetrics.loopReplays || 0).toLocaleString()} <span className="text-xs font-normal text-muted">kez</span></p>
               </div>
 
-              <div className="rounded-xl border border-border bg-secondary/50 p-3">
+              <div className="rounded-md border border-border bg-secondary/50 p-3">
                 <p className="text-xs text-muted">{t('insights.avgDuration', { defaultValue: 'Ortalama Süre' })}</p>
                 <p className="mt-1 text-lg font-black text-text">{videoMetrics.averageWatchSeconds || 0} <span className="text-xs font-normal text-muted">sn</span></p>
               </div>
@@ -408,34 +726,51 @@ export default function PostInsightsModal({
           </div>
         ) : null}
 
-        {/* 7-Day Trend Chart */}
+        {/* Trend Chart (7, 28, 90 Days) */}
         {trend.length > 0 ? (
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">
-              {t('insights.trendTitle', { defaultValue: 'Son 7 Günlük İzlenme Grafiği' })}
-            </h3>
+          <div className="rounded-md border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="text-xs font-bold text-muted uppercase tracking-wider">
+                {t('insights.trendTitle', { defaultValue: 'İzlenme Grafiği' })}
+              </h3>
 
-            <div className="flex items-end justify-between gap-2 h-32 pt-4 px-1">
-              {trend.map((day) => {
-                const heightPercent = Math.max(8, Math.round((day.views / maxTrendViews) * 100))
-                return (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
-                    <span className="text-[10px] font-bold text-text opacity-0 group-hover:opacity-100 transition-opacity">
-                      {day.views}
-                    </span>
-                    <div className="w-full max-w-[28px] bg-secondary rounded-t-lg overflow-hidden flex items-end h-20">
-                      <div
-                        className="w-full bg-primary transition-all duration-500 rounded-t-lg group-hover:brightness-110"
-                        style={{ height: `${heightPercent}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-semibold text-muted truncate w-full text-center">
-                      {formatDayLabel(day.date, lang)}
-                    </span>
-                  </div>
-                )
-              })}
+              {/* 7, 28, 90 Day Segmented Buttons */}
+              <div className="inline-flex items-center rounded-md border border-border bg-secondary p-1 shadow-xs">
+                {[
+                  { value: 7, label: `7 ${t('insights.daysShort', { defaultValue: 'G' })}` },
+                  { value: 28, label: `28 ${t('insights.daysShort', { defaultValue: 'G' })}` },
+                  { value: 90, label: `90 ${t('insights.daysShort', { defaultValue: 'G' })}` },
+                ].map((item) => {
+                  const isActive = timeRange === item.value
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => {
+                        setTimeRange(item.value)
+                        setActiveTrendIndex(null)
+                      }}
+                      className={`rounded-md px-3 py-1 text-xs font-bold transition-all duration-150 cursor-pointer ${
+                        isActive
+                          ? 'bg-primary text-white shadow-sm shadow-primary/25 scale-[1.02]'
+                          : 'text-muted hover:text-text hover:bg-card'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
+
+            <TrendLineChart
+              trend={trend}
+              timeRange={timeRange}
+              lang={lang}
+              activeTrendIndex={activeTrendIndex}
+              setActiveTrendIndex={setActiveTrendIndex}
+              t={t}
+            />
           </div>
         ) : null}
       </div>
@@ -453,16 +788,16 @@ export default function PostInsightsModal({
         aria-labelledby="insights-title"
       >
         <div
-          className="flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-[28px] border-t border-border bg-card shadow-[0_-20px_50px_rgba(0,0,0,0.35)] transition-transform duration-300"
+          className="flex max-h-[88dvh] w-full max-w-lg flex-col rounded-t-md border-t border-border bg-card shadow-[0_-20px_50px_rgba(0,0,0,0.35)] transition-transform duration-300"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Grabber */}
-          <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-border-strong shrink-0" />
+          <div className="mx-auto mt-3 h-1.5 w-12 rounded-md bg-border-strong shrink-0" />
 
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-3.5 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="rounded-lg bg-primary/10 p-1.5 text-primary">
+              <span className="rounded-md bg-primary/10 p-1.5 text-primary">
                 <ChartBarIcon />
               </span>
               <h2 id="insights-title" className="text-base font-bold text-text">
@@ -472,7 +807,7 @@ export default function PostInsightsModal({
             <button
               type="button"
               onClick={onClose}
-              className="grid size-8 place-items-center rounded-full bg-secondary text-muted hover:text-text cursor-pointer"
+              className="grid size-8 place-items-center rounded-md bg-secondary text-muted hover:text-text cursor-pointer"
               aria-label={t('common.close')}
             >
               <CloseIcon />
@@ -498,13 +833,13 @@ export default function PostInsightsModal({
       aria-labelledby="insights-title"
     >
       <div
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl animate-[scaleIn_160ms_ease-out]"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl animate-[scaleIn_160ms_ease-out]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4 shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="rounded-lg bg-primary/10 p-1.5 text-primary">
+            <span className="rounded-md bg-primary/10 p-1.5 text-primary">
               <ChartBarIcon />
             </span>
             <div>
@@ -516,7 +851,7 @@ export default function PostInsightsModal({
           <button
             type="button"
             onClick={onClose}
-            className="grid size-8 place-items-center rounded-full bg-secondary text-muted transition hover:text-text cursor-pointer"
+            className="grid size-8 place-items-center rounded-md bg-secondary text-muted transition hover:text-text cursor-pointer"
             aria-label={t('common.close')}
           >
             <CloseIcon />

@@ -80,7 +80,9 @@ const postIdSchema = z.object({
   params: z.object({
     postId: objectIdSchema,
   }),
-  query: z.object({}).default({}),
+  query: z.object({
+    days: z.coerce.number().int().optional(),
+  }).passthrough().default({}),
 })
 
 const registerPostViewSchema = z.object({

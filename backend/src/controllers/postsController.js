@@ -3085,10 +3085,14 @@ const getPostInsights = asyncHandler(async (req, res) => {
         )
       : 0
 
-  // Aggregate last 7 days from PostView
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6)
-  sevenDaysAgo.setUTCHours(0, 0, 0, 0)
+  // Aggregate last X days from PostView (supports 7, 28, 90 days)
+  const requestedDays = [7, 28, 90].includes(Number(req.query.days || req.validated?.query?.days))
+    ? Number(req.query.days || req.validated?.query?.days)
+    : 7
+
+  const startDate = new Date()
+  startDate.setUTCDate(startDate.getUTCDate() - (requestedDays - 1))
+  startDate.setUTCHours(0, 0, 0, 0)
 
   let trend = []
   try {
@@ -3096,7 +3100,7 @@ const getPostInsights = asyncHandler(async (req, res) => {
       {
         $match: {
           post: post._id,
-          dayBucket: { $gte: sevenDaysAgo },
+          dayBucket: { $gte: startDate },
         },
       },
       {
@@ -3112,7 +3116,7 @@ const getPostInsights = asyncHandler(async (req, res) => {
       countsByDay.set(item._id, item.count)
     }
 
-    for (let i = 6; i >= 0; i--) {
+    for (let i = requestedDays - 1; i >= 0; i--) {
       const d = new Date()
       d.setUTCDate(d.getUTCDate() - i)
       const dateStr = d.toISOString().slice(0, 10)

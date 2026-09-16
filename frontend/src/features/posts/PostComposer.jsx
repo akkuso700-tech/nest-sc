@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { getFullName } from '../../utils/social.js'
 import { generateVideoPosterFrame, resolveMediaUrl } from '../../utils/media.js'
@@ -19,8 +20,8 @@ import {
 } from './PostComposerIcons.jsx'
 
 const MAX_IMAGE_FILES = 4
-const COMPOSER_TEXTAREA_MIN_HEIGHT = 92
-const COMPOSER_TEXTAREA_MAX_HEIGHT = 92
+const COMPOSER_TEXTAREA_MIN_HEIGHT = 96
+const COMPOSER_TEXTAREA_MAX_HEIGHT = 260
 const POST_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024
 const POST_VIDEO_MAX_BYTES = 18 * 1024 * 1024
 const LOOP_VIDEO_MAX_BYTES = 100 * 1024 * 1024
@@ -65,30 +66,23 @@ function readVideoDuration(file) {
   })
 }
 
-function syncTextareaHeight(element, maxHeight = COMPOSER_TEXTAREA_MAX_HEIGHT) {
+function syncTextareaHeight(element, minHeight = COMPOSER_TEXTAREA_MIN_HEIGHT) {
   if (!element) {
     return
   }
 
-  element.style.height = `${COMPOSER_TEXTAREA_MIN_HEIGHT}px`
-  const nextHeight = Math.min(
-    Math.max(element.scrollHeight, COMPOSER_TEXTAREA_MIN_HEIGHT),
-    maxHeight,
-  )
+  element.style.height = 'auto'
+  const nextHeight = Math.max(element.scrollHeight, minHeight)
   element.style.height = `${nextHeight}px`
-  element.style.overflowY = element.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  element.style.overflowY = 'hidden'
 }
 
 function parseDelimitedValues(value = '') {
   return [...new Set(`${value}`.split(',').map((item) => item.trim()).filter(Boolean))]
 }
 
-function getTextareaMaxHeight(isMobileFullscreen = false) {
-  if (!isMobileFullscreen || typeof window === 'undefined') {
-    return COMPOSER_TEXTAREA_MAX_HEIGHT
-  }
-
-  return Math.max(220, window.innerHeight - 260)
+function getTextareaMinHeight(isMobileFullscreen = false) {
+  return isMobileFullscreen ? 140 : COMPOSER_TEXTAREA_MIN_HEIGHT
 }
 
 function getCurrentScheduleDefaults() {
@@ -157,29 +151,37 @@ function getActiveTokenContext(text = '', caretPosition = 0) {
 
 function renderHighlightedDraft(text = '') {
   if (!text) {
-    return '\u200b'
+    return null
   }
 
   const parts = text.split(/(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+)/gu)
-
-  return parts.map((part, index) => {
+  const elements = parts.map((part, index) => {
     if (!part) {
       return null
     }
 
     const isTag = /^(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+)$/u.test(part)
+    if (isTag) {
+      return (
+        <span key={`${part}-${index}`} className="text-primary font-normal">
+          {part}
+        </span>
+      )
+    }
 
-    return (
-      <Fragment key={`${part}-${index}`}>
-        {isTag ? <span className="font-medium text-primary">{part}</span> : part}
-      </Fragment>
-    )
+    return part
   })
+
+  if (text.endsWith('\n')) {
+    elements.push('\u200b')
+  }
+
+  return elements
 }
 
 function measureSuggestionAnchor(textarea, value, caretPosition) {
   if (!textarea || typeof window === 'undefined') {
-    return { left: 0, top: 112 }
+    return { left: 16, top: 112, width: 320 }
   }
 
   const computed = window.getComputedStyle(textarea)
@@ -210,18 +212,30 @@ function measureSuggestionAnchor(textarea, value, caretPosition) {
   mirror.appendChild(marker)
   document.body.appendChild(mirror)
 
-  const left = Math.min(
-    Math.max(marker.offsetLeft + paddingLeft, 0),
-    Math.max(textareaRect.width - 240, 0),
-  )
-  const top = marker.offsetTop + paddingTop + lineHeight + 6 - textarea.scrollTop
-
+  const markerLeft = marker.offsetLeft
+  const markerTop = marker.offsetTop
   document.body.removeChild(mirror)
 
-  return {
-    left,
-    top: Math.max(top, lineHeight + 10),
+  const popupWidth = Math.min(320, window.innerWidth - 32)
+  const popupEstimatedHeight = 260
+
+  let left = textareaRect.left + paddingLeft + markerLeft
+  if (left + popupWidth > window.innerWidth - 16) {
+    left = Math.max(16, window.innerWidth - popupWidth - 16)
   }
+  if (left < 16) {
+    left = 16
+  }
+
+  let top = textareaRect.top + paddingTop + markerTop + lineHeight + 6
+  if (top + popupEstimatedHeight > window.innerHeight - 16) {
+    const topAbove = textareaRect.top + paddingTop + markerTop - popupEstimatedHeight - 6
+    if (topAbove > 16) {
+      top = topAbove
+    }
+  }
+
+  return { left, top, width: popupWidth }
 }
 
 function PostComposer({
@@ -246,7 +260,6 @@ function PostComposer({
   const imageInputRef = useRef(null)
   const videoInputRef = useRef(null)
   const textareaRef = useRef(null)
-  const highlightScrollRef = useRef(null)
   const dateInputRef = useRef(null)
   const timeInputRef = useRef(null)
   const [draft, setDraft] = useState('')
@@ -281,7 +294,7 @@ function PostComposer({
   const [mentionSuggestions, setMentionSuggestions] = useState([])
   const [recentConversationUsernames, setRecentConversationUsernames] = useState([])
   const [tokenContext, setTokenContext] = useState(null)
-  const [suggestionPosition, setSuggestionPosition] = useState({ left: 0, top: 112 })
+  const [suggestionPosition, setSuggestionPosition] = useState({ left: 16, top: 112, width: 320 })
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0)
   const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
   const [mobileKeyboardInset, setMobileKeyboardInset] = useState(0)
@@ -297,7 +310,7 @@ function PostComposer({
   const isComposerBusy = isOptimizingMedia
 
   useEffect(() => {
-    syncTextareaHeight(textareaRef.current, getTextareaMaxHeight(isMobileFullscreen))
+    syncTextareaHeight(textareaRef.current, getTextareaMinHeight(isMobileFullscreen))
   }, [draft, isExpanded, isMobileFullscreen])
 
   useEffect(
@@ -314,7 +327,7 @@ function PostComposer({
 
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
-      syncTextareaHeight(textareaRef.current, getTextareaMaxHeight(isMobileFullscreen))
+      syncTextareaHeight(textareaRef.current, getTextareaMinHeight(isMobileFullscreen))
     })
   }, [isExpanded, isMobileFullscreen])
 
@@ -587,7 +600,7 @@ function PostComposer({
   }, [tokenContext?.query, tokenContext?.trigger])
 
   const activeSuggestions = useMemo(() => {
-    if (!tokenContext || tokenContext.query.length < 2) {
+    if (!tokenContext) {
       return []
     }
 
@@ -654,11 +667,35 @@ function PostComposer({
     setActiveSuggestionIndex(0)
   }, [activeSuggestions.length, tokenContext?.query, tokenContext?.trigger])
 
+  useEffect(() => {
+    if (!tokenContext) return undefined
+
+    const handleUpdatePosition = () => {
+      if (textareaRef.current) {
+        setSuggestionPosition(
+          measureSuggestionAnchor(
+            textareaRef.current,
+            draft,
+            textareaRef.current.selectionStart || 0,
+          ),
+        )
+      }
+    }
+
+    window.addEventListener('scroll', handleUpdatePosition, true)
+    window.addEventListener('resize', handleUpdatePosition)
+
+    return () => {
+      window.removeEventListener('scroll', handleUpdatePosition, true)
+      window.removeEventListener('resize', handleUpdatePosition)
+    }
+  }, [tokenContext, draft])
+
   function syncTokenContext(value, caretPosition = textareaRef.current?.selectionStart || 0) {
     const nextContext = getActiveTokenContext(value, caretPosition)
     setTokenContext(nextContext)
 
-    if (!nextContext || nextContext.query.length < 2) {
+    if (!nextContext) {
       return
     }
 
@@ -767,7 +804,30 @@ function PostComposer({
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
       textareaRef.current?.setSelectionRange(nextCaretPosition, nextCaretPosition)
-      syncTextareaHeight(textareaRef.current, getTextareaMaxHeight(isMobileFullscreen))
+      syncTextareaHeight(textareaRef.current, getTextareaMinHeight(isMobileFullscreen))
+    })
+  }
+
+  function handleInsertSymbol(symbol) {
+    const textarea = textareaRef.current
+    const start = textarea ? textarea.selectionStart : draft.length
+    const end = textarea ? textarea.selectionEnd : draft.length
+
+    const needsLeadingSpace = start > 0 && !/\s/u.test(draft[start - 1])
+    const insertion = `${needsLeadingSpace ? ' ' : ''}${symbol}`
+    const nextValue = `${draft.slice(0, start)}${insertion}${draft.slice(end)}`
+    const nextCaretPosition = start + insertion.length
+
+    setDraft(nextValue)
+    setSubmitSuccess('')
+
+    requestAnimationFrame(() => {
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(nextCaretPosition, nextCaretPosition)
+        syncTextareaHeight(textarea, getTextareaMinHeight(isMobileFullscreen))
+        syncTokenContext(nextValue, nextCaretPosition)
+      }
     })
   }
 
@@ -1157,6 +1217,58 @@ function PostComposer({
         ? t('common.followers', { defaultValue: 'Followers' })
         : t('common.everyone', { defaultValue: 'Everyone' })
 
+  const suggestionsDropdown =
+    activeSuggestions.length && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="dropdown-pop fixed z-[99999] overflow-hidden rounded-md border border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.28)]"
+            style={{
+              left: `${suggestionPosition.left}px`,
+              top: `${suggestionPosition.top}px`,
+              width: `${suggestionPosition.width || 320}px`,
+              maxWidth: 'calc(100vw - 24px)',
+            }}
+          >
+            <div className="border-b border-border-soft px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+              {tokenContext?.trigger === '@'
+                ? t('composer.mentionSuggestions', { defaultValue: 'User suggestions' })
+                : t('composer.hashtagSuggestions', { defaultValue: 'Hashtag suggestions' })}
+            </div>
+            <div className="max-h-64 overflow-y-auto py-1">
+              {activeSuggestions.map((suggestion, index) => (
+                <button
+                  key={suggestion.key}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => applySuggestion(suggestion)}
+                  className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition ${
+                    index === activeSuggestionIndex ? 'bg-nav-active' : 'hover:bg-secondary'
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {suggestion.kind === 'mention' ? (
+                      <UserAvatar
+                        user={suggestion.user}
+                        className="size-8 shrink-0 text-[11px] font-semibold"
+                        textClassName="text-[11px] font-semibold"
+                      />
+                    ) : null}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-primary">{suggestion.label}</p>
+                      <p className="mt-0.5 text-xs text-muted">{suggestion.meta}</p>
+                    </div>
+                  </div>
+                  <span className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">
+                    {suggestion.kind === 'mention' ? suggestion.badge : 'Trend'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null
+
   return (
     <form
       ref={composerRef}
@@ -1374,31 +1486,19 @@ function PostComposer({
             <div className="relative">
               <div
                 aria-hidden="true"
-                ref={highlightScrollRef}
-                className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-text"
+                className="pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap break-words font-sans text-base leading-7 text-text"
               >
-                <div>{renderHighlightedDraft(draft)}</div>
+                {renderHighlightedDraft(draft)}
               </div>
-
-              {!draft ? (
-                <div className="pointer-events-none absolute inset-x-0 top-0 text-[17px] leading-7 text-soft">
-                  {t('home.postPrompt', { defaultValue: 'What would you like to share today?' })}
-                </div>
-              ) : null}
 
               <textarea
                 ref={textareaRef}
-                rows={1}
+                rows={4}
                 value={draft}
                 onChange={(event) => {
                   setDraft(event.target.value)
                   setSubmitSuccess('')
                   syncTokenContext(event.target.value, event.target.selectionStart)
-                }}
-                onScroll={(event) => {
-                  if (highlightScrollRef.current) {
-                    highlightScrollRef.current.scrollTop = event.currentTarget.scrollTop
-                  }
                 }}
                 onClick={(event) => syncTokenContext(draft, event.currentTarget.selectionStart)}
                 onKeyUp={(event) => syncTokenContext(draft, event.currentTarget.selectionStart)}
@@ -1434,56 +1534,33 @@ function PostComposer({
                     setTokenContext(null)
                   }
                 }}
-                className="relative z-[1] h-[48vh] min-h-[140px] w-full resize-none overflow-y-auto border-none bg-transparent text-base leading-7 text-transparent outline-none"
+                placeholder={!draft ? t('home.postPrompt', { defaultValue: 'What would you like to share today?' }) : ''}
+                className="relative z-[1] w-full min-h-[140px] resize-none overflow-hidden border-0 bg-transparent p-0 font-sans text-base leading-7 text-transparent outline-none placeholder:text-soft focus:ring-0 selection:bg-primary/25"
                 style={{ caretColor: 'rgb(var(--color-text))' }}
               />
 
-              {activeSuggestions.length ? (
-                <div
-                  className="dropdown-pop absolute z-30 w-full overflow-hidden rounded-[20px] border border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
-                  style={{
-                    left: `${Math.max(suggestionPosition.left - 8, 0)}px`,
-                    top: `${suggestionPosition.top}px`,
-                    maxWidth: 'calc(100vw - 24px)',
-                  }}
+              <div className="flex items-center justify-end gap-1.5 pt-2">
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleInsertSymbol('#')}
+                  className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-secondary/50 text-sm font-bold text-muted transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95"
+                  title={t('composer.addHashtag', { defaultValue: 'Etiket ekle (#)' })}
+                  aria-label={t('composer.addHashtag', { defaultValue: 'Etiket ekle (#)' })}
                 >
-                  <div className="border-b border-border-soft px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                      {tokenContext?.trigger === '@'
-                        ? t('composer.mentionSuggestions', { defaultValue: 'User suggestions' })
-                        : t('composer.hashtagSuggestions', { defaultValue: 'Hashtag suggestions' })}
-                  </div>
-                  <div className="max-h-64 overflow-y-auto py-2">
-                    {activeSuggestions.map((suggestion, index) => (
-                      <button
-                        key={suggestion.key}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => applySuggestion(suggestion)}
-                        className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
-                          index === activeSuggestionIndex ? 'bg-nav-active' : 'hover:bg-secondary'
-                        }`}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          {suggestion.kind === 'mention' ? (
-                            <UserAvatar
-                              user={suggestion.user}
-                              className="size-9 shrink-0 text-[11px] font-semibold"
-                              textClassName="text-[11px] font-semibold"
-                            />
-                          ) : null}
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-primary">{suggestion.label}</p>
-                            <p className="mt-1 text-xs text-muted">{suggestion.meta}</p>
-                          </div>
-                        </div>
-                        <span className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">
-                          {suggestion.kind === 'mention' ? suggestion.badge : 'Trend'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
+                  <span className="leading-none">#</span>
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleInsertSymbol('@')}
+                  className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-secondary/50 text-sm font-bold text-muted transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95"
+                  title={t('composer.addMention', { defaultValue: 'Kullanıcı ekle (@)' })}
+                  aria-label={t('composer.addMention', { defaultValue: 'Kullanıcı ekle (@)' })}
+                >
+                  <span className="leading-none">@</span>
+                </button>
+              </div>
             </div>
 
             {previewItems.length ? (
@@ -1899,31 +1976,19 @@ function PostComposer({
               <div className="relative">
                 <div
                   aria-hidden="true"
-                  ref={highlightScrollRef}
-                  className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-[15px] leading-7 text-text"
+                  className="pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap break-words font-sans text-[15px] leading-7 text-text"
                 >
-                  <div>{renderHighlightedDraft(draft)}</div>
+                  {renderHighlightedDraft(draft)}
                 </div>
-
-                {!draft ? (
-                  <div className="pointer-events-none absolute inset-x-0 top-0 text-[15px] leading-7 text-soft">
-                    {t('home.postPrompt', { defaultValue: 'What would you like to share today?' })}
-                  </div>
-                ) : null}
 
                 <textarea
                   ref={textareaRef}
-                  rows={1}
+                  rows={3}
                   value={draft}
                   onChange={(event) => {
                     setDraft(event.target.value)
                     setSubmitSuccess('')
                     syncTokenContext(event.target.value, event.target.selectionStart)
-                  }}
-                  onScroll={(event) => {
-                    if (highlightScrollRef.current) {
-                      highlightScrollRef.current.scrollTop = event.currentTarget.scrollTop
-                    }
                   }}
                   onClick={(event) => syncTokenContext(draft, event.currentTarget.selectionStart)}
                   onKeyUp={(event) => syncTokenContext(draft, event.currentTarget.selectionStart)}
@@ -1959,61 +2024,33 @@ function PostComposer({
                       setTokenContext(null)
                     }
                   }}
-                  className="relative z-[1] h-[92px] w-full resize-none overflow-y-auto border-none bg-transparent text-[15px] leading-7 text-transparent outline-none [scrollbar-gutter:stable]"
+                  placeholder={!draft ? t('home.postPrompt', { defaultValue: 'What would you like to share today?' }) : ''}
+                  className="relative z-[1] w-full min-h-[96px] resize-none overflow-hidden border-0 bg-transparent p-0 font-sans text-[15px] leading-7 text-transparent outline-none placeholder:text-soft focus:ring-0 selection:bg-primary/25"
                   style={{ caretColor: 'rgb(var(--color-text))' }}
                 />
 
-              {activeSuggestions.length ? (
-                  <div
-                    className="dropdown-pop absolute z-20 w-full max-w-[320px] overflow-hidden rounded-[20px] border border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
-                    style={{
-                      left: `${suggestionPosition.left}px`,
-                      top: `${suggestionPosition.top}px`,
-                    }}
+                <div className="flex items-center justify-end gap-1.5 pt-1.5">
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleInsertSymbol('#')}
+                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-secondary/50 text-sm font-bold text-muted transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95"
+                    title={t('composer.addHashtag', { defaultValue: 'Etiket ekle (#)' })}
+                    aria-label={t('composer.addHashtag', { defaultValue: 'Etiket ekle (#)' })}
                   >
-                    <div className="border-b border-border-soft px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                      {tokenContext?.trigger === '@'
-                        ? t('composer.mentionSuggestions', { defaultValue: 'User suggestions' })
-                        : t('composer.hashtagSuggestions', { defaultValue: 'Hashtag suggestions' })}
-                    </div>
-                    <div className="max-h-64 overflow-y-auto py-2">
-                      {activeSuggestions.map((suggestion, index) => (
-                        <button
-                          key={suggestion.key}
-                          type="button"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={() => applySuggestion(suggestion)}
-                          className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
-                            index === activeSuggestionIndex
-                              ? 'bg-nav-active'
-                              : 'hover:bg-secondary'
-                          }`}
-                        >
-                          <div className="flex min-w-0 items-center gap-3">
-                            {suggestion.kind === 'mention' ? (
-                              <UserAvatar
-                                user={suggestion.user}
-                                className="size-9 shrink-0 text-[11px] font-semibold"
-                                textClassName="text-[11px] font-semibold"
-                              />
-                            ) : null}
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-primary">
-                                {suggestion.label}
-                              </p>
-                              <p className="mt-1 text-xs text-muted">
-                                {suggestion.meta}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent">
-                            {suggestion.kind === 'mention' ? suggestion.badge : 'Trend'}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                    <span className="leading-none">#</span>
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleInsertSymbol('@')}
+                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-secondary/50 text-sm font-bold text-muted transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95"
+                    title={t('composer.addMention', { defaultValue: 'Kullanıcı ekle (@)' })}
+                    aria-label={t('composer.addMention', { defaultValue: 'Kullanıcı ekle (@)' })}
+                  >
+                    <span className="leading-none">@</span>
+                  </button>
+                </div>
               </div>
 
               {previewItems.length ? (
@@ -2286,6 +2323,7 @@ function PostComposer({
           </div>
         </div>
       )}
+      {suggestionsDropdown}
     </form>
   )
 }

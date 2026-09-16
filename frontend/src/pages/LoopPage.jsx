@@ -391,17 +391,15 @@ function LoopPage() {
       const nextIndex = Math.round(currentScrollTop / viewportHeight)
       setActiveLoopIndex(Math.min(Math.max(nextIndex, 0), visiblePosts.length - 1))
 
-      if (isMobileViewport) {
-        const delta = currentScrollTop - lastScrollTopRef.current
-        if (currentScrollTop <= 15 || nextIndex === 0) {
-          setIsMobileTopBarVisible(true)
-        } else if (delta > 20 && nextIndex >= 1) {
-          setIsMobileTopBarVisible(false)
-        } else if (delta < -20) {
-          setIsMobileTopBarVisible(true)
-        }
-        lastScrollTopRef.current = currentScrollTop
+      const delta = currentScrollTop - lastScrollTopRef.current
+      if (currentScrollTop <= 15 || nextIndex === 0) {
+        setIsMobileTopBarVisible(true)
+      } else if (delta > 20 && nextIndex >= 1) {
+        setIsMobileTopBarVisible(false)
+      } else if (delta < -20) {
+        setIsMobileTopBarVisible(true)
       }
+      lastScrollTopRef.current = currentScrollTop
     }
 
     syncActiveIndex()
@@ -430,10 +428,14 @@ function LoopPage() {
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault()
         const nextIndex = Math.min(activeLoopIndex + 1, visiblePosts.length - 1)
+        if (nextIndex > activeLoopIndex) {
+          setIsMobileTopBarVisible(false)
+        }
         scroller.scrollTo({ top: nextIndex * viewportHeight, behavior: 'smooth' })
       } else if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault()
         const prevIndex = Math.max(activeLoopIndex - 1, 0)
+        setIsMobileTopBarVisible(true)
         scroller.scrollTo({ top: prevIndex * viewportHeight, behavior: 'smooth' })
       }
     }
@@ -610,7 +612,7 @@ function LoopPage() {
         hideHeaderOnMobile={isMobileViewport}
         hideMobileCreateButton={isMobileViewport}
       >
-        <div className={`mx-auto ${isMobileViewport ? 'max-w-full space-y-0' : 'max-w-[920px] space-y-4'}`}>
+        <div className={`mx-auto ${isMobileViewport ? 'max-w-full space-y-0' : 'max-w-[1040px] space-y-4'}`}>
           {state.error ? (
             <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
               {state.error}
@@ -710,7 +712,7 @@ function LoopPage() {
 
               <div
                 ref={mobileScrollerRef}
-                className="h-[calc(100dvh-56px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
+                className="no-scrollbar h-[calc(100dvh-56px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
                 {visiblePosts.map((post, index) => (
                   <div
@@ -744,18 +746,25 @@ function LoopPage() {
               </div>
             </div>
           ) : (
-            <>
-              <div className="sticky top-0 z-20 border-b border-border bg-bg/90 px-2 backdrop-blur md:px-3">
-                <div className="mx-auto flex w-full max-w-[920px] items-center justify-center gap-2 py-2">
+            <div className="relative h-[calc(100vh-68px)] overflow-hidden">
+              {/* Floating Top Tabs Bar on Desktop (Over the Video) */}
+              <div
+                className={`pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-center pt-3 transition-all duration-300 ease-out ${
+                  isMobileTopBarVisible
+                    ? 'translate-y-0 opacity-100'
+                    : '-translate-y-full opacity-0'
+                }`}
+              >
+                <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/20 bg-black/45 px-2 py-1 shadow-lg backdrop-blur-md">
                   {loopTabs.map((tab) => (
                     <button
                       key={tab.key}
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
                         activeTab === tab.key
-                          ? 'bg-secondary text-text'
-                          : 'text-muted hover:bg-secondary hover:text-text'
+                          ? 'bg-white text-zinc-950 shadow-sm'
+                          : 'text-white/80 hover:bg-white/15 hover:text-white'
                       }`}
                     >
                       {tab.label}
@@ -766,12 +775,12 @@ function LoopPage() {
 
               <div
                 ref={desktopScrollerRef}
-                className="h-[calc(100vh-154px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain pr-1"
+                className="no-scrollbar h-[calc(100vh-68px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
                 {visiblePosts.map((post, index) => (
                   <div
                     key={post._id || post.id}
-                    className="snap-start min-h-[calc(100vh-154px)] flex items-center justify-center"
+                    className="snap-start min-h-[calc(100vh-68px)] flex items-center justify-center py-1"
                     style={{ scrollSnapStop: 'always' }}
                   >
                     {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
@@ -792,13 +801,13 @@ function LoopPage() {
                         onOpenAuthorStory={handleOpenAuthorStory}
                       />
                     ) : (
-                      <div className="h-[calc(100vh-154px)] w-full rounded-[20px] bg-black" />
+                      <div className="h-[calc(100vh-68px)] w-full rounded-2xl bg-black" />
                     )}
                   </div>
                 ))}
                 {state.hasMore ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}
               </div>
-            </>
+            </div>
           )}
         </div>
       </SocialLayout>

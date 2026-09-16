@@ -368,7 +368,7 @@ const LOOP_TELEMETRY_MIN_INTERVAL_MS = 4000
 const LOOP_DROPPED_FRAMES_SAMPLE_INTERVAL_MS = 5000
 const MOBILE_UA_PATTERN = /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i
 const LOOP_MUTE_EVENT = 'loop:mute-change'
-let loopGlobalMuted = true
+let loopGlobalMuted = false
 const trackedPostViews = new Set()
 const pendingPostViews = new Set()
 
@@ -518,6 +518,13 @@ function PostCard({
   const [loopPlaybackError, setLoopPlaybackError] = useState('')
   const [isFollowProcessing, setIsFollowProcessing] = useState(false)
   const [isLoopCaptionExpanded, setIsLoopCaptionExpanded] = useState(false)
+  const [loopDimensions, setLoopDimensions] = useState({
+    width: 0,
+    height: 0,
+    ratio: 9 / 16,
+    isLandscape: false,
+    isSquare: false,
+  })
   const [heartBursts, setHeartBursts] = useState([])
   const [isLoopManuallyPaused, setIsLoopManuallyPaused] = useState(false)
   const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
@@ -732,6 +739,21 @@ function PostCard({
       void prefetchHlsVideo(loopHlsUrl, loopFallbackUrl)
     }
   }, [isLoopProcessing, isLoopVariant, loopFallbackUrl, loopHlsUrl, loopPreloadMode, reducedDataMode])
+
+  useEffect(() => {
+    if (!isLoopVariant || !loopVideoRef.current) return
+    const v = loopVideoRef.current
+    if (v.videoWidth > 0 && v.videoHeight > 0) {
+      const ratio = v.videoWidth / v.videoHeight
+      setLoopDimensions({
+        width: v.videoWidth,
+        height: v.videoHeight,
+        ratio,
+        isLandscape: ratio > 1.15,
+        isSquare: ratio >= 0.85 && ratio <= 1.15,
+      })
+    }
+  }, [isLoopVariant, loopVideoSourceUrl])
   const likes = localPost.likes ?? localPost.stats?.likes ?? 0
   const comments = localPost.comments ?? localPost.stats?.comments ?? 0
   const saves = localPost.saves ?? localPost.stats?.saves ?? 0
@@ -1123,6 +1145,23 @@ function PostCard({
           detail: { muted: nextMuted },
         }),
       )
+    }
+  }
+
+  function handleLoopVideoLoadedMetadata(event) {
+    const video = event?.currentTarget || loopVideoRef.current
+    if (!video) return
+    const width = Number(video.videoWidth || 0)
+    const height = Number(video.videoHeight || 0)
+    if (width > 0 && height > 0) {
+      const ratio = width / height
+      setLoopDimensions({
+        width,
+        height,
+        ratio,
+        isLandscape: ratio > 1.15,
+        isSquare: ratio >= 0.85 && ratio <= 1.15,
+      })
     }
   }
 
@@ -2090,6 +2129,44 @@ function PostCard({
   function renderLoopActionButtons(isDesktop) {
     return (
       <>
+        {isDesktop ? (
+          <div className="relative mb-2 flex flex-col items-center">
+            <Link
+              to={`/${lang}/u/${author.username || ''}`}
+              onClick={handleAuthorAvatarClick}
+              className="group/avatar relative block transition hover:scale-105"
+              title={author.name || author.username}
+            >
+              <div
+                className={`rounded-full p-[2px] ${
+                  hasAuthorStory
+                    ? 'bg-gradient-to-br from-pink-500 via-amber-400 to-violet-500'
+                    : 'bg-white/15'
+                }`}
+              >
+                <UserAvatar
+                  user={author}
+                  className="size-12 border-2 border-white/20 text-sm font-semibold shadow-md"
+                  textClassName="text-sm font-semibold"
+                />
+              </div>
+            </Link>
+            {canFollowAuthor && !isAuthorFollowed ? (
+              <button
+                type="button"
+                onClick={handleLoopFollowToggle}
+                disabled={isFollowProcessing}
+                className="absolute -bottom-2 flex size-5 cursor-pointer items-center justify-center rounded-full bg-rose-500 text-white shadow-md transition hover:scale-110 hover:bg-rose-600 disabled:opacity-60"
+                aria-label={followLabelText}
+                title={followLabelText}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="size-3">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <LoopVerticalActionButton
           icon={<HeartIcon filled={Boolean(localPost.likedByViewer)} />}
           count={likes}
@@ -2453,7 +2530,7 @@ function PostCard({
             ) : null}
 
             {mediaItems.length ? (
-              <div className="relative">
+              <div className={`relative ${isLoopVariant ? '' : 'flex justify-center'}`}>
                 {isLoopVariant && loopVideoItem ? (
                   <div
                     className={`relative w-full ${
@@ -2463,11 +2540,15 @@ function PostCard({
                     }`}
                   >
                     <div className="relative">
-                      {/* 9:16 Video Frame */}
+                      {/* Video Frame */}
                       <div
                         className={`group relative overflow-hidden bg-black ${
                           isLoopDesktopVariant
-                            ? 'h-[min(760px,calc(100vh-175px))] aspect-[9/16] w-auto max-w-[440px] rounded-[28px] border border-white/10 shadow-[0_28px_65px_rgba(0,0,0,0.45)]'
+                            ? loopDimensions.isLandscape
+                              ? 'w-[min(880px,calc(100vw-380px))] aspect-[16/9] max-h-[min(620px,calc(100vh-84px))] rounded-2xl border border-white/10 shadow-[0_28px_70px_rgba(0,0,0,0.55)]'
+                              : loopDimensions.isSquare
+                                ? 'w-[min(560px,calc(100vh-90px))] aspect-square rounded-2xl border border-white/10 shadow-[0_24px_60px_rgba(0,0,0,0.5)]'
+                                : 'h-[min(760px,calc(100vh-84px))] aspect-[9/16] w-auto max-w-[440px] rounded-2xl border border-white/10 shadow-[0_24px_60px_rgba(0,0,0,0.5)]'
                             : 'h-[calc(100dvh-56px)] w-full'
                         }`}
                       >
@@ -2500,11 +2581,12 @@ function PostCard({
                             ref={loopVideoRef}
                             src={loopVideoSourceUrl || undefined}
                             poster={loopPosterUrl || undefined}
-                            className="relative size-full object-cover"
+                            className={`relative size-full ${loopDimensions.isLandscape ? 'object-contain' : 'object-cover'}`}
                             muted={isLoopMuted || !isLoopInViewport}
                             draggable={false}
                             onContextMenu={handleLoopVideoContextMenu}
                             onDragStart={handleLoopVideoContextMenu}
+                            onLoadedMetadata={handleLoopVideoLoadedMetadata}
                             playsInline
                             style={{
                               WebkitTouchCallout: 'none',
@@ -2613,19 +2695,21 @@ function PostCard({
                               className="inline-flex min-w-0 flex-1 items-center gap-2 rounded-md text-sm font-semibold text-white transition hover:text-white/80"
                               onClick={handleAuthorAvatarClick}
                             >
-                              <div className={`rounded-full p-[2px] ${hasAuthorStory ? 'bg-gradient-to-br from-pink-500 via-amber-400 to-violet-500' : 'bg-transparent'}`}>
-                                <UserAvatar
-                                  user={author}
-                                  className="size-8 shrink-0 border-2 border-black text-[11px] font-semibold"
-                                  textClassName="text-[11px] font-semibold"
-                                />
-                              </div>
+                              {isLoopMobileVariant ? (
+                                <div className={`rounded-full p-[2px] ${hasAuthorStory ? 'bg-gradient-to-br from-pink-500 via-amber-400 to-violet-500' : 'bg-transparent'}`}>
+                                  <UserAvatar
+                                    user={author}
+                                    className="size-8 shrink-0 border-2 border-black text-[11px] font-semibold"
+                                    textClassName="text-[11px] font-semibold"
+                                  />
+                                </div>
+                              ) : null}
                               <span className="flex min-w-0 items-center gap-1 text-white/90">
                                 <span className="truncate">{author.name || getFullName(author)}</span>
                                 <VerifiedBadge user={author} size="xs" />
                               </span>
                             </Link>
-                            {canFollowAuthor ? (
+                            {canFollowAuthor && isLoopMobileVariant ? (
                               <button
                                 type="button"
                                 onClick={handleLoopFollowToggle}
@@ -2685,11 +2769,11 @@ function PostCard({
                           </div>
                         ) : null}
 
-                        {/* Loop Progress Bar */}
-                        <div className="absolute bottom-[10px] left-3 right-3 z-20 h-1 md:hidden">
-                          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full bg-white/15">
+                        {/* Loop Progress Bar (Desktop & Mobile) */}
+                        <div className="group/progress absolute bottom-[6px] left-3 right-3 z-20 h-1.5 transition-all duration-200 hover:h-2.5">
+                          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full bg-white/20">
                             <div
-                              className="h-1 rounded-full bg-white/40 transition-[width] duration-150 ease-linear"
+                              className="h-full rounded-full bg-white/60 transition-[width] duration-150 ease-linear group-hover/progress:bg-white/90"
                               style={{ width: `${Math.round(loopProgressRatio * 100)}%` }}
                             />
                           </div>
