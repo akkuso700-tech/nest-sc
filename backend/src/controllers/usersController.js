@@ -1033,6 +1033,9 @@ const updateMyProfile = asyncHandler(async (req, res) => {
       profile.preferences.calling.videoCallEnabled = body.preferences.calling.videoCallEnabled
     }
   }
+  if (body.preferences) {
+    profile.markModified('preferences')
+  }
   if (hasField('isPrivate')) {
     profile.isPrivate = body.isPrivate
   }

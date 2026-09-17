@@ -98,6 +98,10 @@ function serializeUser(user) {
       emailNotifications: {
         messages: user.preferences?.emailNotifications?.messages !== false,
         mentions: user.preferences?.emailNotifications?.mentions !== false,
+        shadowMessages: Boolean(user.preferences?.emailNotifications?.shadowMessages),
+      },
+      inAppNotifications: {
+        shadowMessages: Boolean(user.preferences?.inAppNotifications?.shadowMessages),
       },
       calling: {
         voiceCallEnabled: user.preferences?.calling?.voiceCallEnabled !== false,

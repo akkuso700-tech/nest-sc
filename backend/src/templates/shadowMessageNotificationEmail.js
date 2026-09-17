@@ -124,7 +124,8 @@ function buildShadowMessageNotificationEmail({
     }
     .btn {
       display: inline-block;
-      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+      background-color: #9333ea;
+      background: #9333ea linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
       color: #ffffff !important;
       font-size: 15px;
       font-weight: 600;
@@ -173,15 +174,21 @@ function buildShadowMessageNotificationEmail({
             </tr>
           </table>
 
-          <div class="message-bubble">
+          <div class="message-bubble" style="background-color: #ffffff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 14px 16px; font-size: 14px; line-height: 1.5; color: #1e1b4b; border-left: 4px solid #9333ea; word-break: break-word;">
             ${safePreviewText}
           </div>
         </div>
 
-        <div class="btn-container">
-          <a href="${safeActionUrl}" class="btn" target="_blank" rel="noopener noreferrer">
-            Gölge Sohbetini Aç
-          </a>
+        <div class="btn-container" style="text-align: center; margin: 28px 0 12px 0;">
+          <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto; border-collapse: separate;">
+            <tr>
+              <td align="center" style="background-color: #9333ea; background: #9333ea linear-gradient(135deg, #9333ea 0%, #7c3aed 100%); border-radius: 10px; box-shadow: 0 4px 14px 0 rgba(147, 51, 234, 0.28);">
+                <a href="${safeActionUrl}" class="btn" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #9333ea; background: #9333ea linear-gradient(135deg, #9333ea 0%, #7c3aed 100%); color: #ffffff !important; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust: none;">
+                  Gölge Sohbetini Aç
+                </a>
+              </td>
+            </tr>
+          </table>
         </div>
       </div>
       <div class="footer">

@@ -155,6 +155,10 @@ const updateProfileSchema = z.object({
       emailNotifications: z.object({
         messages: z.boolean().optional(),
         mentions: z.boolean().optional(),
+        shadowMessages: z.boolean().optional(),
+      }).optional(),
+      inAppNotifications: z.object({
+        shadowMessages: z.boolean().optional(),
       }).optional(),
       calling: z.object({
         voiceCallEnabled: z.boolean().optional(),

@@ -155,7 +155,8 @@ function buildMessageNotificationEmail({
     }
     .btn {
       display: inline-block;
-      background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+      background-color: #0284c7;
+      background: #0284c7 linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
       color: #ffffff !important;
       font-size: 15px;
       font-weight: 600;
@@ -185,7 +186,7 @@ function buildMessageNotificationEmail({
         <div class="greeting">Merhaba <strong>${safeRecipientName}</strong>,</div>
         
         <div>
-          <span class="badge">${messageCount > 1 ? `${messageCount} Yeni Mesaj` : 'Yeni Mesaj'}</span>
+          <span class="badge" style="display: inline-block; background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 9999px; margin-bottom: 14px;">${messageCount > 1 ? `${messageCount} Yeni Mesaj` : 'Yeni Mesaj'}</span>
         </div>
 
         <div class="card">
@@ -205,7 +206,7 @@ function buildMessageNotificationEmail({
             </tr>
           </table>
 
-          <div class="message-bubble">
+          <div class="message-bubble" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; font-size: 14px; line-height: 1.5; color: #1e293b; border-left: 4px solid #0284c7; word-break: break-word;">
             ${safePreviewText}
           </div>
         </div>
@@ -214,8 +215,14 @@ function buildMessageNotificationEmail({
           ${safeSenderName} ${messageCountText}. Yanıtlamak için siteye giriş yapabilirsin.
         </p>
 
-        <div class="btn-container">
-          <a href="${safeActionUrl}" class="btn" target="_blank" rel="noopener noreferrer">Mesajı Oku ve Yanıtla</a>
+        <div class="btn-container" style="text-align: center; margin: 28px 0 12px 0;">
+          <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto; border-collapse: separate;">
+            <tr>
+              <td align="center" style="background-color: #0284c7; background: #0284c7 linear-gradient(135deg, #0284c7 0%, #2563eb 100%); border-radius: 10px; box-shadow: 0 4px 14px 0 rgba(2, 132, 199, 0.28);">
+                <a href="${safeActionUrl}" class="btn" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #0284c7; background: #0284c7 linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff !important; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust: none;">Mesajı Oku ve Yanıtla</a>
+              </td>
+            </tr>
+          </table>
         </div>
       </div>
 
