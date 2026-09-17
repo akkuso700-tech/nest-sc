@@ -998,6 +998,20 @@ function ProfilePage() {
     return <Navigate to={`/${lang}/login`} replace state={{ from: location.pathname }} />
   }
 
+  const profileStructuredData = profileUser
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'ProfilePage',
+        mainEntity: {
+          '@type': 'Person',
+          name: getFullName(profileUser),
+          alternateName: `@${profileUser.username}`,
+          description: profileUser.bio || undefined,
+          ...(profileUser.avatarUrl ? { image: profileUser.avatarUrl } : {}),
+        },
+      }
+    : null
+
   return (
     <>
       <Seo
@@ -1010,6 +1024,9 @@ function ProfilePage() {
           profileUser?.bio ||
           t('profile.seoDescription')
         }
+        type="profile"
+        image={profileUser?.avatarUrl || ''}
+        structuredData={profileStructuredData}
       />
 
       <SocialLayout

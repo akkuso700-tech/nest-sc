@@ -595,11 +595,38 @@ function LoopPage() {
     }
   }
 
+  const currentPost = state.posts?.[activeLoopIndex] || state.posts?.[0]
+  const currentVideoMedia = currentPost?.media?.find((m) => m?.type === 'video')
+  const loopStructuredData =
+    currentPost && currentVideoMedia
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'VideoObject',
+          name: currentPost.text ? currentPost.text.slice(0, 60) : 'Nest Social Loop Video',
+          description: currentPost.text || 'Nest Social Loop kisa video paylasimi.',
+          thumbnailUrl: [currentVideoMedia.thumbnailUrl || '/favicon.svg'],
+          uploadDate: currentPost.createdAt || new Date().toISOString(),
+          contentUrl: currentVideoMedia.url || currentVideoMedia.hlsUrl,
+          author: {
+            '@type': 'Person',
+            name: currentPost.author?.firstName
+              ? `${currentPost.author.firstName} ${currentPost.author.lastName || ''}`.trim()
+              : currentPost.author?.username || 'Nest Social Creator',
+          },
+        }
+      : null
+
   return (
     <>
       <Seo
-        title="My Social 1 - Loop"
-        description="Kisa videolarin akis halinde izlendiği Loop alani."
+        title={`${t('nav.loop')} · Nest Social`}
+        description={t(
+          'loop.seoDescription',
+          'Kisa videolarin dikey akis halinde kesintisiz izlendigi Nest Social Loop alani.',
+        )}
+        type="video.other"
+        image={currentVideoMedia?.thumbnailUrl || ''}
+        structuredData={loopStructuredData}
       />
 
       <SocialLayout

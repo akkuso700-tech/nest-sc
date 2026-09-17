@@ -11,6 +11,7 @@ const hpp = require('hpp')
 const morgan = require('morgan')
 const { env } = require('./config/env')
 const { Post } = require('./models/Post')
+const { User } = require('./models/User')
 const { buildTrendingTopics } = require('./controllers/postsController')
 const { corsOptions, isOriginAllowed } = require('./config/cors')
 const { apiRouter } = require('./routes')
@@ -27,6 +28,7 @@ const {
 const {
   buildAbsoluteUrl,
   buildCrawlerPostPreview,
+  buildCrawlerProfilePreview,
   buildOpenGraphHtml,
   normalizeLanguageParam,
   shouldServeCrawlerPreview,
@@ -270,7 +272,34 @@ function createApp() {
   app.use('/api/v1', enforceCookieCsrfProtection)
   app.use('/api/v1', apiWriteLimiter, apiRouter)
 
+function escapeXml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
   if (frontendDistDir) {
+    app.get('/llms.txt', (req, res, next) => {
+      const llmsPath = path.join(frontendDistDir, 'llms.txt')
+      if (fs.existsSync(llmsPath)) {
+        res.set('Cache-Control', 'public, max-age=86400')
+        return res.sendFile(llmsPath)
+      }
+      return next()
+    })
+
+    app.get('/llms-full.txt', (req, res, next) => {
+      const llmsFullPath = path.join(frontendDistDir, 'llms-full.txt')
+      if (fs.existsSync(llmsFullPath)) {
+        res.set('Cache-Control', 'public, max-age=86400')
+        return res.sendFile(llmsFullPath)
+      }
+      return next()
+    })
+
     app.get('/sitemap.xml', async (req, res, next) => {
       try {
         const requestHost = String(req.hostname || '').toLowerCase()
@@ -285,16 +314,45 @@ function createApp() {
           { path: `/${lang}/`, lastmod: nowIso },
           { path: `/${lang}/loop`, lastmod: nowIso },
           { path: `/${lang}/search`, lastmod: nowIso },
+          { path: `/${lang}/monetization`, lastmod: nowIso },
+          { path: `/${lang}/about`, lastmod: nowIso },
+          { path: `/${lang}/contact`, lastmod: nowIso },
+          { path: `/${lang}/ads`, lastmod: nowIso },
         ])
         let trendingTopics = []
+        let activeUsers = []
+        let recentPosts = []
         if (mongoose.connection.readyState === 1) {
           try {
-            trendingTopics = await buildTrendingTopics(120)
+            const [topicsResult, usersResult, postsResult] = await Promise.all([
+              buildTrendingTopics(120).catch(() => []),
+              User.find({ accountStatus: 'active' })
+                .select('username updatedAt')
+                .sort({ updatedAt: -1 })
+                .limit(100)
+                .lean()
+                .catch(() => []),
+              Post.find({
+                privacy: 'public',
+                archivedAt: null,
+                'moderation.visibility': 'visible',
+              })
+                .select('_id updatedAt')
+                .sort({ createdAt: -1 })
+                .limit(100)
+                .lean()
+                .catch(() => []),
+            ])
+            trendingTopics = topicsResult || []
+            activeUsers = usersResult || []
+            recentPosts = postsResult || []
           } catch {
             trendingTopics = []
+            activeUsers = []
+            recentPosts = []
           }
         }
-        const tagEntries = []
+        const dynamicEntries = []
 
         trendingTopics.forEach((topic) => {
           const slug = `${topic?.slug || ''}`.trim()
@@ -303,14 +361,36 @@ function createApp() {
           }
 
           supportedLangs.forEach((lang) => {
-            tagEntries.push({
+            dynamicEntries.push({
               path: `/${lang}/tag/${encodeURIComponent(slug)}`,
               lastmod: topic.lastActivityAt || nowIso,
             })
           })
         })
 
-        const dedupedEntries = [...staticPaths, ...tagEntries].filter(
+        activeUsers.forEach((user) => {
+          const username = `${user?.username || ''}`.trim()
+          if (!username) return
+          supportedLangs.forEach((lang) => {
+            dynamicEntries.push({
+              path: `/${lang}/u/${encodeURIComponent(username)}`,
+              lastmod: user.updatedAt ? new Date(user.updatedAt).toISOString() : nowIso,
+            })
+          })
+        })
+
+        recentPosts.forEach((post) => {
+          const postId = `${post?._id || ''}`.trim()
+          if (!postId) return
+          supportedLangs.forEach((lang) => {
+            dynamicEntries.push({
+              path: `/${lang}/posts/${postId}`,
+              lastmod: post.updatedAt ? new Date(post.updatedAt).toISOString() : nowIso,
+            })
+          })
+        })
+
+        const dedupedEntries = [...staticPaths, ...dynamicEntries].filter(
           (entry, index, all) => all.findIndex((item) => item.path === entry.path) === index,
         )
 
@@ -391,8 +471,60 @@ function createApp() {
           description: preview.description,
           canonicalUrl,
           imageUrl: preview.imageUrl,
+          type: 'article',
           locale: localeMap[lang] || 'tr_TR',
           siteName: 'Nest Social',
+          jsonLd: preview.jsonLd,
+        })
+
+        res.set('Cache-Control', 'public, max-age=300')
+        return res.status(200).type('html').send(html)
+      } catch (error) {
+        return next(error)
+      }
+    }
+
+    async function handleCrawlerProfilePreview(req, res, next) {
+      try {
+        const requestHost = String(req.hostname || '').toLowerCase()
+
+        if (requestHost.startsWith('api.')) {
+          return next()
+        }
+
+        if (!shouldServeCrawlerPreview(req.headers?.['user-agent'])) {
+          return next()
+        }
+
+        const lang = normalizeLanguageParam(req.params?.lang || 'tr')
+        const username = req.params?.username
+        const preview = await buildCrawlerProfilePreview({
+          User,
+          username,
+          baseUrl: buildAbsoluteUrl(req, '/'),
+        })
+
+        if (!preview) {
+          return next()
+        }
+
+        const canonicalPath = `/${lang}/u/${encodeURIComponent(username)}`
+        const canonicalUrl = buildAbsoluteUrl(req, canonicalPath)
+        const localeMap = {
+          tr: 'tr_TR',
+          en: 'en_US',
+          de: 'de_DE',
+          es: 'es_ES',
+        }
+        const html = buildOpenGraphHtml({
+          title: preview.title,
+          description: preview.description,
+          canonicalUrl,
+          imageUrl: preview.imageUrl,
+          type: 'profile',
+          locale: localeMap[lang] || 'tr_TR',
+          siteName: 'Nest Social',
+          jsonLd: preview.jsonLd,
         })
 
         res.set('Cache-Control', 'public, max-age=300')
@@ -449,6 +581,7 @@ function createApp() {
           description: buildTagPreviewDescription(tagLabel, lang),
           canonicalUrl,
           imageUrl: '',
+          type: 'website',
           locale: localeMap[lang] || 'tr_TR',
           siteName: 'Nest Social',
         })
@@ -462,7 +595,10 @@ function createApp() {
 
     app.get('/:lang/tag/:tagSlug', handleCrawlerTagPreview)
     app.get('/:lang/posts/:postId', handleCrawlerPostPreview)
+    app.get('/:lang/posts/:postId/:slug', handleCrawlerPostPreview)
     app.get('/post/:postId', handleCrawlerPostPreview)
+    app.get('/:lang/u/:username', handleCrawlerProfilePreview)
+    app.get('/u/:username', handleCrawlerProfilePreview)
   }
 
   function serveSpaIndex(req, res, next) {

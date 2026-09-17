@@ -2,7 +2,7 @@ const mongoose = require('mongoose')
 const { normalizeMediaUrl, normalizeUserMedia } = require('./mediaUrls')
 
 const SOCIAL_CRAWLER_REGEX =
-  /facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|TelegramBot|Discordbot|LinkedInBot|Pinterest|SkypeUriPreview|Google-Structured-Data-Testing-Tool|Googlebot/i
+  /facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|TelegramBot|Discordbot|LinkedInBot|Pinterest|SkypeUriPreview|Google-Structured-Data-Testing-Tool|Googlebot|bingbot|Applebot|YandexBot|DuckDuckBot|Baiduspider|GPTBot|OAI-SearchBot|PerplexityBot|ClaudeBot|Claude-Web|cohere-ai|Google-Extended|meta-externalagent/i
 
 function escapeHtml(value = '') {
   return String(value)
@@ -82,14 +82,17 @@ function buildOpenGraphHtml({
   description,
   canonicalUrl,
   imageUrl,
+  type = 'article',
   locale = 'tr_TR',
   siteName = 'Nest Social',
+  jsonLd = null,
 }) {
   const escapedTitle = escapeHtml(title)
   const escapedDescription = escapeHtml(description)
   const escapedCanonicalUrl = escapeHtml(canonicalUrl)
   const escapedImageUrl = escapeHtml(imageUrl)
   const escapedSiteName = escapeHtml(siteName)
+  const jsonLdString = jsonLd ? JSON.stringify(jsonLd) : null
 
   return `<!doctype html>
 <html lang="tr">
@@ -99,7 +102,7 @@ function buildOpenGraphHtml({
     <title>${escapedTitle}</title>
     <link rel="canonical" href="${escapedCanonicalUrl}" />
     <meta name="description" content="${escapedDescription}" />
-    <meta property="og:type" content="article" />
+    <meta property="og:type" content="${escapeHtml(type)}" />
     <meta property="og:title" content="${escapedTitle}" />
     <meta property="og:description" content="${escapedDescription}" />
     <meta property="og:url" content="${escapedCanonicalUrl}" />
@@ -114,11 +117,27 @@ function buildOpenGraphHtml({
     }
     <meta name="twitter:title" content="${escapedTitle}" />
     <meta name="twitter:description" content="${escapedDescription}" />
-    <meta http-equiv="refresh" content="0; url=${escapedCanonicalUrl}" />
+    ${jsonLdString ? `<script type="application/ld+json">${jsonLdString}</script>` : ''}
   </head>
-  <body>
-    <p>Redirecting to <a href="${escapedCanonicalUrl}">${escapedCanonicalUrl}</a></p>
-    <script>window.location.replace(${JSON.stringify(canonicalUrl)})</script>
+  <body style="font-family:system-ui,-apple-system,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#1e293b;">
+    <article>
+      <header>
+        <h1 style="font-size:24px;margin-bottom:12px;color:#0f172a;">${escapedTitle}</h1>
+      </header>
+      <p style="font-size:16px;color:#334155;">${escapedDescription}</p>
+      ${escapedImageUrl ? `<div style="margin:20px 0;"><img src="${escapedImageUrl}" alt="${escapedTitle}" style="max-width:100%;border-radius:12px;" /></div>` : ''}
+      <footer style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:14px;color:#64748b;">
+        <p>Görüntülemek ve katılmak için: <a href="${escapedCanonicalUrl}" style="color:#2563eb;text-decoration:none;">${escapedCanonicalUrl}</a></p>
+      </footer>
+    </article>
+    <script>
+      (function() {
+        var isBot = /bot|google|crawler|spider|gpt|perplexity|claude|bing|slurp|duckduck/i.test(navigator.userAgent || '');
+        if (!isBot) {
+          window.location.replace(${JSON.stringify(canonicalUrl)});
+        }
+      })();
+    </script>
   </body>
 </html>`
 }
@@ -160,7 +179,7 @@ async function buildCrawlerPostPreview({ Post, postId, baseUrl = '' }) {
 
   const post = await Post.findById(postId)
     .populate('author', 'firstName lastName username avatarUrl verification')
-    .select('text media privacy archivedAt moderation publication author')
+    .select('text media privacy archivedAt moderation publication author createdAt')
     .lean()
 
   if (!canPreviewPost(post)) {
@@ -176,16 +195,81 @@ async function buildCrawlerPostPreview({ Post, postId, baseUrl = '' }) {
   const description = truncateText(post.text || 'Nest Social paylasimi', 220)
   const imageUrl = pickPreviewImage(post, author, { baseUrl })
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SocialMediaPosting',
+    headline: title,
+    articleBody: post.text || '',
+    datePublished: post.createdAt ? new Date(post.createdAt).toISOString() : undefined,
+    author: {
+      '@type': 'Person',
+      name: authorName,
+      url: author.username ? `${baseUrl.replace(/\/$/, '')}/u/${author.username}` : undefined,
+    },
+    ...(imageUrl ? { image: imageUrl } : {}),
+  }
+
   return {
     title,
     description,
     imageUrl,
+    jsonLd,
+  }
+}
+
+async function buildCrawlerProfilePreview({ User, username, baseUrl = '' }) {
+  if (!username || typeof username !== 'string') {
+    return null
+  }
+
+  const safeUsername = username.trim().toLowerCase()
+  const user = await User.findOne({ username: safeUsername })
+    .select('firstName lastName username bio avatarUrl accountStatus verification')
+    .lean()
+
+  if (!user || user.accountStatus === 'suspended') {
+    return null
+  }
+
+  const normalizedUser = normalizeUserMedia(user)
+  const fullName =
+    `${normalizedUser.firstName || ''} ${normalizedUser.lastName || ''}`.trim() ||
+    normalizedUser.username ||
+    'Nest Social Kullanıcısı'
+  const title = `${fullName} (@${normalizedUser.username}) - Nest Social`
+  const description = truncateText(
+    normalizedUser.bio ||
+      `${fullName} profilini, paylaşımlarını ve Loop videolarını Nest Social üzerinde keşfet.`,
+    220,
+  )
+  const imageUrl = normalizedUser.avatarUrl
+    ? toAbsoluteUrl(normalizedUser.avatarUrl, baseUrl)
+    : ''
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ProfilePage',
+    mainEntity: {
+      '@type': 'Person',
+      name: fullName,
+      alternateName: `@${normalizedUser.username}`,
+      description: normalizedUser.bio || undefined,
+      ...(imageUrl ? { image: imageUrl } : {}),
+    },
+  }
+
+  return {
+    title,
+    description,
+    imageUrl,
+    jsonLd,
   }
 }
 
 module.exports = {
   buildAbsoluteUrl,
   buildCrawlerPostPreview,
+  buildCrawlerProfilePreview,
   buildOpenGraphHtml,
   normalizeLanguageParam,
   shouldServeCrawlerPreview,

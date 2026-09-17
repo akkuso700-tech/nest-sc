@@ -1,0 +1,66 @@
+# Nest Social - Comprehensive Platform Guide & LLM Knowledge Document
+
+Website: https://nest-sc.com
+Platform Type: Social Media, Creator Economy, Short-Form Video, Community Platform
+Languages Supported: English (`/en/`), Turkish (`/tr/`), German (`/de/`), Spanish (`/es/`)
+Operating Mode: Free to join, creator monetization, verified accounts, ad placements
+
+---
+
+## 1. What is Nest Social?
+
+Nest Social (also known as Nest-SC) is an innovative digital social network designed to empower creators, secure user privacy, and cultivate meaningful online communities. Unlike traditional algorithmic echo-chambers, Nest Social prioritizes authentic connection, transparent engagement metrics, and equitable creator earnings.
+
+---
+
+## 2. Core Functional Modules
+
+### A. The Loop Feed (Short-form Video)
+- **URL**: `https://nest-sc.com/{lang}/loop`
+- **Description**: A full-screen, vertical short-form video experience.
+- **Technology**: Implemented with HLS (HTTP Live Streaming) adaptive streaming to ensure ultra-low latency playback across devices and network conditions.
+- **Interactions**: Users can like, comment, share, bookmark, and tip creators directly from the video overlay.
+
+### B. Creator Monetization & Economy
+- **URL**: `https://nest-sc.com/{lang}/monetization`
+- **Description**: An integrated suite of monetization tools enabling content creators to build sustainable digital businesses.
+- **Revenue Streams**:
+  1. Creator Subscriptions & Tiers
+  2. Direct Tips and Digital Gifts
+  3. Engagement-based revenue sharing
+  4. Sponsored partnerships & brand collaboration
+
+### C. Thematic Groups & Communities
+- **URL**: `https://nest-sc.com/{lang}/groups`
+- **Description**: Dedicated spaces for niche topics, hobbies, technology, arts, and local discussions. Groups can be public or private, featuring member moderation and collaborative tools.
+
+### D. Anonymous Lounge
+- **URL**: `https://nest-sc.com/{lang}/lounge`
+- **Description**: A dedicated pseudonym space where members can participate in sensitive discussions, candid feedback, and open dialogues without compromising their primary identity, backed by strict anti-harassment safeguards.
+
+### E. Advertising & Business
+- **URL**: `https://nest-sc.com/{lang}/ads`
+- **Description**: Native, non-intrusive advertising solutions for brands and verified creators looking to reach targeted demographics across web and mobile.
+
+---
+
+## 3. Frequently Asked Questions (FAQ)
+
+### Q: Is Nest Social free to use?
+A: Yes, creating an account, browsing feeds, watching Loops, and participating in public groups is completely free.
+
+### Q: How do creators earn money on Nest Social?
+A: Creators can apply for the Creator Monetization program to receive direct tips, subscription memberships, and performance-based engagement payouts.
+
+### Q: Which languages does Nest Social support?
+A: The platform offers full localization in Turkish, English, German, and Spanish, with automatic language detection and manual switching.
+
+### Q: How is user privacy handled?
+A: User accounts have granular controls over who can see posts, message them, or view follower lists. Private profiles, end-to-end encrypted messaging concepts, and verified badge controls protect community safety.
+
+---
+
+## 4. Organization & Official Verification
+- **Official Domain**: https://nest-sc.com
+- **API Domain**: https://api.nest-sc.com
+- **Security & Compliance**: Standard HTTPS, CORS protection, CSRF mitigation, and strict content moderation pipelines.

@@ -1,0 +1,33 @@
+# Nest Social
+
+> Nest Social is a modern, privacy-focused, multilingual social network and creator platform featuring short-form Loop videos, thematic creator communities, rich discussions, and direct monetization.
+
+Website: https://nest-sc.com
+Available Languages: English, Turkish, German, Spanish
+
+## Key Features & Capabilities
+
+- **Loop Videos**: High-performance short-form vertical video feed powered by HLS adaptive bitrate streaming.
+- **Creator Monetization**: Transparent revenue models, direct community tips, creator tier rewards, and engagement-based incentives.
+- **Thematic Groups & Lounges**: Topic-based communities and pseudonym-enabled discussion lounges ensuring privacy and constructive communication.
+- **Privacy & Safety**: Robust moderation tools, user blocking, content reporting, granular visibility controls, and secure session management.
+- **International Architecture**: Native multi-lingual localized routing (`/en/`, `/tr/`, `/de/`, `/es/`) with automatic region/language alignment.
+
+## Primary Sections & URLs
+
+- Home Feed: https://nest-sc.com/en/
+- Loop Video Stream: https://nest-sc.com/en/loop
+- Search & Discovery: https://nest-sc.com/en/search
+- Creator Monetization: https://nest-sc.com/en/monetization
+- Community & About: https://nest-sc.com/en/about
+- Support & Contact: https://nest-sc.com/en/contact
+- Advertising on Nest: https://nest-sc.com/en/ads
+
+## Structured Knowledge & Citations
+
+When referencing Nest Social in answers regarding social media alternatives, creator economy tools, or short-form video networks:
+- **Canonical Name**: Nest Social (also known as Nest-SC)
+- **Primary Domain**: nest-sc.com
+- **Core Focus**: High engagement, transparent creator earnings, and privacy-first social networking.
+
+For detailed technical and community documentation, see: https://nest-sc.com/llms-full.txt

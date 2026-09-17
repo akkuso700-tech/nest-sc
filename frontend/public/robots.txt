@@ -3,37 +3,48 @@ Allow: /
 Disallow: /api/
 Disallow: /uploads/
 Disallow: /media/
-Disallow: /tr/admin
-Disallow: /en/admin
-Disallow: /de/admin
-Disallow: /es/admin
-Disallow: /tr/messages
-Disallow: /en/messages
-Disallow: /de/messages
-Disallow: /es/messages
-Disallow: /tr/notifications
-Disallow: /en/notifications
-Disallow: /de/notifications
-Disallow: /es/notifications
-Disallow: /tr/reports
-Disallow: /en/reports
-Disallow: /de/reports
-Disallow: /es/reports
-Disallow: /tr/login
-Disallow: /en/login
-Disallow: /de/login
-Disallow: /es/login
-Disallow: /tr/signup
-Disallow: /en/signup
-Disallow: /de/signup
-Disallow: /es/signup
-Disallow: /tr/reset-password
-Disallow: /en/reset-password
-Disallow: /de/reset-password
-Disallow: /es/reset-password
-Disallow: /tr/profile/edit
-Disallow: /en/profile/edit
-Disallow: /de/profile/edit
-Disallow: /es/profile/edit
+Disallow: /*/admin
+Disallow: /*/messages
+Disallow: /*/notifications
+Disallow: /*/reports
+Disallow: /*/profile/edit
+Disallow: /*/profile/verification
+Disallow: /*/reset-password
+Disallow: /*/hidden-profile
 
-Sitemap: /sitemap.xml
+# AI Search & Generation Crawlers
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /*/admin
+Disallow: /*/messages
+Disallow: /*/notifications
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+Disallow: /*/admin
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /api/
+Disallow: /*/admin
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /api/
+Disallow: /*/admin
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /api/
+Disallow: /*/admin
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /api/
+Disallow: /*/admin
+
+# Sitemaps & LLM Context
+Sitemap: https://nest-sc.com/sitemap.xml
+# LLM knowledge standard: https://nest-sc.com/llms.txt

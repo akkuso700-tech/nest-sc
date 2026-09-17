@@ -47,7 +47,16 @@ function buildLocalizedPath(pathname, lang) {
   return `/${lang}${suffix}`
 }
 
-function Seo({ title, description, structuredData = null, robots = '' }) {
+function Seo({
+  title,
+  description,
+  image = '',
+  type = 'website',
+  keywords = '',
+  author = '',
+  structuredData = null,
+  robots = '',
+}) {
   const location = useLocation()
   const { lang = fallbackLanguage } = useParams()
   const siteUrl = getSiteUrl()
@@ -60,11 +69,19 @@ function Seo({ title, description, structuredData = null, robots = '' }) {
       : []
   const mergedStructuredDataPayload = [...defaultStructuredDataPayload, ...structuredDataPayload]
 
+  const ogImageUrl = image
+    ? /^https?:\/\//i.test(image)
+      ? image
+      : `${siteUrl}${image.startsWith('/') ? '' : '/'}${image}`
+    : `${siteUrl}/favicon.svg`
+
   return (
     <Helmet prioritizeSeoTags>
       <html lang={lang} />
       <title>{title}</title>
       <meta name="description" content={description} />
+      {keywords ? <meta name="keywords" content={keywords} /> : null}
+      {author ? <meta name="author" content={author} /> : null}
       {robots ? <meta name="robots" content={robots} /> : null}
       <link rel="canonical" href={canonicalUrl} />
 
@@ -83,14 +100,17 @@ function Seo({ title, description, structuredData = null, robots = '' }) {
         href={`${siteUrl}${buildLocalizedPath(location.pathname, fallbackLanguage)}`}
       />
 
-      <meta property="og:type" content="website" />
+      <meta property="og:type" content={type} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:url" content={canonicalUrl} />
-      <meta property="og:site_name" content="My Social 1" />
-      <meta name="twitter:card" content="summary_large_image" />
+      <meta property="og:site_name" content="Nest Social" />
+      {ogImageUrl ? <meta property="og:image" content={ogImageUrl} /> : null}
+
+      <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
+      {ogImageUrl ? <meta name="twitter:image" content={ogImageUrl} /> : null}
 
       {mergedStructuredDataPayload.map((item, index) => (
         <script key={`structured-data-${index}`} type="application/ld+json">
