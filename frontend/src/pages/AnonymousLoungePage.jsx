@@ -41,6 +41,16 @@ import { JoinPrivateRoomModal } from '../components/anonymous/JoinPrivateRoomMod
 import { RoomJoinApprovalModal } from '../components/anonymous/RoomJoinApprovalModal.jsx'
 import { AnonymousRoomMembersModal } from '../components/anonymous/AnonymousRoomMembersModal.jsx'
 import { GuestLoungeGateModal } from '../components/anonymous/GuestLoungeGateModal.jsx'
+import {
+  SentRequestModal,
+  ChatAcceptedModal,
+  RevealConfirmModal,
+  ExitConfirmModal,
+} from '../components/anonymous/LoungeNotificationModals.jsx'
+import {
+  DisclaimerModal,
+  GuestTimeoutModal,
+} from '../components/anonymous/LoungeDisclaimerModal.jsx'
 import i18n from '../i18n/index.js'
 import { loungeTranslations } from '../components/anonymous/loungeTranslations.js'
 
@@ -3423,355 +3433,43 @@ export default function AnonymousLoungePage() {
         }}
       />
 
-      {/* 1. Sohbet İsteği Gönderildi Profesyonel Pop-Up Modalı */}
-      {sentRequestModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSentRequestModal(null)
-          }}
-        >
-          <div
-            className="relative w-full max-w-sm overflow-hidden rounded-md border border-border bg-card p-5 sm:p-6 text-text shadow-2xl text-center animate-in zoom-in-95 duration-150"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              className="mx-auto mb-3.5 flex size-14 items-center justify-center rounded-2xl text-3xl shadow-md"
-              style={{ background: getAvatarByKey(sentRequestModal.avatarKey).bgStyle }}
-            >
-              {getAvatarByKey(sentRequestModal.avatarKey).emoji}
-            </div>
+      {/* 1. Sohbet İsteği Gönderildi Pop-Up Modalı */}
+      <SentRequestModal
+        sentRequestModal={sentRequestModal}
+        onClose={() => setSentRequestModal(null)}
+        t={t}
+      />
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-2">
-              <span className="size-2 rounded-full bg-primary animate-ping" />
-              <span>{t('lounge.sentModal.badge', { defaultValue: 'İstek İletildi' })}</span>
-            </div>
+      {/* 2. Karşı Taraf Sohbeti Kabul Etti Pop-Up Modalı */}
+      <ChatAcceptedModal
+        chatAcceptedModal={chatAcceptedModal}
+        onClose={() => setChatAcceptedModal(null)}
+        onEnterChat={handleEnterAcceptedChat}
+        t={t}
+      />
 
-            <h3 className="text-base sm:text-lg font-bold text-text">
-              {t('lounge.sentModal.title', { defaultValue: 'Sohbet İsteği Gönderildi!' })}
-            </h3>
+      {/* 3. Kimlik Açma Talebi ve Onayı Pop-Up Modalı */}
+      <RevealConfirmModal
+        revealConfirmModal={revealConfirmModal}
+        activeDirectSession={activeDirectSession}
+        onClose={() => setRevealConfirmModal(null)}
+        onConfirmReveal={() => {
+          setRevealConfirmModal(null)
+          executeRequestReveal()
+        }}
+        t={t}
+      />
 
-            <p className="mt-2 text-xs leading-relaxed text-muted">
-              {t('lounge.sentModal.desc', {
-                alias: sentRequestModal.alias,
-                defaultValue: `${sentRequestModal.alias} kullanıcısına birebir anonim sohbet davetiniz başarıyla iletildi.`,
-              })}
-            </p>
-
-            <div className="mt-4 rounded-md border border-border bg-secondary/70 p-3 text-left text-xs text-text space-y-2">
-              <div className="flex items-start gap-2">
-                <span className="text-sm shrink-0">⏳</span>
-                <p className="text-[11px] text-muted leading-tight">
-                  {t('lounge.sentModal.noteWait', {
-                    defaultValue: 'Karşı taraf isteği kabul ettiğinde ekranınızda anında bildirim penceresi açılacaktır.',
-                  })}
-                </p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-sm shrink-0">🔒</span>
-                <p className="text-[11px] text-muted leading-tight">
-                  {t('lounge.sentModal.notePrivacy', {
-                    defaultValue: 'Gerçek kimliğiniz ve profiliniz tamamen gizli tutulmaktadır.',
-                  })}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <button
-                type="button"
-                onClick={() => setSentRequestModal(null)}
-                className="w-full rounded-md bg-primary py-2.5 text-xs font-bold !text-white shadow hover:bg-primary-hover active:scale-95 transition-all"
-              >
-                {t('lounge.sentModal.okBtn', { defaultValue: 'Tamam, Bekliyorum' })}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Karşı Taraf Sohbeti Kabul Etti Profesyonel Pop-Up Modalı */}
-      {chatAcceptedModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setChatAcceptedModal(null)
-          }}
-        >
-          <div
-            className="relative w-full max-w-sm overflow-hidden rounded-md border border-border bg-card p-5 sm:p-6 text-text shadow-2xl text-center animate-in zoom-in-95 duration-150"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="relative mx-auto mb-3.5 size-16">
-              <div
-                className="size-16 rounded-2xl flex items-center justify-center text-3xl shadow-xl"
-                style={{
-                  background: getAvatarByKey(chatAcceptedModal.partner?.avatarKey).bgStyle,
-                }}
-              >
-                {getAvatarByKey(chatAcceptedModal.partner?.avatarKey).emoji}
-              </div>
-              <span className="absolute -bottom-1 -right-1 size-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold ring-2 ring-card shadow">
-                ✓
-              </span>
-            </div>
-
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-2">
-              <span>🎉</span>
-              <span>{t('lounge.acceptedModal.badge', { defaultValue: 'Davet Onaylandı' })}</span>
-            </div>
-
-            <h3 className="text-base sm:text-lg font-bold text-text">
-              {t('lounge.acceptedModal.title', { defaultValue: 'Sohbet İsteğiniz Kabul Edildi!' })}
-            </h3>
-
-            <p className="mt-2 text-xs leading-relaxed text-muted">
-              {t('lounge.acceptedModal.desc', {
-                alias: chatAcceptedModal.partner?.alias,
-                defaultValue: `${chatAcceptedModal.partner?.alias} sohbet isteğinizi kabul etti! Artık karşılıklı anonim olarak sohbet edebilirsiniz.`,
-              })}
-            </p>
-
-            <div className="mt-4 rounded-md border border-border bg-secondary/70 p-3 text-left text-xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-muted text-[11px]">{t('lounge.acceptedModal.userLabel', { defaultValue: 'Kullanıcı:' })}</span>
-                <span className="font-semibold text-text">{chatAcceptedModal.partner?.alias}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted text-[11px]">{t('lounge.acceptedModal.identityLabel', { defaultValue: 'Kimlik:' })}</span>
-                <span className="text-text">
-                  {chatAcceptedModal.partner?.gender === 'female'
-                    ? t('lounge.genders.female', { defaultValue: 'Kadın 👩' })
-                    : chatAcceptedModal.partner?.gender === 'male'
-                      ? t('lounge.genders.male', { defaultValue: 'Erkek 👨' })
-                      : t('lounge.genders.unspecified', { defaultValue: 'Gizli 🔒' })}{' '}
-                  • {chatAcceptedModal.partner?.ageRange || t('lounge.profileModal.unspecifiedAge', { defaultValue: 'Gizli' })}
-                </span>
-              </div>
-              {chatAcceptedModal.partner?.status && (
-                <div className="flex items-center justify-between pt-1 border-t border-border/60">
-                  <span className="text-muted text-[11px]">{t('lounge.profileModal.statusLabel', { defaultValue: 'Durum:' })}</span>
-                  <span className="text-text text-[11px] truncate max-w-[180px]">
-                    {chatAcceptedModal.partner.status}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setChatAcceptedModal(null)}
-                className="flex-1 rounded-md border border-border bg-secondary py-2.5 text-xs font-semibold text-text hover:bg-secondary-hover transition-colors"
-              >
-                {t('common.later', { defaultValue: 'Daha Sonra' })}
-              </button>
-              <button
-                type="button"
-                onClick={handleEnterAcceptedChat}
-                className="flex-1 rounded-md bg-primary py-2.5 text-xs font-bold !text-white shadow hover:bg-primary-hover active:scale-95 transition-all flex items-center justify-center gap-1.5"
-              >
-                <span>{t('lounge.acceptedModal.startBtn', { defaultValue: 'Sohbete Gir' })}</span>
-                <span>💬</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Maske / Gerçek Profil Açma Onay Modalı */}
-      {revealConfirmModal && activeDirectSession && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setRevealConfirmModal(null)
-          }}
-        >
-          <div
-            className="relative w-full max-w-sm overflow-hidden rounded-md border border-border bg-card p-5 sm:p-6 text-text shadow-2xl text-center animate-in zoom-in-95 duration-150"
-            role="dialog"
-            aria-modal="true"
-          >
-            {/* Icon */}
-            <div
-              className="mx-auto mb-3.5 flex size-14 items-center justify-center rounded-2xl text-3xl shadow-md"
-              style={{
-                background:
-                  revealConfirmModal === 'accept'
-                    ? 'linear-gradient(135deg, #10b981, #059669)'
-                    : 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-              }}
-            >
-              🎭
-            </div>
-
-            <div
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-2 ${
-                revealConfirmModal === 'accept'
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-primary/10 text-primary'
-              }`}
-            >
-              <span>
-                {revealConfirmModal === 'accept'
-                  ? t('lounge.reveal.mutualTag', { defaultValue: '🤝 Karşılıklı Onay' })
-                  : t('lounge.reveal.requestTag', { defaultValue: '🔍 Kimlik Açma Talebi' })}
-              </span>
-            </div>
-
-            <h3 className="text-base sm:text-lg font-bold text-text">
-              {revealConfirmModal === 'accept'
-                ? t('lounge.reveal.acceptConfirmTitle', { defaultValue: 'Gerçek Profilinizi Paylaşmayı Onaylıyor musunuz?' })
-                : t('lounge.reveal.requestConfirmTitle', { defaultValue: 'Gerçek Profilini Açmak İstiyor musun?' })}
-            </h3>
-
-            <p className="mt-2 text-xs leading-relaxed text-muted">
-              {revealConfirmModal === 'accept' ? (
-                <>
-                  {t('lounge.reveal.acceptConfirmDesc', {
-                    alias: activeDirectSession.partner?.alias,
-                    defaultValue: `${activeDirectSession.partner?.alias} kullanıcısının kimlik açma davetini kabul etmek üzeresiniz.`,
-                  })}
-                </>
-              ) : (
-                <>
-                  {t('lounge.reveal.requestConfirmDesc', {
-                    alias: activeDirectSession.partner?.alias,
-                    defaultValue: `${activeDirectSession.partner?.alias} kullanıcısına maskeyi kaldırma ve gerçek profilleri görme isteği gönderilecek.`,
-                  })}
-                </>
-              )}
-            </p>
-
-            {/* Info Box */}
-            <div className="mt-4 rounded-md border border-border bg-secondary/70 p-3.5 text-left text-xs text-text space-y-2.5">
-              <div className="flex items-start gap-2.5">
-                <span className="text-base shrink-0">
-                  {revealConfirmModal === 'accept' ? '🔓' : '🤝'}
-                </span>
-                <p className="text-[11px] leading-relaxed text-muted">
-                  {revealConfirmModal === 'accept' ? (
-                    <>
-                      <strong>{t('lounge.reveal.boxAcceptTitle', { defaultValue: 'Profiliniz Açılacak:' })}</strong>{' '}
-                      {t('lounge.reveal.boxAcceptDesc', {
-                        defaultValue: 'Bu işlem onaylandığında gerçek Nest Social kullanıcı adınız ve profiliniz karşı tarafa görünecektir. Siz de karşı tarafın gerçek profilini göreceksiniz.',
-                      })}
-                    </>
-                  ) : (
-                    <>
-                      <strong>{t('lounge.reveal.boxRequestTitle', { defaultValue: 'Karşı Tarafın Onayı Gerekir:' })}</strong>{' '}
-                      {t('lounge.reveal.boxRequestDesc', {
-                        defaultValue: 'İstek karşı tarafa iletilir. Yalnızca karşı taraf da onaylarsa birbirinizin gerçek profillerini görebilirsiniz.',
-                      })}
-                    </>
-                  )}
-                </p>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="text-base shrink-0">🛡️</span>
-                <p className="text-[11px] leading-relaxed text-muted">
-                  {revealConfirmModal === 'accept' ? (
-                    <>
-                      {t('lounge.reveal.boxAcceptNote', {
-                        defaultValue: 'Karşılıklı onay verilmeden önce hiçbir gerçek profil bilgisi paylaşılmaz.',
-                      })}
-                    </>
-                  ) : (
-                    <>
-                      {t('lounge.reveal.boxRequestNote', {
-                        defaultValue: 'Karşı taraf kabul etmediği sürece kimliğiniz %100 gizli kalmaya devam eder.',
-                      })}
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div className="mt-5 flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setRevealConfirmModal(null)}
-                className="flex-1 rounded-md border border-border bg-secondary py-2.5 text-xs font-semibold text-text hover:bg-secondary-hover transition-colors"
-              >
-                {t('common.cancel', { defaultValue: 'Vazgeç' })}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRevealConfirmModal(null)
-                  executeRequestReveal()
-                }}
-                className={`flex-1 rounded-md py-2.5 text-xs font-bold !text-white shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 ${
-                  revealConfirmModal === 'accept'
-                    ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-primary hover:bg-primary-hover'
-                }`}
-              >
-                <span>
-                  {revealConfirmModal === 'accept'
-                    ? t('lounge.reveal.confirmAcceptBtn', { defaultValue: 'Evet, Profilimi Paylaş' })
-                    : t('lounge.reveal.confirmRequestBtn', { defaultValue: 'Evet, İstek Gönder' })}
-                </span>
-                <span>🎭</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Nest Social'e Geri Dönüş Onay Modalı */}
-      {showExitConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div
-            className="relative w-full max-w-sm overflow-hidden rounded-md border border-border bg-card p-5 sm:p-6 text-text shadow-2xl"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="text-center">
-              {/* Nest Social Brand Logo (Same as Navbar) */}
-              <div className="mx-auto mb-3.5 flex items-center justify-center gap-2">
-                <span className="grid size-10 place-items-center rounded-2xl bg-primary text-inverse font-bold text-base shadow-sm">
-                  NS
-                </span>
-                <span className="text-lg font-extrabold text-text tracking-tight">Nest Social</span>
-              </div>
-
-              <h3 className="text-base sm:text-lg font-bold text-text">
-                {t('lounge.exitModal.title', { defaultValue: "Nest Social'e Dönüyorsunuz" })}
-              </h3>
-
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                {t('lounge.exitModal.desc', {
-                  defaultValue: 'Gizli Profil & Anonim Lounge alanından çıkıp ana sosyal ağ akışınıza geri dönmek üzeresiniz. Onaylıyor musunuz?',
-                })}
-              </p>
-
-              <div className="mt-5 flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowExitConfirmModal(false)}
-                  className="flex-1 rounded-md border border-border bg-secondary py-2 text-xs font-semibold text-text hover:bg-secondary-hover transition-colors"
-                >
-                  {t('lounge.exitModal.cancel', { defaultValue: 'Vazgeç' })}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExitConfirmModal(false)
-                    navigate(`/${lang}/`)
-                  }}
-                  className="flex-1 rounded-md bg-primary py-2 text-xs font-bold !text-white shadow hover:bg-primary-hover active:scale-95 transition-all"
-                >
-                  {t('lounge.exitModal.confirm', { defaultValue: 'Evet, Geri Dön' })}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 4. Nest Social'e Geri Dönüş Onay Modalı */}
+      <ExitConfirmModal
+        show={showExitConfirmModal}
+        onClose={() => setShowExitConfirmModal(false)}
+        onConfirm={() => {
+          setShowExitConfirmModal(false)
+          navigate(`/${lang}/`)
+        }}
+        t={t}
+      />
 
       {/* Mesaj Silme, Oda Silme, Engelleme ve Sohbet Bitirme Profesyonel Pop-up Modalı */}
       {confirmDialog && (
@@ -3829,170 +3527,38 @@ export default function AnonymousLoungePage() {
         </div>
       )}
 
-      {/* Giriş Bilgilendirme ve Uyarı Pop-up Modalı (Kafa Dağıtma / Eğlence & Anonimlik Uyarısı) */}
-      {showDisclaimerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div
-            className="relative w-full max-w-md overflow-hidden rounded-md border border-border bg-card p-6 sm:p-7 text-text shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="text-center">
-              <div
-                className="mx-auto mb-4 flex size-14 items-center justify-center rounded-md text-3xl shadow-md"
-                style={{ background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)' }}
-              >
-                🎭
-              </div>
+      {/* Giriş Bilgilendirme ve Uyarı Pop-up Modalı */}
+      <DisclaimerModal
+        show={showDisclaimerModal}
+        dontShowAgain={dontShowAgainDisclaimer}
+        setDontShowAgain={setDontShowAgainDisclaimer}
+        onAccept={() => {
+          if (dontShowAgainDisclaimer) {
+            try {
+              localStorage.setItem('nest_anon_disclaimer_accepted', 'true')
+            } catch (_) {}
+          }
+          setShowDisclaimerModal(false)
+          const currentUserId = user?.id || user?._id
+          const isConfigured = Boolean(
+            anonProfile?.hasConfigured ||
+              (currentUserId &&
+                localStorage.getItem(`nest_anon_profile_configured_${currentUserId}`)),
+          )
+          if (isAuthenticated && !isConfigured) {
+            setProfileModalOpen(true)
+          }
+        }}
+        t={t}
+      />
 
-              <h3 className="text-lg sm:text-xl font-bold tracking-tight text-text">
-                {t('lounge.disclaimer.title', { defaultValue: 'Gizli Profile Hoş Geldiniz!' })}
-              </h3>
-
-              <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-muted">
-                {t('lounge.disclaimer.desc', {
-                  defaultValue: 'Günün stresini atmak ve kafa dağıtmak için tasarlanmış anonim sohbet alanındasınız.',
-                })}
-              </p>
-
-              <div className="mt-4 rounded-md border border-border bg-secondary/70 p-3.5 text-left text-xs text-text space-y-2">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-base shrink-0">🤫</span>
-                  <p>
-                    <strong>{t('lounge.disclaimer.rule1Title', { defaultValue: 'Tam Gizlilik:' })}</strong>{' '}
-                    {t('lounge.disclaimer.rule1Desc', {
-                      defaultValue: 'Rastgele rumuz ve avatarlarla kimliğiniz tamamen saklı kalır.',
-                    })}
-                  </p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-base shrink-0">⚠️</span>
-                  <p>
-                    <strong>{t('lounge.disclaimer.rule2Title', { defaultValue: 'Güvenlik Uyarısı:' })}</strong>{' '}
-                    {t('lounge.disclaimer.rule2Desc', {
-                      defaultValue: 'Kişisel, finansal veya hassas bilgilerinizi kesinlikle paylaşmayın.',
-                    })}
-                  </p>
-                </div>
-              </div>
-
-              <label className="mt-4 flex items-center justify-center gap-2 text-xs text-muted cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={dontShowAgainDisclaimer}
-                  onChange={(e) => setDontShowAgainDisclaimer(e.target.checked)}
-                  className="rounded border-border text-primary focus:ring-primary size-4"
-                />
-                <span>{t('lounge.disclaimer.dontShowAgain', { defaultValue: 'Bu bilgilendirmeyi bir daha gösterme' })}</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (dontShowAgainDisclaimer) {
-                    try {
-                      localStorage.setItem('nest_anon_disclaimer_accepted', 'true')
-                    } catch (_) {}
-                  }
-                  setShowDisclaimerModal(false)
-                  const currentUserId = user?.id || user?._id
-                  const isConfigured = Boolean(
-                    anonProfile?.hasConfigured ||
-                      (currentUserId &&
-                        localStorage.getItem(`nest_anon_profile_configured_${currentUserId}`)),
-                  )
-                  if (isAuthenticated && !isConfigured) {
-                    setProfileModalOpen(true)
-                  }
-                }}
-                className="mt-4 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-bold !text-white shadow hover:bg-primary-hover active:scale-[0.98] transition-all"
-              >
-                {t('lounge.disclaimer.startBtn', { defaultValue: 'Anladım, Sohbete Başla' })}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Üye Olmayan Ziyaretçiler İçin 20 Saniye Sonunda Puslandırma ve Üye Olma Pop-up'ı */}
-      {!isAuthenticated && guestTimeoutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div
-            className="relative w-full max-w-md overflow-hidden rounded-md border border-border bg-card p-6 sm:p-8 text-text shadow-2xl text-center animate-in zoom-in-95 duration-200"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              className="mx-auto mb-4 flex size-16 items-center justify-center rounded-md text-3xl shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
-            >
-              🚀
-            </div>
-
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-2">
-              <span>⏱️</span>
-              <span>{t('lounge.guestTimeout.badge', { defaultValue: 'Önizleme Süresi Doldu' })}</span>
-            </div>
-
-            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-text">
-              {t('lounge.guestTimeout.title', { defaultValue: 'Sohbete Katılmak İçin Üye Olun!' })}
-            </h3>
-
-            <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-muted">
-              {t('lounge.guestTimeout.desc', {
-                defaultValue: "Anonim Lounge'da mesaj göndermek, yeni oda kurmak ve çevrimiçi kişilerle birebir eşleşip kafa dağıtmak için hemen aramıza katılın.",
-              })}
-            </p>
-
-            <div className="mt-4 rounded-md border border-border bg-secondary/80 p-3.5 text-left text-xs text-text space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
-                <span>{t('lounge.guestTimeout.perk1', { defaultValue: 'Tamamen Ücretsiz ve 1 Dakikada Kayıt' })}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
-                <span>{t('lounge.guestTimeout.perk2', { defaultValue: 'Gerçek Profiliniz Gizli Kalır (%100 Anonim)' })}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
-                <span>{t('lounge.guestTimeout.perk3', { defaultValue: 'Sınırsız Oda Sohbeti ve Canlı Radar Erişimi' })}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-col gap-2.5">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(
-                    `/${lang}/signup?returnTo=${encodeURIComponent(`/${lang}/hidden-profile`)}`,
-                  )
-                }
-                className="w-full rounded-md bg-primary px-5 py-3 text-sm font-bold !text-white shadow-lg hover:bg-primary-hover active:scale-[0.98] transition-all"
-              >
-                {t('lounge.guestTimeout.signupBtn', { defaultValue: 'Hemen Ücretsiz Kayıt Ol' })}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(
-                    `/${lang}/login?returnTo=${encodeURIComponent(`/${lang}/hidden-profile`)}`,
-                  )
-                }
-                className="w-full rounded-md border border-border bg-secondary px-5 py-2.5 text-sm font-semibold text-text hover:bg-secondary-hover active:scale-[0.98] transition-all"
-              >
-                {t('lounge.guestTimeout.loginBtn', { defaultValue: 'Zaten Hesabım Var, Giriş Yap' })}
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/${lang}/`)}
-                className="text-xs text-muted hover:text-text underline mt-1 transition-colors"
-              >
-                {t('lounge.guestTimeout.returnHome', { defaultValue: 'Nest Social Ana Sayfasına Dön' })}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Üye Olmayan Ziyaretçiler İçin Süre Sonu Modalı */}
+      <GuestTimeoutModal
+        show={!isAuthenticated && guestTimeoutModalOpen}
+        lang={lang}
+        navigate={navigate}
+        t={t}
+      />
 
       {/* Hidden audio element for receiving WebRTC remote audio stream */}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />

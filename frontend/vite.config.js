@@ -42,6 +42,9 @@ export default defineConfig({
           if (id.includes('react-helmet-async')) {
             return 'vendor-seo'
           }
+          if (id.includes('/node_modules/zustand/')) {
+            return 'vendor-state'
+          }
           if (id.includes('@tanstack/')) {
             return 'vendor-query'
           }

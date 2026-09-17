@@ -12,6 +12,7 @@
     "test:deployment": "node scripts/check-deployment.mjs",
     "test:e2e": "playwright test",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -25,12 +26,14 @@
     "react-i18next": "^17.0.2",
     "react-router-dom": "^7.14.0",
     "socket.io-client": "^4.8.3",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^22.20.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -41,6 +44,8 @@
     "lighthouse": "^13.3.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.1.18",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
     "vite": "^8.0.1"
   }
 }

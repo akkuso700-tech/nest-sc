@@ -18,225 +18,31 @@ import {
   StoryIcon,
   VideoIcon,
 } from './PostComposerIcons.jsx'
-
-const MAX_IMAGE_FILES = 4
-const COMPOSER_TEXTAREA_MIN_HEIGHT = 96
-const COMPOSER_TEXTAREA_MAX_HEIGHT = 260
-const POST_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024
-const POST_VIDEO_MAX_BYTES = 18 * 1024 * 1024
-const LOOP_VIDEO_MAX_BYTES = 100 * 1024 * 1024
-const LOOP_VIDEO_MAX_DURATION_SECONDS = 90
-const STORY_VIDEO_MAX_DURATION_SECONDS = 15
-const STORY_MENTION_PATTERN = /^[\p{L}\p{N}_]{3,40}$/u
-const TITLE_MAX_LENGTH = 80
-
-function logUploadPerf(payload) {
-  try {
-    console.info('[upload-perf]', JSON.stringify(payload))
-  } catch {
-    console.info('[upload-perf]', payload)
-  }
-}
-
-function createPreviewItems(files, posters = new Map()) {
-  return files.map((file) => ({
-    id: `${file.name}-${file.lastModified}`,
-    url: URL.createObjectURL(file),
-    posterUrl: posters.get(`${file.name}-${file.lastModified}`) || '',
-    type: file.type.startsWith('video/') ? 'video' : 'image',
-    name: file.name,
-  }))
-}
-
-function readVideoDuration(file) {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file)
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.onloadedmetadata = () => {
-      const duration = Number(video.duration || 0)
-      URL.revokeObjectURL(objectUrl)
-      resolve(duration)
-    }
-    video.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('Video bilgileri okunamadi.'))
-    }
-    video.src = objectUrl
-  })
-}
-
-function syncTextareaHeight(element, minHeight = COMPOSER_TEXTAREA_MIN_HEIGHT) {
-  if (!element) {
-    return
-  }
-
-  element.style.height = 'auto'
-  const nextHeight = Math.max(element.scrollHeight, minHeight)
-  element.style.height = `${nextHeight}px`
-  element.style.overflowY = 'hidden'
-}
-
-function parseDelimitedValues(value = '') {
-  return [...new Set(`${value}`.split(',').map((item) => item.trim()).filter(Boolean))]
-}
-
-function getTextareaMinHeight(isMobileFullscreen = false) {
-  return isMobileFullscreen ? 140 : COMPOSER_TEXTAREA_MIN_HEIGHT
-}
-
-function getCurrentScheduleDefaults() {
-  const now = new Date()
-  const timezoneOffset = now.getTimezoneOffset()
-  const localNow = new Date(now.getTime() - timezoneOffset * 60 * 1000)
-  const isoString = localNow.toISOString()
-
-  return {
-    date: isoString.slice(0, 10),
-    time: isoString.slice(11, 16),
-  }
-}
-
-function triggerNativePicker(input) {
-  if (!input) {
-    return
-  }
-
-  if (typeof input.showPicker === 'function') {
-    input.showPicker()
-    return
-  }
-
-  input.focus()
-  input.click()
-}
-
-function normalizeTopicValue(value = '') {
-  return value
-    .normalize('NFKD')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}_]+/gu, '')
-}
-
-function getActiveTokenContext(text = '', caretPosition = 0) {
-  const safeCaret = Math.max(0, Math.min(caretPosition, text.length))
-  let tokenStart = safeCaret - 1
-
-  while (tokenStart >= 0 && !/\s/u.test(text[tokenStart])) {
-    tokenStart -= 1
-  }
-
-  tokenStart += 1
-
-  let tokenEnd = safeCaret
-
-  while (tokenEnd < text.length && !/\s/u.test(text[tokenEnd])) {
-    tokenEnd += 1
-  }
-
-  const token = text.slice(tokenStart, tokenEnd)
-  const trigger = token[0]
-
-  if (!['#', '@'].includes(trigger) || !/^[#@][\p{L}\p{N}_]*$/u.test(token)) {
-    return null
-  }
-
-  return {
-    trigger,
-    query: token.slice(1),
-    start: tokenStart,
-    end: tokenEnd,
-  }
-}
-
-function renderHighlightedDraft(text = '') {
-  if (!text) {
-    return null
-  }
-
-  const parts = text.split(/(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+)/gu)
-  const elements = parts.map((part, index) => {
-    if (!part) {
-      return null
-    }
-
-    const isTag = /^(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+)$/u.test(part)
-    if (isTag) {
-      return (
-        <span key={`${part}-${index}`} className="text-primary font-normal">
-          {part}
-        </span>
-      )
-    }
-
-    return part
-  })
-
-  if (text.endsWith('\n')) {
-    elements.push('\u200b')
-  }
-
-  return elements
-}
-
-function measureSuggestionAnchor(textarea, value, caretPosition) {
-  if (!textarea || typeof window === 'undefined') {
-    return { left: 16, top: 112, width: 320 }
-  }
-
-  const computed = window.getComputedStyle(textarea)
-  const mirror = document.createElement('div')
-  const marker = document.createElement('span')
-  const textareaRect = textarea.getBoundingClientRect()
-  const paddingLeft = Number.parseFloat(computed.paddingLeft || '0')
-  const paddingTop = Number.parseFloat(computed.paddingTop || '0')
-  const lineHeight = Number.parseFloat(computed.lineHeight || '28')
-
-  mirror.style.position = 'absolute'
-  mirror.style.visibility = 'hidden'
-  mirror.style.pointerEvents = 'none'
-  mirror.style.whiteSpace = 'pre-wrap'
-  mirror.style.wordBreak = 'break-word'
-  mirror.style.overflowWrap = 'break-word'
-  mirror.style.font = computed.font
-  mirror.style.letterSpacing = computed.letterSpacing
-  mirror.style.lineHeight = computed.lineHeight
-  mirror.style.padding = computed.padding
-  mirror.style.width = `${textareaRect.width}px`
-  mirror.style.border = computed.border
-  mirror.style.boxSizing = computed.boxSizing
-  mirror.style.left = '-9999px'
-  mirror.style.top = '0'
-  mirror.textContent = value.slice(0, caretPosition)
-  marker.textContent = '\u200b'
-  mirror.appendChild(marker)
-  document.body.appendChild(mirror)
-
-  const markerLeft = marker.offsetLeft
-  const markerTop = marker.offsetTop
-  document.body.removeChild(mirror)
-
-  const popupWidth = Math.min(320, window.innerWidth - 32)
-  const popupEstimatedHeight = 260
-
-  let left = textareaRect.left + paddingLeft + markerLeft
-  if (left + popupWidth > window.innerWidth - 16) {
-    left = Math.max(16, window.innerWidth - popupWidth - 16)
-  }
-  if (left < 16) {
-    left = 16
-  }
-
-  let top = textareaRect.top + paddingTop + markerTop + lineHeight + 6
-  if (top + popupEstimatedHeight > window.innerHeight - 16) {
-    const topAbove = textareaRect.top + paddingTop + markerTop - popupEstimatedHeight - 6
-    if (topAbove > 16) {
-      top = topAbove
-    }
-  }
-
-  return { left, top, width: popupWidth }
-}
+import {
+  COMPOSER_TEXTAREA_MAX_HEIGHT,
+  COMPOSER_TEXTAREA_MIN_HEIGHT,
+  LOOP_VIDEO_MAX_BYTES,
+  LOOP_VIDEO_MAX_DURATION_SECONDS,
+  MAX_IMAGE_FILES,
+  POST_IMAGE_MAX_BYTES,
+  POST_VIDEO_MAX_BYTES,
+  STORY_MENTION_PATTERN,
+  STORY_VIDEO_MAX_DURATION_SECONDS,
+  TITLE_MAX_LENGTH,
+  createPreviewItems,
+  getActiveTokenContext,
+  getCurrentScheduleDefaults,
+  getTextareaMinHeight,
+  logUploadPerf,
+  measureSuggestionAnchor,
+  normalizeTopicValue,
+  parseDelimitedValues,
+  readVideoDuration,
+  syncTextareaHeight,
+  triggerNativePicker,
+} from './utils/composerHelpers.js'
+import ComposerHighlightedDraft, { renderHighlightedDraft } from './components/composer/ComposerHighlightedDraft.jsx'
+import ComposerMediaPreview from './components/composer/ComposerMediaPreview.jsx'
 
 function PostComposer({
   user,
@@ -2053,42 +1859,7 @@ function PostComposer({
                 </div>
               </div>
 
-              {previewItems.length ? (
-                <div className="mt-1 grid gap-3 sm:grid-cols-2">
-                  {previewItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="relative overflow-hidden rounded-lg border border-border bg-secondary"
-                    >
-                      {item.type === 'video' ? (
-                        <video
-                          src={resolveMediaUrl(item.url)}
-                          controls
-                          playsInline
-                          preload="metadata"
-                          className="aspect-[16/10] w-full bg-black object-contain"
-                        />
-                      ) : (
-                        <img
-                          src={resolveMediaUrl(item.url)}
-                          alt={item.name}
-                          className="aspect-[16/10] w-full object-cover"
-                        />
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePreview(item.id)}
-                        className="absolute right-3 cursor-pointer top-3 grid size-8 place-items-center rounded-full bg-black/70 text-white"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="size-4" aria-hidden="true">
-                          <path d="m6 6 12 12M18 6 6 18" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              <ComposerMediaPreview previewItems={previewItems} onRemovePreview={handleRemovePreview} />
 
               {submitError ? (
                 <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">

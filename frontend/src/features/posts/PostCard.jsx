@@ -53,6 +53,20 @@ import {
   VolumeOnIcon,
 } from './PostCardIcons.jsx'
 import { PhotoIcon, VideoIcon } from './PostComposerIcons.jsx'
+import { InlineActionButton, LoopVerticalActionButton } from './components/PostCardButtons.jsx'
+import PostCardLightbox from './components/PostCardLightbox.jsx'
+import PostCardHeader from './components/PostCardHeader.jsx'
+import PostCardBody from './components/PostCardBody.jsx'
+import PostCardActions from './components/PostCardActions.jsx'
+import {
+  findCommentById,
+  appendReplyToTree,
+  updateCommentInTree,
+  removeCommentFromTree,
+  getCommentLikeCount,
+  getCommentCreatedAt,
+  sortCommentsByMode,
+} from './utils/commentTree.js'
 
 const ReportDialog = lazy(() => import('../../components/feedback/ReportDialog.jsx'))
 const ConfirmActionDialog = lazy(() => import('../../components/feedback/ConfirmActionDialog.jsx'))
@@ -83,279 +97,6 @@ function getSafeRecommendationContext(recommendation) {
       variant: recommendation.experiment.variant,
     },
   }
-}
-
-function InlineActionButton({
-  icon,
-  count,
-  label,
-  onClick,
-  onCountClick,
-  active = false,
-  disabled = false,
-}) {
-  const shouldRenderCount = count !== null && typeof count !== 'undefined' && `${count}`.length > 0
-  const canClickCount = typeof onCountClick === 'function' && shouldRenderCount && Number(count) > 0
-
-  if (canClickCount) {
-    return (
-      <div
-        className={`inline-flex min-h-11 items-center rounded-lg transition ${
-          active
-            ? 'bg-nav-active text-primary'
-            : 'text-text hover:bg-secondary hover:text-text'
-        } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-      >
-        <button
-          type="button"
-          onClick={onClick}
-          disabled={disabled}
-          aria-label={label}
-          title={label}
-          className="inline-flex min-h-11 min-w-8 items-center justify-center p-2.5 cursor-pointer disabled:cursor-not-allowed"
-        >
-          {icon}
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onCountClick()
-          }}
-          className="py-2.5 pr-2.5 -ml-1 text-xs font-semibold hover:underline cursor-pointer focus:outline-none"
-        >
-          {count}
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className={`inline-flex min-h-11 min-w-11 items-center cursor-pointer justify-center gap-2 rounded-lg px-3 text-sm transition ${
-        active
-          ? 'bg-nav-active text-primary'
-          : 'text-text hover:bg-secondary hover:text-text'
-      } disabled:cursor-not-allowed disabled:opacity-60`}
-    >
-      {icon}
-      {shouldRenderCount ? <span className="text-xs font-semibold">{count}</span> : null}
-    </button>
-  )
-}
-
-function LoopVerticalActionButton({
-  icon,
-  count,
-  label,
-  onClick,
-  onCountClick,
-  disabled = false,
-  active = false,
-  isDesktop = false,
-}) {
-  const shouldRenderCount = count !== null && typeof count !== 'undefined' && `${count}`.length > 0
-  const canClickCount = typeof onCountClick === 'function' && shouldRenderCount && Number(count) > 0
-
-  if (isDesktop) {
-    return (
-      <div className="flex flex-col items-center gap-1">
-        <button
-          type="button"
-          onClick={onClick}
-          disabled={disabled}
-          aria-label={label}
-          className={`grid size-11 place-items-center rounded-full border shadow-lg backdrop-blur-md transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
-            active
-              ? 'bg-primary/20 border-primary/40 text-primary'
-              : 'bg-card/90 border-border text-text hover:bg-secondary hover:text-primary'
-          }`}
-        >
-          {icon}
-        </button>
-        {shouldRenderCount ? (
-          canClickCount ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onCountClick()
-              }}
-              className="text-xs font-bold leading-tight text-text/90 hover:text-primary hover:underline cursor-pointer py-0.5"
-              title="Beğenenleri gör"
-            >
-              {count}
-            </button>
-          ) : (
-            <span className="text-xs font-bold leading-tight text-text/90 select-none">{count}</span>
-          )
-        ) : null}
-      </div>
-    )
-  }
-
-  return (
-    <div className="inline-flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-white">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={label}
-        className="grid size-8 place-items-center cursor-pointer transition active:scale-90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {icon}
-      </button>
-      {shouldRenderCount ? (
-        canClickCount ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onCountClick()
-            }}
-            className="text-[10px] font-semibold leading-none text-white/90 hover:text-white hover:underline cursor-pointer py-0.5"
-            title="Beğenenleri gör"
-          >
-            {count}
-          </button>
-        ) : (
-          <span className="text-[10px] font-semibold leading-none select-none">{count}</span>
-        )
-      ) : null}
-    </div>
-  )
-}
-
-function Lightbox({ items, activeIndex, onClose, onChange }) {
-  const item = items[activeIndex]
-
-  if (!item) {
-    return null
-  }
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/92 p-4" onClick={onClose}>
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute right-4 top-4 grid size-11 place-items-center rounded-full bg-white/10 text-white"
-      >
-        X
-      </button>
-
-      {activeIndex > 0 ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onChange(activeIndex - 1)
-          }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-4 py-3 text-white"
-        >
-          {'<'}
-        </button>
-      ) : null}
-
-      <div className="max-h-full max-w-5xl" onClick={(event) => event.stopPropagation()}>
-        {item.type === 'video' ? (
-          <video
-            src={resolveMediaUrl(item.url)}
-            controls
-            playsInline
-            autoPlay
-            className="max-h-[85vh] max-w-full rounded-[24px]"
-          />
-        ) : (
-          <img
-            src={resolveMediaUrl(item.url)}
-            alt="Expanded post media"
-            className="max-h-[85vh] max-w-full rounded-[24px] object-contain"
-          />
-        )}
-      </div>
-
-      {activeIndex < items.length - 1 ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onChange(activeIndex + 1)
-          }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-4 py-3 text-white"
-        >
-          {'>'}
-        </button>
-      ) : null}
-    </div>
-  )
-}
-
-function findCommentById(comments, commentId) {
-  for (const comment of comments) {
-    if ((comment.id || comment._id) === commentId) {
-      return comment
-    }
-
-    const nestedComment = findCommentById(comment.replies || [], commentId)
-
-    if (nestedComment) {
-      return nestedComment
-    }
-  }
-
-  return null
-}
-
-function appendReplyToTree(comments, parentId, nextComment) {
-  return comments.map((comment) => {
-    const commentId = comment.id || comment._id
-
-    if (commentId === parentId) {
-      return {
-        ...comment,
-        replies: [nextComment, ...(comment.replies || [])],
-      }
-    }
-
-    return comment.replies?.length
-      ? {
-          ...comment,
-          replies: appendReplyToTree(comment.replies, parentId, nextComment),
-        }
-      : comment
-  })
-}
-
-function updateCommentInTree(comments, nextComment) {
-  return comments.map((comment) => {
-    if ((comment.id || comment._id) === (nextComment.id || nextComment._id)) {
-      const currentReplies = comment.replies || []
-      const incomingReplies = Array.isArray(nextComment?.replies) ? nextComment.replies : null
-      const resolvedReplies =
-        incomingReplies === null
-          ? currentReplies
-          : incomingReplies.length === 0 && currentReplies.length > 0
-            ? currentReplies
-            : incomingReplies
-
-      return {
-        ...comment,
-        ...nextComment,
-        replies: resolvedReplies,
-      }
-    }
-
-    return comment.replies?.length
-      ? {
-          ...comment,
-          replies: updateCommentInTree(comment.replies, nextComment),
-        }
-      : comment
-  })
 }
 
 const MOBILE_CONTENT_COLLAPSE_LIMIT = 92
@@ -414,41 +155,6 @@ function isLoopContent(post) {
   return Boolean((post?.media || []).some((item) => item?.type === 'video' && item?.hlsUrl))
 }
 
-function getCommentLikeCount(comment) {
-  return Number(comment?.stats?.likes ?? comment?.likes ?? 0)
-}
-
-function getCommentCreatedAt(comment) {
-  const timestamp = comment?.createdAt ? Date.parse(comment.createdAt) : NaN
-  return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-function sortCommentsByMode(comments, mode) {
-  const sorted = [...comments]
-
-  if (mode === 'popular') {
-    sorted.sort((a, b) => {
-      const likeDiff = getCommentLikeCount(b) - getCommentLikeCount(a)
-      if (likeDiff !== 0) {
-        return likeDiff
-      }
-      return getCommentCreatedAt(b) - getCommentCreatedAt(a)
-    })
-    return sorted
-  }
-
-  sorted.sort((a, b) => getCommentCreatedAt(b) - getCommentCreatedAt(a))
-  return sorted
-}
-
-function removeCommentFromTree(comments, commentId) {
-  return comments
-    .filter((comment) => (comment.id || comment._id) !== commentId)
-    .map((comment) => ({
-      ...comment,
-      replies: removeCommentFromTree(comment.replies || [], commentId),
-    }))
-}
 
 function createPreviewItem(file) {
   return {
@@ -2321,160 +2027,38 @@ function PostCard({
         }`}
       >
         <div className="flex-row items-start gap-3">
-          
-
-          <div className="min-w-0 flex-1 ">
-            <div className={`flex items-start justify-between gap-3 px-4 ${isLoopVariant ? 'hidden' : 'pt-4'}`}>
-              <div className="flex items-start justify-between gap-3">
-              <Link
-                to={`/${lang}/u/${author.username || ''}`}
-                className="shrink-0 transition hover:scale-[1.02]"
-                onClick={handleAuthorAvatarClick}
-              >
-                {groupHeaderName && groupHeaderCoverUrl ? (
-                  <div className="relative h-14 w-20">
-                    <img
-                      src={groupHeaderCoverUrl}
-                      alt={groupHeaderName}
-                      className="h-14 w-20 rounded-lg object-cover"
-                    />
-                    <div className={`absolute -bottom-2 -right-2 rounded-full p-[2px] ${hasAuthorStory ? 'bg-gradient-to-br from-pink-500 via-amber-400 to-violet-500' : 'bg-card'}`}>
-                      <UserAvatar
-                        user={author}
-                        className="size-8 border border-card text-[11px] font-semibold"
-                        textClassName="text-[11px] font-semibold"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className={`rounded-full p-[2px] ${hasAuthorStory ? 'bg-gradient-to-br from-pink-500 via-amber-400 to-violet-500' : 'bg-transparent'}`}>
-                    <UserAvatar
-                      user={author}
-                      className="size-11 border-2 border-card text-sm font-semibold"
-                      textClassName="text-sm font-semibold"
-                    />
-                  </div>
-                )}
-              </Link>
-              <div className="min-w-0 rounded-2xl">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0">
-                    {groupHeaderName ? (
-                      <p className="truncate text-sm font-semibold text-text">{groupHeaderName}</p>
-                    ) : null}
-                    <Link
-                      to={`/${lang}/u/${author.username || ''}`}
-                      className="min-w-0"
-                    >
-                      <span className="flex min-w-0 items-center gap-1.5 font-semibold text-base">
-                        <span className="truncate">{author.name || getFullName(author)}</span>
-                        <VerifiedBadge user={author} />
-                      </span>
-                    </Link>
-                  </div>
-                  {canFollowAuthor ? (
-                    <button
-                      type="button"
-                      onClick={handleLoopFollowToggle}
-                      disabled={isFollowProcessing}
-                      className={`shrink-0 rounded-lg cursor-pointer  border px-2.5 py-1 text-[11px] font-semibold transition ${
-                        isAuthorFollowed
-                          ? 'border-border bg-secondary text-text hover:bg-secondary-hover'
-                          : 'border-primary/45 bg-primary/10 text-primary hover:bg-primary/15'
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
-                    >
-                      {isFollowProcessing
-                        ? '...'
-                        : isAuthorFollowed
-                          ? unfollowLabelText
-                          : followLabelText}
-                    </button>
-                  ) : null}
-                </div>
-                <div>
-                  <span className="text-sm text-muted">@{author.username}</span>
-                  <span className="text-sm text-muted">
-                    {' '}
-                    - {formatRelativeTime(localPost.createdAt)}
-                  </span>
-                </div>
-              </div>
-              </div>
-              
-
-              <div ref={menuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen((current) => !current)}
-                  className="grid min-h-11 min-w-11 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text"
-                  aria-label={t('postDetail.postOptions')}
-                >
-                  <MoreIcon />
-                </button>
-
-                {isMenuOpen ? (
-                  <div className="dropdown-pop absolute right-0 top-[calc(100%+8px)] z-20 w-48 rounded-lg border border-border bg-card p-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
-                    {isOwnPost ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMenuOpen(false)
-                            setIsInsightsModalOpen(true)
-                          }}
-                          className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-text transition hover:bg-secondary cursor-pointer"
-                        >
-                          <span className="text-base leading-none">📊</span>
-                          <span>{t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleEditPost}
-                          className="flex w-full rounded-2xl px-3 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
-                        >
-                          {t('postDetail.edit')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleArchivePost}
-                          className="flex w-full rounded-2xl px-3 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
-                        >
-                          Arsive kaldir
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeletePost}
-                          className="flex w-full rounded-2xl px-3 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 dark:hover:bg-zinc-900"
-                        >
-                          {t('postDetail.delete')}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handleMarkNotInterested}
-                          disabled={!isAuthenticated || pendingAction === 'not-interested'}
-                          className="flex w-full rounded-lg cursor-pointer px-3 py-2.5 text-left text-sm text-text transition hover:bg-secondary disabled:opacity-60"
-                        >
-                          {t('postDetail.notInterested', { defaultValue: 'İlgilenmiyorum' })}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMenuOpen(false)
-                            setIsReportOpen(true)
-                          }}
-                          className="mt-1 flex w-full rounded-lg cursor-pointer px-3 py-2.5 text-left text-sm text-text transition hover:bg-secondary"
-                        >
-                          {t('postDetail.reportContent')}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            </div>
+          <div className="min-w-0 flex-1">
+            {!isLoopVariant ? (
+              <PostCardHeader
+                lang={lang}
+                author={author}
+                localPost={localPost}
+                groupHeaderName={groupHeaderName}
+                groupHeaderCoverUrl={groupHeaderCoverUrl}
+                hasAuthorStory={hasAuthorStory}
+                canFollowAuthor={canFollowAuthor}
+                isFollowProcessing={isFollowProcessing}
+                isAuthorFollowed={isAuthorFollowed}
+                followLabelText={followLabelText}
+                unfollowLabelText={unfollowLabelText}
+                isMenuOpen={isMenuOpen}
+                menuRef={menuRef}
+                isOwnPost={isOwnPost}
+                isAuthenticated={isAuthenticated}
+                pendingAction={pendingAction}
+                onAuthorAvatarClick={handleAuthorAvatarClick}
+                onFollowToggle={handleLoopFollowToggle}
+                onMenuToggle={() => setIsMenuOpen((current) => !current)}
+                onMenuClose={() => setIsMenuOpen(false)}
+                onEditPost={handleEditPost}
+                onArchivePost={handleArchivePost}
+                onDeletePost={handleDeletePost}
+                onMarkNotInterested={handleMarkNotInterested}
+                onOpenReport={() => setIsReportOpen(true)}
+                onOpenInsights={() => setIsInsightsModalOpen(true)}
+                t={t}
+              />
+            ) : null}
 
             {(groupHeaderName && localPost?.title) ? (
               <div className={`mt-1 px-4 ${isLoopVariant ? 'hidden' : ''}`}>
@@ -2820,79 +2404,35 @@ function PostCard({
             ) : null}
 
             {!isLoopVariant ? (
-              <div className="flex items-center justify-between gap-3 py-1 px-4">
-                <div className="flex flex-wrap items-center gap-1">
-                  <InlineActionButton
-                    icon={<HeartIcon filled={Boolean(localPost.likedByViewer)} />}
-                    count={likes}
-                    label={t('common.like')}
-                    onClick={() => runPostAction('like', togglePostLike)}
-                    onCountClick={() => setIsLikesModalOpen(true)}
-                    active={Boolean(localPost.likedByViewer)}
-                    disabled={!isAuthenticated || pendingAction === 'like'}
-                  />
-                  <InlineActionButton
-                    icon={<CommentIcon />}
-                    count={comments}
-                    label={t('common.comment')}
-                    onClick={openQuickComments}
-                  />
-                  <InlineActionButton
-                    icon={<BookmarkIcon filled={Boolean(localPost.savedByViewer)} />}
-                    count={saves}
-                    label={t('common.save')}
-                    onClick={() => runPostAction('save', togglePostSave)}
-                    active={Boolean(localPost.savedByViewer)}
-                    disabled={!isAuthenticated || pendingAction === 'save'}
-                  />
-                  <div ref={shareMenuRef} data-share-menu="true" className="relative">
-                    <InlineActionButton
-                      icon={<ShareIcon />}
-                      count={shares}
-                      label={t('common.share')}
-                      onClick={handleShareButtonClick}
-                      active={Boolean(localPost.sharedByViewer)}
-                      disabled={isShareProcessing || pendingAction === 'share'}
-                    />
-
-                    <ShareMenuPopover
-                      open={isShareMenuOpen}
-                      onClose={() => setIsShareMenuOpen(false)}
-                      sharePayload={sharePayload}
-                      shareTargets={shareTargets}
-                      isMobile={isMobileViewport}
-                      variant="feed"
-                      onTrackShare={trackShareIfPossible}
-                      onShowToast={setToast}
-                    />
-                  </div>
-                </div>
-
-                {canViewInsights ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsInsightsModalOpen(true)}
-                    className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted hover:text-primary transition hover:underline cursor-pointer group"
-                    aria-label={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
-                    title={t('insights.viewInsights', { defaultValue: 'İstatistikleri Gör' })}
-                  >
-                    <EyeIcon />
-                    <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                    <span className="hidden sm:inline text-[10px] bg-secondary px-1.5 py-0.5 rounded font-medium text-muted group-hover:bg-primary/10 group-hover:text-primary transition">
-                      {t('insights.viewInsights', { defaultValue: 'İstatistik' })}
-                    </span>
-                  </button>
-                ) : (
-                  <div
-                    className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-muted"
-                    aria-label={t('postDetail.viewCountLabel')}
-                    title={t('postDetail.viewCountLabel')}
-                  >
-                    <EyeIcon />
-                    <span>{formatViewCount(views, lang === 'tr' ? 'tr-TR' : 'en-US')}</span>
-                  </div>
-                )}
-              </div>
+              <PostCardActions
+                localPost={localPost}
+                likes={likes}
+                comments={comments}
+                saves={saves}
+                shares={shares}
+                views={views}
+                isAuthenticated={isAuthenticated}
+                pendingAction={pendingAction}
+                isShareProcessing={isShareProcessing}
+                isShareMenuOpen={isShareMenuOpen}
+                shareMenuRef={shareMenuRef}
+                sharePayload={sharePayload}
+                shareTargets={shareTargets}
+                isMobileViewport={isMobileViewport}
+                canViewInsights={canViewInsights}
+                lang={lang}
+                t={t}
+                formatViewCount={formatViewCount}
+                onLike={() => runPostAction('like', togglePostLike)}
+                onLikeCountClick={() => setIsLikesModalOpen(true)}
+                onCommentClick={openQuickComments}
+                onSave={() => runPostAction('save', togglePostSave)}
+                onShareButtonClick={handleShareButtonClick}
+                onShareMenuClose={() => setIsShareMenuOpen(false)}
+                onTrackShare={trackShareIfPossible}
+                onShowToast={setToast}
+                onOpenInsights={() => setIsInsightsModalOpen(true)}
+              />
             ) : null}
 
             <QuickCommentsPanel
@@ -3035,7 +2575,7 @@ function PostCard({
         </Suspense>
       ) : null}
 
-      <Lightbox
+      <PostCardLightbox
         items={mediaItems}
         activeIndex={lightboxIndex}
         onChange={setLightboxIndex}
