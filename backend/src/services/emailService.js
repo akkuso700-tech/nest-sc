@@ -5,7 +5,7 @@ async function sendEmailViaResend({ to, subject, html, text }) {
     throw new Error('RESEND_API_KEY missing.')
   }
 
-  const from = env.emailFrom || 'My Social <onboarding@resend.dev>'
+  const from = env.emailFrom || 'nest-sc.com <onboarding@resend.dev>'
 
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',

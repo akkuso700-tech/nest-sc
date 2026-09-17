@@ -112,7 +112,7 @@ async function processNotificationJob(job, options = {}) {
     messageCount: unreadMessages.length,
     previewText,
     actionUrl,
-    siteName: 'My Social',
+    siteName: 'nest-sc.com',
   })
 
   // 6. Send email notification

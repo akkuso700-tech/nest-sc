@@ -13,7 +13,7 @@ function buildShadowMessageNotificationEmail({
   messageCount = 1,
   previewText = '',
   actionUrl,
-  siteName = 'My Social',
+  siteName = 'nest-sc.com',
 }) {
   const safeRecipientName = escapeHtml(recipientName || 'Kullanıcı')
   const safeSenderAlias = escapeHtml(senderAlias || 'Anonim Kullanıcı')
@@ -36,30 +36,30 @@ function buildShadowMessageNotificationEmail({
     body {
       margin: 0;
       padding: 0;
-      background-color: #090d16;
+      background-color: #faf5ff;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      color: #e2e8f0;
+      color: #1e1b4b;
       -webkit-font-smoothing: antialiased;
     }
     .wrapper {
       width: 100%;
-      background-color: #090d16;
-      padding: 32px 16px;
+      background-color: #faf5ff;
+      padding: 36px 16px;
       box-sizing: border-box;
     }
     .container {
       max-width: 520px;
       margin: 0 auto;
-      background: #111827;
+      background: #ffffff;
       border-radius: 16px;
-      border: 1px solid #1f293d;
+      border: 1px solid #e9d5ff;
       overflow: hidden;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 4px 20px -2px rgba(147, 51, 234, 0.08);
     }
     .header {
-      padding: 24px 32px;
-      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
-      border-bottom: 1px solid #312e81;
+      padding: 22px 32px;
+      background: #ffffff;
+      border-bottom: 1px solid #f3e8ff;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -67,15 +67,15 @@ function buildShadowMessageNotificationEmail({
     .brand {
       font-size: 19px;
       font-weight: 700;
-      color: #a855f7;
+      color: #7e22ce;
       text-decoration: none;
       letter-spacing: -0.5px;
     }
     .lounge-badge {
       display: inline-block;
-      background: rgba(168, 85, 247, 0.2);
-      color: #c084fc;
-      border: 1px solid rgba(168, 85, 247, 0.4);
+      background: #f3e8ff;
+      color: #7e22ce;
+      border: 1px solid #d8b4fe;
       font-size: 11px;
       font-weight: 700;
       padding: 3px 10px;
@@ -86,35 +86,36 @@ function buildShadowMessageNotificationEmail({
     }
     .greeting {
       font-size: 16px;
-      color: #94a3b8;
-      margin-bottom: 20px;
+      color: #4b5563;
+      margin-bottom: 16px;
     }
     .card {
-      background: #0b0f19;
-      border: 1px solid #1e293b;
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
       border-radius: 12px;
       padding: 20px;
-      margin: 20px 0;
+      margin: 18px 0;
     }
     .sender-title {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 600;
-      color: #f8fafc;
+      color: #1e1b4b;
       margin: 0;
     }
     .sender-handle {
       font-size: 13px;
-      color: #a855f7;
+      color: #7e22ce;
       margin: 2px 0 0 0;
     }
     .message-bubble {
-      background: #171f31;
+      background: #ffffff;
+      border: 1px solid #e9d5ff;
       border-radius: 10px;
       padding: 14px 16px;
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.5;
-      color: #cbd5e1;
-      border-left: 3px solid #a855f7;
+      color: #1e1b4b;
+      border-left: 4px solid #9333ea;
       word-break: break-word;
     }
     .btn-container {
@@ -123,21 +124,21 @@ function buildShadowMessageNotificationEmail({
     }
     .btn {
       display: inline-block;
-      background: linear-gradient(135deg, #9333ea 0%, #6366f1 100%);
+      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
       color: #ffffff !important;
       font-size: 15px;
       font-weight: 600;
       text-decoration: none;
       padding: 14px 32px;
       border-radius: 10px;
-      box-shadow: 0 4px 14px 0 rgba(147, 51, 234, 0.39);
+      box-shadow: 0 4px 14px 0 rgba(147, 51, 234, 0.28);
     }
     .footer {
       padding: 20px 32px;
-      background: #090d16;
-      border-top: 1px solid #1f293d;
+      background: #faf5ff;
+      border-top: 1px solid #e9d5ff;
       font-size: 12px;
-      color: #64748b;
+      color: #6b7280;
       text-align: center;
       line-height: 1.6;
     }
@@ -147,13 +148,13 @@ function buildShadowMessageNotificationEmail({
   <div class="wrapper">
     <div class="container">
       <div class="header">
-        <span class="brand">🎭 Gölge Modu</span>
+        <span class="brand">🎭 Gölge Modu - ${safeSiteName}</span>
         <span class="lounge-badge">Anonim İletişim</span>
       </div>
       <div class="body-content">
         <div class="greeting">Merhaba <strong>${safeRecipientName}</strong>,</div>
         
-        <p style="margin: 0 0 16px 0; font-size: 14px; color: #94a3b8; line-height: 1.5;">
+        <p style="margin: 0 0 16px 0; font-size: 14px; color: #4b5563; line-height: 1.5;">
           Gölge Modu'nda çevrimdışıyken yeni bir anonim mesaj aldınız:
         </p>
 
