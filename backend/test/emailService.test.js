@@ -202,7 +202,7 @@ test('emailService: handles Resend API failure status with body details', async 
   }
 })
 
-test('emailService: shadow message email template light theme and nest-sc.com integration', async () => {
+test('emailService: shadow message email template light theme, bulletproof button and nest-sc.com integration', async () => {
   const emailData = buildShadowMessageNotificationEmail({
     recipientName: 'Gizem',
     senderAlias: 'GölgeGezgini#44',
@@ -211,9 +211,141 @@ test('emailService: shadow message email template light theme and nest-sc.com in
     actionUrl: 'https://nest-sc.com/tr/lounge?chat=shadow_123',
   })
 
+  // Subject & branding
   assert.match(emailData.subject, /Gölge Modu: GölgeGezgini#44 sana 2 yeni mesaj gönderdi - nest-sc\.com/)
   assert.match(emailData.html, /background-color: #faf5ff/) // Soft purple light theme
   assert.match(emailData.html, /🎭 Gölge Modu - nest-sc\.com/)
   assert.match(emailData.html, /Gölge Sohbetini Aç/)
   assert.match(emailData.text, /nest-sc\.com/)
+
+  // Outlook bulletproof button assertions
+  assert.match(emailData.html, /<table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto; border-collapse: separate;"/)
+  assert.match(emailData.html, /background-color: #9333ea/) // Solid fallback background
+  assert.match(emailData.html, /color: #ffffff !important/) // Crisp white text
+  assert.match(emailData.html, /href="https:\/\/nest-sc\.com\/tr\/lounge\?chat=shadow_123"/)
+})
+
+test('emailService: full dispatch for Normal Mode message notification with bulletproof button', async () => {
+  const originalProvider = env.emailProvider
+  const originalApiKey = env.resendApiKey
+  const originalFrom = env.emailFrom
+  const originalFetch = global.fetch
+
+  let capturedRequest = null
+
+  try {
+    env.emailProvider = 'resend'
+    env.resendApiKey = 're_test_live_key_mock_12345'
+    env.emailFrom = 'Nest SC <noreply@nest-sc.com>'
+
+    global.fetch = async (url, options) => {
+      capturedRequest = { url, ...options }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'email_msg_normal_123' }),
+      }
+    }
+
+    const { subject, html, text } = buildMessageNotificationEmail({
+      recipientName: 'Osman',
+      senderName: 'Haber 7/24',
+      senderUsername: 'haber724',
+      messageCount: 10,
+      previewText: 'Bakalim maile düşüyormu onu deniyorum',
+      actionUrl: 'https://nest-sc.com/messages',
+      siteName: 'nest-sc.com',
+    })
+
+    const response = await sendEmail({
+      to: 'oomnn@msn.com',
+      subject,
+      html,
+      text,
+    })
+
+    assert.equal(response.id, 'email_msg_normal_123')
+    assert.equal(capturedRequest.url, 'https://api.resend.com/emails')
+    assert.equal(capturedRequest.method, 'POST')
+
+    const body = JSON.parse(capturedRequest.body)
+    assert.equal(body.to, 'oomnn@msn.com')
+    assert.equal(body.from, 'Nest SC <noreply@nest-sc.com>')
+    assert.equal(body.subject, 'Haber 7/24 sana 10 yeni mesaj gönderdi - nest-sc.com')
+    assert.match(body.text, /Bakalim maile düşüyormu onu deniyorum/)
+
+    // Verify HTML button has solid background-color for Outlook
+    assert.match(body.html, /background-color: #0284c7;/)
+    assert.match(body.html, /color: #ffffff !important;/)
+    assert.match(body.html, /<td align="center" style="background-color: #0284c7;/)
+    assert.match(body.html, /Mesajı Oku ve Yanıtla/)
+    assert.match(body.html, /href="https:\/\/nest-sc\.com\/messages"/)
+  } finally {
+    env.emailProvider = originalProvider
+    env.resendApiKey = originalApiKey
+    env.emailFrom = originalFrom
+    global.fetch = originalFetch
+  }
+})
+
+test('emailService: full dispatch for Shadow Mode message notification with bulletproof button', async () => {
+  const originalProvider = env.emailProvider
+  const originalApiKey = env.resendApiKey
+  const originalFrom = env.emailFrom
+  const originalFetch = global.fetch
+
+  let capturedRequest = null
+
+  try {
+    env.emailProvider = 'resend'
+    env.resendApiKey = 're_test_live_key_mock_12345'
+    env.emailFrom = 'Nest SC <noreply@nest-sc.com>'
+
+    global.fetch = async (url, options) => {
+      capturedRequest = { url, ...options }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'email_msg_shadow_456' }),
+      }
+    }
+
+    const { subject, html, text } = buildShadowMessageNotificationEmail({
+      recipientName: 'Osman',
+      senderAlias: 'GizemliYolcu#99',
+      messageCount: 1,
+      previewText: 'Gölge odasından gizli selamlar.',
+      actionUrl: 'https://nest-sc.com/tr/lounge?chat=shadow_session_789',
+      siteName: 'nest-sc.com',
+    })
+
+    const response = await sendEmail({
+      to: 'oomnn@msn.com',
+      subject,
+      html,
+      text,
+    })
+
+    assert.equal(response.id, 'email_msg_shadow_456')
+    assert.equal(capturedRequest.url, 'https://api.resend.com/emails')
+    assert.equal(capturedRequest.method, 'POST')
+
+    const body = JSON.parse(capturedRequest.body)
+    assert.equal(body.to, 'oomnn@msn.com')
+    assert.equal(body.from, 'Nest SC <noreply@nest-sc.com>')
+    assert.equal(body.subject, 'Gölge Modu: GizemliYolcu#99 sana yeni bir mesaj gönderdi - nest-sc.com')
+    assert.match(body.text, /Gölge odasından gizli selamlar\./)
+
+    // Verify HTML button has solid background-color for Outlook
+    assert.match(body.html, /background-color: #9333ea;/)
+    assert.match(body.html, /color: #ffffff !important;/)
+    assert.match(body.html, /<td align="center" style="background-color: #9333ea;/)
+    assert.match(body.html, /Gölge Sohbetini Aç/)
+    assert.match(body.html, /href="https:\/\/nest-sc\.com\/tr\/lounge\?chat=shadow_session_789"/)
+  } finally {
+    env.emailProvider = originalProvider
+    env.resendApiKey = originalApiKey
+    env.emailFrom = originalFrom
+    global.fetch = originalFetch
+  }
 })

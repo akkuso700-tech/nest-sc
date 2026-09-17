@@ -76,7 +76,7 @@ const listNotifications = asyncHandler(async (req, res) => {
   }
 
   const notifications = await Notification.find(filter)
-    .select('user actor type entityKind entityId title body readAt createdAt updatedAt')
+    .select('user actor type entityKind entityId targetChatKey title body unreadCount readAt createdAt updatedAt')
     .populate('actor', 'firstName lastName username avatarUrl lastLoginAt verification')
     .sort({ createdAt: -1 })
     .limit(req.validated.query.limit)

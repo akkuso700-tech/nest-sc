@@ -145,43 +145,20 @@ async function updateAnonymousProfile(userId, { alias, avatarKey, gender, ageRan
   return serializeAnonymousProfile(user)
 }
 
-const DEFAULT_ROOMS = [
-  {
-    name: 'Gece Kuşları',
-    topic: 'Uykusu kaçanlar, geceye fısıldayanlar ve dertleşenler',
-    icon: '🦉',
-    color: 'purple',
-    isSystem: true,
-  },
-  {
-    name: 'Geyik & Muhabbet',
-    topic: 'Günün stresini atmalık, samimi ve serbest sohbet',
-    icon: '☕',
-    color: 'cyan',
-    isSystem: true,
-  },
-  {
-    name: 'İtiraf & Sırlar',
-    topic: 'İçini dök, kim olduğunu kimse bilmesin',
-    icon: '🎭',
-    color: 'rose',
-    isSystem: true,
-  },
-  {
-    name: 'Teknoloji & Gelecek',
-    topic: 'Yazılım, yapay zeka, bilim, oyun ve ilginç fikirler',
-    icon: '🚀',
-    color: 'emerald',
-    isSystem: true,
-  },
-]
-
-async function seedDefaultRoomsIfNeeded() {
-  const count = await AnonymousRoom.countDocuments({ isSystem: true })
-  if (count === 0) {
-    await AnonymousRoom.insertMany(DEFAULT_ROOMS)
+async function cleanupSystemRoomsIfNeeded() {
+  try {
+    const systemRooms = await AnonymousRoom.find({ isSystem: true }).select('_id').lean()
+    if (systemRooms && systemRooms.length > 0) {
+      const roomIds = systemRooms.map((r) => r._id)
+      await AnonymousMessage.deleteMany({ roomId: { $in: roomIds } })
+      await AnonymousRoom.deleteMany({ _id: { $in: roomIds } })
+    }
+  } catch (err) {
+    console.error('cleanupSystemRoomsIfNeeded error:', err)
   }
 }
+
+const seedDefaultRoomsIfNeeded = cleanupSystemRoomsIfNeeded
 
 function generateRoomAccessCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -193,9 +170,9 @@ function generateRoomAccessCode() {
 }
 
 async function listRooms(user = null) {
-  await seedDefaultRoomsIfNeeded()
+  await cleanupSystemRoomsIfNeeded()
 
-  const rooms = await AnonymousRoom.find({}).sort({ isSystem: -1, activeCount: -1, createdAt: -1 }).lean()
+  const rooms = await AnonymousRoom.find({ isSystem: { $ne: true } }).sort({ activeCount: -1, createdAt: -1 }).lean()
 
   let userAnonId = null
   let userIdStr = null
@@ -638,9 +615,6 @@ async function deleteCustomRoom(user, roomId) {
   if (!room) {
     throw new AppError('Oda bulunamadı.', 404)
   }
-  if (room.isSystem) {
-    throw new AppError('Sistem odaları silinemez.', 403)
-  }
   const isAdmin = user.role === 'admin'
   if (!isAdmin && (!room.createdBy || room.createdBy.toString() !== user._id.toString())) {
     throw new AppError('Yalnızca kendi açtığınız odayı silebilirsiniz.', 403)
@@ -1039,6 +1013,7 @@ module.exports = {
   serializeAnonymousProfile,
   getOrCreateAnonymousProfile,
   updateAnonymousProfile,
+  cleanupSystemRoomsIfNeeded,
   seedDefaultRoomsIfNeeded,
   listRooms,
   createCustomRoom,

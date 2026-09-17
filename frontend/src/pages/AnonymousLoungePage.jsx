@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../store/AuthContext.jsx'
 import { connectSocketClient, disconnectSocketClient } from '../services/socketClient.js'
@@ -62,6 +62,7 @@ Object.entries(loungeTranslations).forEach(([locale, data]) => {
 export default function AnonymousLoungePage() {
   const { lang = 'tr' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useTranslation()
   const { user, isAuthenticated } = useAuth()
 
@@ -129,6 +130,25 @@ export default function AnonymousLoungePage() {
       return []
     }
   })
+
+  // State: Peer Typing
+  const [isPeerTyping, setIsPeerTyping] = useState(false)
+  const [typingSessionsMap, setTypingSessionsMap] = useState({})
+  const typingSessionTimeoutsRef = useRef({})
+  const peerTypingTimeoutRef = useRef(null)
+  const myTypingTimeoutRef = useRef(null)
+  const isMeTypingRef = useRef(false)
+  const lastTypingEmitTimeRef = useRef(0)
+  const activeDirectSessionRef = useRef(activeDirectSession)
+
+  useEffect(() => {
+    activeDirectSessionRef.current = activeDirectSession
+    setIsPeerTyping(false)
+    if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+    if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current)
+    isMeTypingRef.current = false
+    lastTypingEmitTimeRef.current = 0
+  }, [activeDirectSession])
 
   // State: Matchmaking
   const [isMatching, setIsMatching] = useState(false)
@@ -224,6 +244,7 @@ export default function AnonymousLoungePage() {
   const localCallStreamRef = useRef(null)
   const remoteAudioRef = useRef(null)
   const callTimerRef = useRef(null)
+  const lastOpenedChatKeyRef = useRef(null)
 
   // 1. Load initial data
   useEffect(() => {
@@ -233,7 +254,7 @@ export default function AnonymousLoungePage() {
       try {
         const [roomsData, summaryData] = await Promise.all([
           getAnonymousRooms(),
-          getLoungeSummary().catch(() => ({ totalRooms: 4, activeParticipants: 1 })),
+          getLoungeSummary().catch(() => ({ totalRooms: 0, activeParticipants: 1 })),
         ])
         if (!isMounted) return
         setRooms(roomsData || [])
@@ -268,19 +289,6 @@ export default function AnonymousLoungePage() {
               try {
                 localStorage.setItem('nest_anon_direct_chats', JSON.stringify(savedChats))
               } catch (_) {}
-
-              // If URL has ?chat=chatKey, automatically select that chat
-              const chatParam = new URLSearchParams(window.location.search).get('chat')
-              if (chatParam) {
-                const targetChat = savedChats.find(
-                  (c) => c.chatKey === chatParam || c.sessionId === chatParam,
-                )
-                if (targetChat) {
-                  setActiveDirectSession(targetChat)
-                  setSideTab('chats')
-                  setMobileTab('chat')
-                }
-              }
             }
           } catch (chatErr) {
             console.error('Failed to load direct chats:', chatErr)
@@ -378,8 +386,11 @@ export default function AnonymousLoungePage() {
     socket.on('anon:current_room_deleted', () => {
       alert('Bulunduğunuz oda kurucusu tarafından kapatıldı.')
       getAnonymousRooms().then((latestRooms) => {
+        setRooms(latestRooms || [])
         if (latestRooms && latestRooms.length > 0) {
           setSelectedRoom(latestRooms[0])
+        } else {
+          setSelectedRoom(null)
         }
       })
     })
@@ -503,6 +514,19 @@ export default function AnonymousLoungePage() {
     })
 
     socket.on('anon:new_direct_message', (msg) => {
+      setIsPeerTyping(false)
+      if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+      if (msg.sessionId) {
+        if (typingSessionTimeoutsRef.current[msg.sessionId]) {
+          clearTimeout(typingSessionTimeoutsRef.current[msg.sessionId])
+          delete typingSessionTimeoutsRef.current[msg.sessionId]
+        }
+        setTypingSessionsMap((prev) => {
+          const next = { ...prev }
+          delete next[msg.sessionId]
+          return next
+        })
+      }
       setDirectMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev
         return [...prev, msg]
@@ -532,6 +556,51 @@ export default function AnonymousLoungePage() {
         } catch (_) {}
         return updated
       })
+    })
+
+    socket.on('anon:typing_start', ({ sessionId }) => {
+      if (sessionId) {
+        setTypingSessionsMap((prev) => ({ ...prev, [sessionId]: true }))
+        if (typingSessionTimeoutsRef.current[sessionId]) {
+          clearTimeout(typingSessionTimeoutsRef.current[sessionId])
+        }
+        typingSessionTimeoutsRef.current[sessionId] = setTimeout(() => {
+          setTypingSessionsMap((prev) => {
+            const next = { ...prev }
+            delete next[sessionId]
+            return next
+          })
+        }, 3500)
+      }
+
+      const current = activeDirectSessionRef.current
+      if (current && (current.sessionId === sessionId || current.chatKey === sessionId)) {
+        setIsPeerTyping(true)
+        if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+        peerTypingTimeoutRef.current = setTimeout(() => {
+          setIsPeerTyping(false)
+        }, 3500)
+      }
+    })
+
+    socket.on('anon:typing_stop', ({ sessionId }) => {
+      if (sessionId) {
+        if (typingSessionTimeoutsRef.current[sessionId]) {
+          clearTimeout(typingSessionTimeoutsRef.current[sessionId])
+          delete typingSessionTimeoutsRef.current[sessionId]
+        }
+        setTypingSessionsMap((prev) => {
+          const next = { ...prev }
+          delete next[sessionId]
+          return next
+        })
+      }
+
+      const current = activeDirectSessionRef.current
+      if (current && (current.sessionId === sessionId || current.chatKey === sessionId)) {
+        setIsPeerTyping(false)
+        if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
+      }
     })
 
     socket.on('anon:direct_message_notification', ({ sessionId, message }) => {
@@ -688,6 +757,8 @@ export default function AnonymousLoungePage() {
       socket.off('anon:incoming_direct_request')
       socket.off('anon:direct_started')
       socket.off('anon:new_direct_message')
+      socket.off('anon:typing_start')
+      socket.off('anon:typing_stop')
       socket.off('anon:partner_reveal_requested')
       socket.off('anon:identities_fully_revealed')
       socket.off('anon:direct_blocked')
@@ -703,6 +774,8 @@ export default function AnonymousLoungePage() {
       socket.off('anon:room_request_rejected')
       socket.off('anon:kicked_from_room')
       socket.off('anon:banned_from_room')
+      Object.values(typingSessionTimeoutsRef.current).forEach((t) => clearTimeout(t))
+      typingSessionTimeoutsRef.current = {}
       disconnectSocketClient()
     }
   }, [isAuthenticated])
@@ -764,7 +837,7 @@ export default function AnonymousLoungePage() {
       cancelAnimationFrame(frameId)
       clearTimeout(timeoutId)
     }
-  }, [roomMessages, directMessages, mobileTab, selectedRoom?.id, activeDirectSession?.sessionId])
+  }, [roomMessages, directMessages, isPeerTyping, mobileTab, selectedRoom?.id, activeDirectSession?.sessionId])
 
   // Action Guards for Guests
   function requireAuth(actionText, callback) {
@@ -1000,6 +1073,47 @@ export default function AnonymousLoungePage() {
     })
   }
 
+  // Handle typing indicator for direct messages
+  function handleMessageInputChange(e) {
+    const val = e.target.value
+    setMessageInput(val)
+
+    if (!activeDirectSession || !isAuthenticated) return
+
+    const activeSessionId = activeDirectSession.chatKey || activeDirectSession.sessionId
+    if (!activeSessionId) return
+
+    const socket = socketRef.current
+    if (!socket?.connected) return
+
+    if (val.length === 0) {
+      if (isMeTypingRef.current) {
+        isMeTypingRef.current = false
+        socket.emit('anon:typing_stop', { sessionId: activeSessionId })
+      }
+      if (myTypingTimeoutRef.current) {
+        clearTimeout(myTypingTimeoutRef.current)
+      }
+      return
+    }
+
+    const now = Date.now()
+    if (!isMeTypingRef.current || now - lastTypingEmitTimeRef.current > 1500) {
+      isMeTypingRef.current = true
+      lastTypingEmitTimeRef.current = now
+      socket.emit('anon:typing_start', { sessionId: activeSessionId })
+    }
+
+    if (myTypingTimeoutRef.current) {
+      clearTimeout(myTypingTimeoutRef.current)
+    }
+
+    myTypingTimeoutRef.current = setTimeout(() => {
+      isMeTypingRef.current = false
+      socket.emit('anon:typing_stop', { sessionId: activeSessionId })
+    }, 2500)
+  }
+
   // Direct Message Submit
   async function handleSendDirectMessage(e) {
     e?.preventDefault?.()
@@ -1009,11 +1123,19 @@ export default function AnonymousLoungePage() {
     const media = uploadedMediaItem ? [uploadedMediaItem] : []
 
     if (socketRef.current?.connected) {
+      const activeSessionId = activeDirectSession.chatKey || activeDirectSession.sessionId
       socketRef.current.emit('anon:send_direct_message', {
-        sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
+        sessionId: activeSessionId,
         text,
         media,
       })
+      if (myTypingTimeoutRef.current) {
+        clearTimeout(myTypingTimeoutRef.current)
+      }
+      if (isMeTypingRef.current) {
+        isMeTypingRef.current = false
+        socketRef.current.emit('anon:typing_stop', { sessionId: activeSessionId })
+      }
       setMessageInput('')
       clearSelectedImage()
       // Mobilde klavyenin kapanmaması için input odağını koru
@@ -1209,6 +1331,59 @@ export default function AnonymousLoungePage() {
       setDirectMessages([])
     }
   }
+
+  // Handle URL query parameters (?chat=... or ?room=...) for deep-linking from notifications
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const params = new URLSearchParams(location.search)
+    const chatParam = params.get('chat')
+    const roomParam = params.get('room')
+
+    if (chatParam) {
+      if (lastOpenedChatKeyRef.current === chatParam) {
+        return
+      }
+
+      setSideTab('chats')
+      const targetChat = directChats.find(
+        (c) => c.chatKey === chatParam || c.sessionId === chatParam,
+      )
+
+      if (targetChat) {
+        lastOpenedChatKeyRef.current = chatParam
+        openSelectedChat(targetChat)
+      } else {
+        // Chat not yet in directChats state, re-fetch
+        getAnonymousDirectChats()
+          .then((chats) => {
+            if (Array.isArray(chats)) {
+              setDirectChats(chats)
+              const found = chats.find(
+                (c) => c.chatKey === chatParam || c.sessionId === chatParam,
+              )
+              if (found) {
+                lastOpenedChatKeyRef.current = chatParam
+                openSelectedChat(found)
+              }
+            }
+          })
+          .catch(console.error)
+      }
+    } else {
+      lastOpenedChatKeyRef.current = null
+      if (roomParam && rooms.length > 0) {
+        const targetRoom = rooms.find(
+          (r) => r.id === roomParam || r._id === roomParam,
+        )
+        if (targetRoom && selectedRoom?.id !== targetRoom.id) {
+          setSelectedRoom(targetRoom)
+          setActiveDirectSession(null)
+          setSideTab('rooms')
+          setMobileTab('rooms')
+        }
+      }
+    }
+  }, [location.search, directChats, rooms, isAuthenticated])
 
   // Select Chat from Sohbet List
   function handleSelectChatFromList(chat) {
@@ -1618,6 +1793,8 @@ export default function AnonymousLoungePage() {
           setRooms(latestRooms || [])
           if (latestRooms && latestRooms.length > 0) {
             setSelectedRoom(latestRooms[0])
+          } else {
+            setSelectedRoom(null)
           }
         } catch (err) {
           showAlert(err.message || 'Oda silinemedi.', 'Oda Silme Hatası')
@@ -2208,76 +2385,95 @@ export default function AnonymousLoungePage() {
             <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
               {sideTab === 'rooms' ? (
                 /* Rooms List */
-                rooms.map((room) => {
-                  const isSelected = selectedRoom?.id === room.id && !activeDirectSession
-                  return (
-                    <div
-                      key={room.id}
+                rooms.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-muted">
+                    <p className="text-3xl mb-2">🚪</p>
+                    <p className="font-semibold text-text">{t('lounge.rooms.empty', { defaultValue: 'Henüz açık oda yok' })}</p>
+                    <p className="text-[11px] opacity-75 mt-1 max-w-[240px] mx-auto">
+                      {t('lounge.rooms.emptySub', { defaultValue: 'İlk odayı sen açarak sohbeti başlatabilirsin!' })}
+                    </p>
+                    <button
+                      type="button"
                       onClick={() => {
-                        setActiveDirectSession(null)
-                        setSelectedRoom(room)
-                        setMobileTab('chat')
+                        if (!isAuthenticated) {
+                          setGateActionLabel(t('lounge.gateModal.toCreateRoom', { defaultValue: 'Oda oluşturmak için giriş yapın' }))
+                          setGateModalOpen(true)
+                          return
+                        }
+                        setCreateModalOpen(true)
                       }}
-                      role="button"
-                      tabIndex={0}
-                      className={`relative flex items-center justify-between p-3 rounded-md cursor-pointer border transition-all duration-150 ${
-                        isSelected
-                          ? 'border-primary/50 bg-secondary/70 shadow-xs'
-                          : 'border-border bg-card hover:bg-secondary/40 hover:border-border-strong'
-                      }`}
+                      className="mt-3.5 rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold !text-white shadow hover:bg-primary-hover transition-colors inline-block"
                     >
-                      {/* Sol aktiflik gösterge çizgisi */}
-                      {isSelected && (
-                        <div className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary" />
-                      )}
+                      {t('lounge.actions.newRoom', { defaultValue: 'Oda Oluştur' })}
+                    </button>
+                  </div>
+                ) : (
+                  rooms.map((room) => {
+                    const isSelected = selectedRoom?.id === room.id && !activeDirectSession
+                    return (
+                      <div
+                        key={room.id}
+                        onClick={() => {
+                          setActiveDirectSession(null)
+                          setSelectedRoom(room)
+                          setMobileTab('chat')
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className={`relative flex items-center justify-between p-3 rounded-md cursor-pointer border transition-all duration-150 ${
+                          isSelected
+                            ? 'border-primary/50 bg-secondary/70 shadow-xs'
+                            : 'border-border bg-card hover:bg-secondary/40 hover:border-border-strong'
+                        }`}
+                      >
+                        {/* Sol aktiflik gösterge çizgisi */}
+                        {isSelected && (
+                          <div className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary" />
+                        )}
 
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-2xl shrink-0">{room.icon || '💬'}</span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-xs font-bold truncate ${
-                                isSelected ? 'text-primary' : 'text-text'
-                              }`}
-                            >
-                              {room.name}
-                            </span>
-                            {room.isSystem && (
-                              <span className="rounded-md bg-secondary border border-border px-1.5 py-0.5 text-[9px] font-semibold text-muted shrink-0">
-                                {t('lounge.rooms.fixed', { defaultValue: 'Sabit' })}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-2xl shrink-0">{room.icon || '💬'}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-xs font-bold truncate ${
+                                  isSelected ? 'text-primary' : 'text-text'
+                                }`}
+                              >
+                                {room.name}
                               </span>
-                            )}
-                            {room.isPrivate && (
-                              <span className="rounded-md bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 text-[9px] font-bold text-purple-600 dark:text-purple-400 shrink-0 inline-flex items-center gap-0.5">
-                                <span>🔒</span>
-                                <span>{t('lounge.rooms.private', { defaultValue: 'Gizli' })}</span>
-                              </span>
-                            )}
+                              {room.isPrivate && (
+                                <span className="rounded-md bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 text-[9px] font-bold text-purple-600 dark:text-purple-400 shrink-0 inline-flex items-center gap-0.5">
+                                  <span>🔒</span>
+                                  <span>{t('lounge.rooms.private', { defaultValue: 'Gizli' })}</span>
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted line-clamp-1">
+                              {room.topic || t('lounge.rooms.defaultTopic', { defaultValue: 'Genel anonim sohbet' })}
+                            </p>
                           </div>
-                          <p className="text-[11px] text-muted line-clamp-1">
-                            {room.topic || t('lounge.rooms.defaultTopic', { defaultValue: 'Genel anonim sohbet' })}
-                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                              isSelected
+                                ? 'bg-primary/10 border-primary/20 text-primary'
+                                : 'bg-secondary border-border text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            <span
+                              className={`size-1.5 rounded-full ${
+                                isSelected ? 'bg-primary animate-pulse' : 'bg-emerald-500'
+                              }`}
+                            />
+                            {room.activeCount || 0}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
-                            isSelected
-                              ? 'bg-primary/10 border-primary/20 text-primary'
-                              : 'bg-secondary border-border text-emerald-600 dark:text-emerald-400'
-                          }`}
-                        >
-                          <span
-                            className={`size-1.5 rounded-full ${
-                              isSelected ? 'bg-primary animate-pulse' : 'bg-emerald-500'
-                            }`}
-                          />
-                          {room.activeCount || 0}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })
+                    )
+                  })
+                )
               ) : sideTab === 'chats' ? (
                 /* Chats List (Mesajlaşılan Kişiler) */
                 directChats.length === 0 ? (
@@ -2354,10 +2550,21 @@ export default function AnonymousLoungePage() {
                               )}
                             </div>
                             <p className="text-[11px] text-muted truncate max-w-[150px] sm:max-w-[200px]">
-                              {chat.lastMessage?.text ||
+                              {(typingSessionsMap[chat.sessionId] || typingSessionsMap[chat.chatKey]) ? (
+                                <span className="inline-flex items-center gap-1.5 font-bold text-purple-700 dark:text-purple-400">
+                                  <span>{t('lounge.messages.typing', { defaultValue: 'Yazıyor...' })}</span>
+                                  <span className="inline-flex items-center gap-0.5">
+                                    <span className="size-1 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+                                    <span className="size-1 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
+                                    <span className="size-1 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce" />
+                                  </span>
+                                </span>
+                              ) : (
+                                chat.lastMessage?.text ||
                                 (typeof chat.lastMessage === 'string' ? chat.lastMessage : '') ||
                                 (chat.lastMessage?.hasMedia ? (chat.lastMessage?.mediaType === 'audio' ? '🎤 Sesli Mesaj' : '📷 Fotoğraf') : '') ||
-                                t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' })}
+                                t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' })
+                              )}
                             </p>
                           </div>
                         </div>
@@ -2566,9 +2773,21 @@ export default function AnonymousLoungePage() {
                       <h3 className="text-xs sm:text-sm font-bold text-text truncate">
                         {activeDirectSession.partner?.alias}
                       </h3>
-                      <p className="text-[10px] sm:text-[11px] text-muted truncate">
-                        {activeDirectSession.partner?.gender === 'female' ? t('lounge.genders.female', { defaultValue: 'Kadın 👩' }) : activeDirectSession.partner?.gender === 'male' ? t('lounge.genders.male', { defaultValue: 'Erkek 👨' }) : t('lounge.genders.unspecified', { defaultValue: 'Gizli' })} • {activeDirectSession.partner?.ageRange}
-                      </p>
+                      {isPeerTyping ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/70 border border-purple-400/60 dark:border-purple-600/50 text-purple-900 dark:text-purple-200 font-bold text-[10px] sm:text-[11px] shadow-xs animate-pulse">
+                            <span className="relative flex size-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-500 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full size-2 bg-purple-600 dark:bg-purple-400"></span>
+                            </span>
+                            <span>{t('lounge.messages.typing', { defaultValue: 'Yazıyor...' })}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] sm:text-[11px] text-muted truncate">
+                          {activeDirectSession.partner?.gender === 'female' ? t('lounge.genders.female', { defaultValue: 'Kadın 👩' }) : activeDirectSession.partner?.gender === 'male' ? t('lounge.genders.male', { defaultValue: 'Erkek 👨' }) : t('lounge.genders.unspecified', { defaultValue: 'Gizli' })} • {activeDirectSession.partner?.ageRange}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -2921,6 +3140,33 @@ export default function AnonymousLoungePage() {
                   </button>
                 )}
               </div>
+            ) : !selectedRoom && !activeDirectSession ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3 text-muted">
+                <div className="size-16 rounded-full bg-secondary border border-border flex items-center justify-center text-3xl shadow-xs">
+                  💬
+                </div>
+                <h3 className="text-base font-bold text-text">
+                  {t('lounge.rooms.noRoomSelectedTitle', { defaultValue: 'Bir Oda Seçin' })}
+                </h3>
+                <p className="text-xs text-muted max-w-xs">
+                  {t('lounge.rooms.noRoomSelectedDesc', { defaultValue: 'Sohbete katılmak için listeden bir oda seçin veya yeni bir oda oluşturun.' })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      setGateActionLabel(t('lounge.gateModal.toCreateRoom', { defaultValue: 'Oda oluşturmak için giriş yapın' }))
+                      setGateModalOpen(true)
+                      return
+                    }
+                    setCreateModalOpen(true)
+                  }}
+                  className="mt-2 rounded-md bg-primary px-4 py-2 text-xs font-semibold !text-white shadow hover:bg-primary-hover transition-colors inline-flex items-center gap-1.5"
+                >
+                  <span>+</span>
+                  <span>{t('lounge.actions.newRoom', { defaultValue: 'Yeni Oda Oluştur' })}</span>
+                </button>
+              </div>
             ) : (
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 overscroll-contain">
               {(activeDirectSession ? directMessages : roomMessages).length === 0 ? (
@@ -3087,12 +3333,34 @@ export default function AnonymousLoungePage() {
                   )
                 })
               )}
+
+              {/* Typing Indicator Bubble */}
+              {isPeerTyping && activeDirectSession && (
+                <div className="flex items-end gap-2.5 justify-start transition-all duration-300">
+                  <div
+                    className="size-8 rounded-md flex items-center justify-center text-sm shadow-sm shrink-0 mb-0.5"
+                    style={{ background: getAvatarByKey(activeDirectSession.partner?.avatarKey).bgStyle }}
+                  >
+                    {getAvatarByKey(activeDirectSession.partner?.avatarKey).emoji}
+                  </div>
+                  <div className="rounded-2xl rounded-bl-sm border border-purple-300 dark:border-purple-500/40 bg-purple-100/90 dark:bg-purple-950/60 px-3.5 py-2.5 shadow-sm flex items-center gap-2.5">
+                    <span className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                      {t('lounge.messages.typing', { defaultValue: 'Yazıyor...' })}
+                    </span>
+                    <div className="flex items-center gap-1.5 py-0.5">
+                      <span className="size-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+                      <span className="size-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
+                      <span className="size-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce" />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
             )}
 
-            {/* Chat Input Bar - hidden when room is locked */}
-            {(!selectedRoom?.isPrivate || selectedRoom?.isMember || activeDirectSession) && (
+            {/* Chat Input Bar - hidden when room is locked or no room/session selected */}
+            {(activeDirectSession || (selectedRoom && (!selectedRoom?.isPrivate || selectedRoom?.isMember))) && (
             <div className="p-2.5 sm:p-3 border-t border-border bg-secondary/30 rounded-b-none sm:rounded-b-md shrink-0">
               {/* Hidden file input for image upload */}
               <input
@@ -3201,7 +3469,7 @@ export default function AnonymousLoungePage() {
                     ref={chatInputRef}
                     type="text"
                     value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
+                    onChange={activeDirectSession ? handleMessageInputChange : (e) => setMessageInput(e.target.value)}
                     placeholder={
                       isAuthenticated
                         ? activeDirectSession

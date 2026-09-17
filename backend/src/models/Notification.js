@@ -47,6 +47,11 @@ const notificationSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    unreadCount: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
   },
   {
     timestamps: true,
@@ -55,6 +60,7 @@ const notificationSchema = new mongoose.Schema(
 
 notificationSchema.index({ user: 1, createdAt: -1 })
 notificationSchema.index({ user: 1, readAt: 1 })
+notificationSchema.index({ user: 1, type: 1, targetChatKey: 1, readAt: 1 })
 
 const Notification = mongoose.model('Notification', notificationSchema)
 

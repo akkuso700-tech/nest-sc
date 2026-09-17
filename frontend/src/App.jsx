@@ -227,6 +227,10 @@ function App() {
               element={<AnonymousLoungePage />}
             />
             <Route
+              path="lounge"
+              element={<AnonymousLoungePage />}
+            />
+            <Route
               path="monetization"
               element={<MonetizationPage />}
             />

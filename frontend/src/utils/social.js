@@ -81,9 +81,15 @@ export function formatNotificationContent(notification, t) {
   const rawTitle = (notification.title || '').toLowerCase()
 
   if (type === 'shadow_message' || entityKind === 'shadow_message') {
+    const unreadCount = Number(notification.unreadCount || 1)
+    let title = notification.title || 'Gölge Modu'
+    if (unreadCount > 1) {
+      title = `${title} • ${unreadCount} yeni mesaj`
+    }
     return {
-      title: notification.title || 'Gölge Modu',
+      title,
       body: notification.body || 'Gölge modunda yeni bir mesajınız var.',
+      unreadCount,
     }
   }
 
@@ -172,5 +178,94 @@ export function formatNotificationContent(notification, t) {
     title: notification.title || (t ? t('notificationsPage.fallbackTitle') : 'Notification'),
     body: notification.body || '',
   }
+}
+
+export function normalizeId(value) {
+  if (!value) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'object' && value.$oid) {
+    return value.$oid
+  }
+
+  return value.toString?.() || ''
+}
+
+export function buildNotificationRoute(notification, lang) {
+  const actor = notification?.actor || {}
+  const actorId = normalizeId(actor._id || actor.id)
+  const actorUsername = actor.username || ''
+  const entityKind = notification?.entityKind || 'system'
+  const entityId = normalizeId(notification?.entityId)
+  const postId = normalizeId(notification?.targetPostId) || (entityKind === 'post' ? entityId : '')
+  const commentId = normalizeId(notification?.targetCommentId) || (entityKind === 'comment' ? entityId : '')
+  const conversationId = normalizeId(notification?.targetConversationId)
+
+  if (notification?.type === 'shadow_message' || entityKind === 'shadow_message') {
+    const chatKey =
+      notification?.targetChatKey ||
+      (typeof notification?.chatKey === 'string' ? notification.chatKey : '')
+    if (chatKey) {
+      return `/${lang}/hidden-profile?chat=${encodeURIComponent(chatKey)}`
+    }
+    if (entityId) {
+      return `/${lang}/hidden-profile?room=${encodeURIComponent(entityId)}`
+    }
+    return `/${lang}/hidden-profile`
+  }
+
+  if (notification?.type === 'follow' && actorUsername) {
+    return `/${lang}/u/${actorUsername}`
+  }
+
+  if (notification?.type === 'message' || entityKind === 'message') {
+    const params = new URLSearchParams()
+
+    if (conversationId) {
+      params.set('conversationId', conversationId)
+    }
+
+    if (actorId) {
+      params.set('recipientId', actorId)
+    }
+
+    if (actorUsername) {
+      params.set('username', actorUsername)
+    }
+
+    const fullName = getFullName(actor)
+    if (fullName) {
+      params.set('name', fullName)
+    }
+
+    if (actor?.avatarUrl) {
+      params.set('avatarUrl', actor.avatarUrl)
+    }
+
+    const queryString = params.toString()
+    return `/${lang}/messages${queryString ? `?${queryString}` : ''}`
+  }
+
+  if (postId) {
+    const params = new URLSearchParams()
+
+    if (commentId) {
+      params.set('commentId', commentId)
+    }
+
+    const queryString = params.toString()
+    return `/${lang}/posts/${postId}${queryString ? `?${queryString}` : ''}`
+  }
+
+  if (actorUsername) {
+    return `/${lang}/u/${actorUsername}`
+  }
+
+  return `/${lang}/notifications`
 }
 

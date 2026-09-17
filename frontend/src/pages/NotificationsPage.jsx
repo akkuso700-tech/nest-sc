@@ -16,7 +16,12 @@ import {
   connectSocketClient,
   disconnectSocketClient,
 } from '../services/socketClient.js'
-import { formatNotificationContent, formatRelativeTime, getFullName } from '../utils/social.js'
+import {
+  formatNotificationContent,
+  formatRelativeTime,
+  getFullName,
+  buildNotificationRoute,
+} from '../utils/social.js'
 
 function DotsIcon({ className = 'size-4' }) {
   return (
@@ -36,87 +41,6 @@ function TrashIcon({ className = 'size-3.5' }) {
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   )
-}
-
-function normalizeId(value) {
-  if (!value) {
-    return ''
-  }
-
-  if (typeof value === 'string') {
-    return value
-  }
-
-  if (typeof value === 'object' && value.$oid) {
-    return value.$oid
-  }
-
-  return value.toString?.() || ''
-}
-
-function buildNotificationRoute(notification, lang) {
-  const actor = notification?.actor || {}
-  const actorId = normalizeId(actor._id || actor.id)
-  const actorUsername = actor.username || ''
-  const entityKind = notification?.entityKind || 'system'
-  const entityId = normalizeId(notification?.entityId)
-  const postId = normalizeId(notification?.targetPostId) || (entityKind === 'post' ? entityId : '')
-  const commentId = normalizeId(notification?.targetCommentId) || (entityKind === 'comment' ? entityId : '')
-  const conversationId = normalizeId(notification?.targetConversationId)
-
-  if (notification?.type === 'shadow_message' || entityKind === 'shadow_message') {
-    const chatKey = notification?.targetChatKey || entityId
-    return `/${lang}/lounge${chatKey ? `?chat=${chatKey}` : ''}`
-  }
-
-  if (notification?.type === 'follow' && actorUsername) {
-    return `/${lang}/u/${actorUsername}`
-  }
-
-  if (notification?.type === 'message' || entityKind === 'message') {
-    const params = new URLSearchParams()
-
-    if (conversationId) {
-      params.set('conversationId', conversationId)
-    }
-
-    if (actorId) {
-      params.set('recipientId', actorId)
-    }
-
-    if (actorUsername) {
-      params.set('username', actorUsername)
-    }
-
-    const fullName = getFullName(actor)
-    if (fullName) {
-      params.set('name', fullName)
-    }
-
-    if (actor?.avatarUrl) {
-      params.set('avatarUrl', actor.avatarUrl)
-    }
-
-    const queryString = params.toString()
-    return `/${lang}/messages${queryString ? `?${queryString}` : ''}`
-  }
-
-  if (postId) {
-    const params = new URLSearchParams()
-
-    if (commentId) {
-      params.set('commentId', commentId)
-    }
-
-    const queryString = params.toString()
-    return `/${lang}/posts/${postId}${queryString ? `?${queryString}` : ''}`
-  }
-
-  if (actorUsername) {
-    return `/${lang}/u/${actorUsername}`
-  }
-
-  return `/${lang}/notifications`
 }
 
 function NotificationsPage() {
@@ -223,10 +147,21 @@ function NotificationsPage() {
       if (notification.type === 'message' || (notification.entityKind || '') === 'message') {
         return;
       }
-      setNotificationsState((currentState) => ({
-        ...currentState,
-        items: [notification, ...currentState.items],
-      }));
+      setNotificationsState((currentState) => {
+        const existingIndex = currentState.items.findIndex((item) => item._id === notification._id)
+        if (existingIndex >= 0) {
+          const updated = [...currentState.items]
+          updated.splice(existingIndex, 1)
+          return {
+            ...currentState,
+            items: [notification, ...updated],
+          }
+        }
+        return {
+          ...currentState,
+          items: [notification, ...currentState.items],
+        }
+      })
     }
 
     function handleNotificationRead(notification) {
@@ -249,11 +184,13 @@ function NotificationsPage() {
     }
 
     socket.on('notification:new', handleNotificationNew)
+    socket.on('notification:updated', handleNotificationNew)
     socket.on('notification:read', handleNotificationRead)
     socket.on('notification:read:all', handleNotificationReadAll)
 
     return () => {
       socket.off('notification:new', handleNotificationNew)
+      socket.off('notification:updated', handleNotificationNew)
       socket.off('notification:read', handleNotificationRead)
       socket.off('notification:read:all', handleNotificationReadAll)
       disconnectSocketClient()
@@ -442,8 +379,13 @@ function NotificationsPage() {
                       aria-label={t('notificationsPage.actions.open')}
                     >
                       {notification.type === 'shadow_message' ? (
-                        <div className="size-11 shrink-0 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shadow-xs">
+                        <div className="relative size-11 shrink-0 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shadow-xs">
                           🎭
+                          {notification.unreadCount > 1 && (
+                            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white shadow-xs">
+                              {notification.unreadCount}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <UserAvatar
@@ -461,6 +403,11 @@ function NotificationsPage() {
                           <p className="text-base font-semibold">
                             {content.title}
                           </p>
+                          {notification.type === 'shadow_message' && notification.unreadCount > 1 && (
+                            <span className="inline-flex items-center rounded-full bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 text-xs font-bold text-purple-600 dark:text-purple-400">
+                              {notification.unreadCount} yeni mesaj
+                            </span>
+                          )}
                           <span className={isUnread ? 'text-xs text-muted' : 'text-xs text-soft'}>
                             {formatRelativeTime(notification.createdAt)}
                           </span>

@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { getConversations, markConversationRead } from '../services/messagesService.js'
-import { getNotifications, markAllNotificationsRead } from '../services/notificationsService.js'
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '../services/notificationsService.js'
 import {
   deleteSearchHistory,
   getSearchHistory,
@@ -12,7 +16,12 @@ import {
 import { connectSocketClient, disconnectSocketClient } from '../services/socketClient.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { useTheme } from '../store/ThemeContext.jsx'
-import { formatNotificationContent, formatRelativeTime, getFullName } from '../utils/social.js'
+import {
+  formatNotificationContent,
+  formatRelativeTime,
+  getFullName,
+  buildNotificationRoute,
+} from '../utils/social.js'
 import { resolveMediaUrl } from '../utils/media.js'
 import { normalizeSearchText } from '../utils/searchText.js'
 import UserAvatar from '../components/common/UserAvatar.jsx'
@@ -319,6 +328,7 @@ function DropdownPreviewLink({
   media = null,
   isHighlighted = false,
   isActive = false,
+  customAvatar = null,
 }) {
   return (
     <Link
@@ -331,11 +341,15 @@ function DropdownPreviewLink({
       }`}
     >
       <div className="relative shrink-0">
-        <UserAvatar
-          user={user}
-          className="size-11 bg-primary text-inverse"
-          textClassName="text-xs font-semibold"
-        />
+        {customAvatar ? (
+          customAvatar
+        ) : (
+          <UserAvatar
+            user={user}
+            className="size-11 bg-primary text-inverse"
+            textClassName="text-xs font-semibold"
+          />
+        )}
         {isActive ? (
           <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-white bg-emerald-500 shadow-sm dark:border-zinc-950" />
         ) : null}
@@ -1189,6 +1203,8 @@ function SocialLayout({
   const mobileLanguageRef = useRef(null)
   const [showSidebarLanguageMenu, setShowSidebarLanguageMenu] = useState(false)
   const [showMobileLanguageMenu, setShowMobileLanguageMenu] = useState(false)
+  const [incomingNotification, setIncomingNotification] = useState(null)
+  const incomingNotificationTimerRef = useRef(null)
   const isGroupsMobileHeader = mobileHeaderMode === 'groups'
 
   useEffect(() => {
@@ -1365,8 +1381,17 @@ function SocialLayout({
       refreshMessageUnreadCount()
     }
 
-    function handleRealtimeNotificationUpdate() {
+    function handleRealtimeNotificationUpdate(notification) {
       refreshNotificationUnreadCount()
+      if (notification && notification.title) {
+        if (incomingNotificationTimerRef.current) {
+          clearTimeout(incomingNotificationTimerRef.current)
+        }
+        setIncomingNotification(notification)
+        incomingNotificationTimerRef.current = setTimeout(() => {
+          setIncomingNotification(null)
+        }, 6000)
+      }
     }
 
     function handleSocketConnect() {
@@ -1390,16 +1415,21 @@ function SocialLayout({
     socket.on('new_message', handleRealtimeMessageUpdate)
     socket.on('messages_read', handleRealtimeMessageUpdate)
     socket.on('notification:new', handleRealtimeNotificationUpdate)
+    socket.on('notification:updated', handleRealtimeNotificationUpdate)
     socket.on('notification:read', handleRealtimeNotificationUpdate)
     socket.on('notification:read:all', handleRealtimeNotificationUpdate)
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
+      if (incomingNotificationTimerRef.current) {
+        clearTimeout(incomingNotificationTimerRef.current)
+      }
       socket.off('connect', handleSocketConnect)
       socket.off('new_message', handleRealtimeMessageUpdate)
       socket.off('messages_read', handleRealtimeMessageUpdate)
       socket.off('notification:new', handleRealtimeNotificationUpdate)
+      socket.off('notification:updated', handleRealtimeNotificationUpdate)
       socket.off('notification:read', handleRealtimeNotificationUpdate)
       socket.off('notification:read:all', handleRealtimeNotificationUpdate)
       disconnectSocketClient()
@@ -2007,18 +2037,48 @@ function SocialLayout({
                             ? formatRelativeTime(notification.createdAt)
                             : ''
 
+                          const isShadow =
+                            notification.type === 'shadow_message' ||
+                            notification.entityKind === 'shadow_message'
+                          const targetRoute = buildNotificationRoute(notification, lang)
+
                           return (
                             <DropdownPreviewLink
                               key={notification._id}
-                              to={`/${lang}/notifications`}
+                              to={targetRoute}
                               user={actor}
+                              customAvatar={
+                                isShadow ? (
+                                  <div className="relative size-11 shrink-0 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shadow-xs">
+                                    🎭
+                                    {notification.unreadCount > 1 && (
+                                      <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white shadow-xs">
+                                        {notification.unreadCount}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : null
+                              }
                               title={content.title}
                               meta={previewMeta}
                               body={content.body}
-                              badgeCount={notification.readAt ? 0 : 1}
+                              badgeCount={notification.readAt ? 0 : (notification.unreadCount || 1)}
                               isActive={isUserRecentlyActive(actor)}
                               isHighlighted={!notification.readAt}
-                              onNavigate={() => setOpenDropdown('')}
+                              onNavigate={() => {
+                                setOpenDropdown('')
+                                if (!notification.readAt) {
+                                  markNotificationRead(notification._id).catch(() => {})
+                                  setNotificationUnreadCount((count) => Math.max(0, count - 1))
+                                  setNotificationPreviewItems((prev) =>
+                                    prev.map((item) =>
+                                      item._id === notification._id
+                                        ? { ...item, readAt: new Date().toISOString() }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              }}
                             />
                           )
                         })}
@@ -2340,6 +2400,61 @@ function SocialLayout({
           hideCreateButton={hideMobileCreateButton}
           forceDark={activeKey === 'loop' || forceMobileBottomBarDark}
         />
+      ) : null}
+
+      {incomingNotification ? (
+        <div
+          className="fixed top-16 right-4 sm:right-6 z-[150] max-w-sm w-[calc(100vw-2rem)] rounded-2xl border border-purple-500/30 bg-card/95 p-3.5 shadow-2xl backdrop-blur-md animate-in slide-in-from-top duration-300 cursor-pointer hover:border-purple-500 transition-all"
+          onClick={() => {
+            const targetRoute = buildNotificationRoute(incomingNotification, lang)
+            if (incomingNotification._id && !incomingNotification.readAt) {
+              markNotificationRead(incomingNotification._id).catch(() => {})
+              setNotificationUnreadCount((count) => Math.max(0, count - 1))
+            }
+            setIncomingNotification(null)
+            navigate(targetRoute)
+          }}
+          role="alert"
+        >
+          <div className="flex items-start gap-3">
+            {incomingNotification.type === 'shadow_message' ||
+            incomingNotification.entityKind === 'shadow_message' ? (
+              <div className="size-10 shrink-0 rounded-full bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-lg shadow-xs">
+                🎭
+              </div>
+            ) : (
+              <UserAvatar
+                user={incomingNotification.actor}
+                className="size-10 bg-primary text-inverse shrink-0"
+                textClassName="text-xs font-semibold"
+              />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs font-bold text-text truncate">
+                  {incomingNotification.title || 'Yeni Bildirim'}
+                </p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIncomingNotification(null)
+                  }}
+                  className="text-muted hover:text-text p-1 text-xs"
+                  aria-label="Kapat"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-xs text-muted truncate mt-0.5">
+                {incomingNotification.body || ''}
+              </p>
+              <p className="text-[10px] text-purple-500 dark:text-purple-400 font-semibold mt-1">
+                Görüntülemek için dokunun →
+              </p>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )

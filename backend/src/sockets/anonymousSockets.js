@@ -789,6 +789,40 @@ function registerAnonymousSockets(io, socket) {
     }
   })
 
+  // 8.1 DIRECT CHAT TYPING
+  socket.on('anon:typing_start', ({ sessionId }) => {
+    try {
+      if (!sessionId) return
+      const myAnonId = userToAnonMap.get(userId)
+      if (!myAnonId) return
+      const myData = activeAnonUsers.get(myAnonId)
+
+      socket.to(`anon_direct:${sessionId}`).emit('anon:typing_start', {
+        sessionId,
+        anonymousId: myAnonId,
+        alias: myData ? myData.alias : 'Anonim',
+        avatarKey: myData ? myData.avatarKey : 'avatar-1',
+      })
+    } catch (err) {
+      console.error('anon:typing_start error:', err)
+    }
+  })
+
+  socket.on('anon:typing_stop', ({ sessionId }) => {
+    try {
+      if (!sessionId) return
+      const myAnonId = userToAnonMap.get(userId)
+      if (!myAnonId) return
+
+      socket.to(`anon_direct:${sessionId}`).emit('anon:typing_stop', {
+        sessionId,
+        anonymousId: myAnonId,
+      })
+    } catch (err) {
+      console.error('anon:typing_stop error:', err)
+    }
+  })
+
   // 9. DIRECT MESSAGE
   socket.on('anon:send_direct_message', async ({ sessionId, text, media }, ack) => {
     try {
@@ -837,6 +871,10 @@ function registerAnonymousSockets(io, socket) {
       savedMsg.totalMessageCount = session.messageCount
 
       io.to(`anon_direct:${sessionId}`).emit('anon:new_direct_message', savedMsg)
+      socket.to(`anon_direct:${sessionId}`).emit('anon:typing_stop', {
+        sessionId,
+        anonymousId: myAnonId,
+      })
 
       // Notify partner directly if online in lounge
       if (partnerData && partnerData.socketId) {
@@ -861,21 +899,48 @@ function registerAnonymousSockets(io, socket) {
                   ? (cleanText.length > 80 ? cleanText.slice(0, 80) + '...' : cleanText)
                   : 'Yeni bir medya gönderdi.'
 
-                const notification = await Notification.create({
+                const existingNotif = await Notification.findOne({
                   user: partnerUser._id,
-                  actor: null,
                   type: 'shadow_message',
-                  entityKind: 'shadow_message',
-                  entityId: savedMsg.id || null,
                   targetChatKey: sessionId,
-                  title: 'Gölge Modu',
-                  body: `${myData.alias}: ${previewSnippet}`,
+                  readAt: null,
                 })
 
-                io.to(`user:${partnerUser._id}`).emit('notification:new', {
+                let notification
+                let isUpdated = false
+
+                if (existingNotif) {
+                  existingNotif.unreadCount = (existingNotif.unreadCount || 1) + 1
+                  existingNotif.body = `${myData.alias}: ${previewSnippet}`
+                  existingNotif.entityId = savedMsg.id || null
+                  existingNotif.createdAt = new Date()
+                  await existingNotif.save()
+                  notification = existingNotif
+                  isUpdated = true
+                } else {
+                  notification = await Notification.create({
+                    user: partnerUser._id,
+                    actor: null,
+                    type: 'shadow_message',
+                    entityKind: 'shadow_message',
+                    entityId: savedMsg.id || null,
+                    targetChatKey: sessionId,
+                    title: 'Gölge Modu',
+                    body: `${myData.alias}: ${previewSnippet}`,
+                    unreadCount: 1,
+                  })
+                }
+
+                const notifPayload = {
                   ...(notification.toObject ? notification.toObject() : notification),
                   targetChatKey: sessionId,
-                })
+                  isUpdated,
+                }
+
+                io.to(`user:${partnerUser._id}`).emit('notification:new', notifPayload)
+                if (isUpdated) {
+                  io.to(`user:${partnerUser._id}`).emit('notification:updated', notifPayload)
+                }
               }
             }
 
