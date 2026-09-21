@@ -22,6 +22,10 @@ function StoryRail({
     return `${safeValue.slice(0, 10)}...`
   }
 
+  if (!rails || rails.length === 0) {
+    return null
+  }
+
   return (
     <section className="md:rounded-lg border border-border bg-card p-1 md:p-3 shadow-sm">
       <div className="subtle-scrollbar flex gap-1.5 overflow-x-auto">

@@ -50,6 +50,7 @@ const navigation = [
   { path: '/content', label: 'İçerikler', short: 'İÇ' },
   { path: '/comments', label: 'Yorumlar', short: 'YO' },
   { path: '/reports', label: 'Raporlar', short: 'RA' },
+  { path: '/messages', label: 'Mesajlar', short: 'MS' },
   { path: '/shadow', label: 'Gölge Modu', short: 'GM' },
   { path: '/audit-logs', label: 'İşlem Kayıtları', short: 'İK' },
 ]
@@ -117,6 +118,14 @@ function getPageMeta(pathname, lang) {
       title: 'Raporlar',
       eyebrow: 'Moderasyon Kuyruğu',
       description: 'Açık vakaları önceliklendirin, inceleyin ve sonuçlandırın.',
+    }
+  }
+  if (pathname.includes(`${base}/messages`)) {
+    return {
+      title: 'Mesajlar',
+      eyebrow: '',
+      description: '',
+      hideHeading: true,
     }
   }
   if (pathname.includes(`${base}/shadow`)) {
@@ -339,7 +348,7 @@ function AdminLayout() {
   const pageMeta = useMemo(() => getPageMeta(location.pathname, lang), [location.pathname, lang])
   const isUsersRoute = location.pathname === `${base}/users`
   const isContentRoute = location.pathname === `${base}/content`
-  const isShadowRoute = location.pathname.includes('/shadow')
+  const isShadowRoute = location.pathname.includes('/shadow') || location.pathname.includes('/messages')
   const supportsRange = isUsersRoute || isContentRoute
 
   useEffect(() => {

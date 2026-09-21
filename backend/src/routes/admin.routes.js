@@ -43,6 +43,10 @@ const {
   listShadowCalls,
   listShadowMedia,
   getUnmaskedShadowUser,
+  listAdminUserChats,
+  getAdminUserChatMessages,
+  listAdminUserCalls,
+  listAdminUserMedia,
 } = require('../controllers/adminController')
 const {
   adminOverviewSchema,
@@ -230,6 +234,12 @@ adminRouter.get('/shadow/chats/:chatKey/messages', getShadowChatMessages)
 adminRouter.get('/shadow/calls', listShadowCalls)
 adminRouter.get('/shadow/media', listShadowMedia)
 adminRouter.get('/shadow/unmask/:anonymousId', getUnmaskedShadowUser)
+
+// Standard User Messages moderation endpoints
+adminRouter.get('/messages-monitor/chats', listAdminUserChats)
+adminRouter.get('/messages-monitor/chats/:conversationId/messages', getAdminUserChatMessages)
+adminRouter.get('/messages-monitor/calls', listAdminUserCalls)
+adminRouter.get('/messages-monitor/media', listAdminUserMedia)
 
 module.exports = { adminRouter }
 

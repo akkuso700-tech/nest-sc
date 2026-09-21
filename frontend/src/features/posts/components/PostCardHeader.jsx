@@ -34,7 +34,7 @@ export default function PostCardHeader({
   t,
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 p-4">
+    <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-1">
       <div className="flex min-w-0 items-center gap-3">
         <Link
           to={`/${lang}/u/${author.username || ''}`}

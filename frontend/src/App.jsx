@@ -28,6 +28,7 @@ const AdminContentPage = lazy(() => import('./pages/AdminContentPage.jsx'))
 const AdminCommentsPage = lazy(() => import('./pages/AdminCommentsPage.jsx'))
 const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx'))
 const AdminAuditLogsPage = lazy(() => import('./pages/AdminAuditLogsPage.jsx'))
+const AdminMessagesPage = lazy(() => import('./pages/AdminMessagesPage.jsx'))
 const AdminShadowPage = lazy(() => import('./pages/AdminShadowPage.jsx'))
 const AdminContractsSettingsPage = lazy(() => import('./pages/AdminContractsSettingsPage.jsx'))
 const AdminNotificationsSettingsPage = lazy(
@@ -193,6 +194,7 @@ function App() {
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="verification-requests" element={<AdminVerificationRequestsPage />} />
               <Route path="creators" element={<AdminCreatorsPage />} />
+              <Route path="messages" element={<AdminMessagesPage />} />
               <Route path="shadow" element={<AdminShadowPage />} />
               <Route path="audit-logs" element={<AdminAuditLogsPage />} />
               <Route

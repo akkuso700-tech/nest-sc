@@ -2061,16 +2061,16 @@ function PostCard({
             ) : null}
 
             {(groupHeaderName && localPost?.title) ? (
-              <div className={`mt-1 px-4 ${isLoopVariant ? 'hidden' : ''}`}>
+              <div className={`px-4 pb-1 ${isLoopVariant ? 'hidden' : ''}`}>
                 <p className="text-sm font-semibold tracking-tight text-text">{localPost.title}</p>
               </div>
             ) : null}
 
             {content ? (
-              <div className={`mt-1 px-4 ${isLoopVariant ? 'hidden' : ''}`}>
+              <div className={`px-4 ${isLoopVariant ? 'hidden' : ''}`}>
                 {isExpandedText ? (
                   <>
-                    <p className="w-full text-left text-[15px] leading-7 font-normal text-text whitespace-pre-line break-words">
+                    <p className="w-full text-left text-[15px] leading-relaxed font-normal text-text whitespace-pre-line break-words">
                       <HashtagText
                         text={content}
                         onHashtagClick={handleTopicNavigate}
@@ -2089,7 +2089,7 @@ function PostCard({
                   </>
                 ) : (
                   <div>
-                    <p className="w-full text-left text-[15px] leading-7 text-text font-normal whitespace-pre-line break-words">
+                    <p className="w-full text-left text-[15px] leading-relaxed text-text font-normal whitespace-pre-line break-words">
                       <span className={shouldCollapseInline ? 'line-clamp-2' : ''}>
                         <HashtagText
                           text={shouldCollapseInline ? collapsedInlineContent : content}

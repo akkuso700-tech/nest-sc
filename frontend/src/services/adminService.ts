@@ -242,3 +242,19 @@ export function getAdminUnmaskedUser(anonymousId: string): Promise<any> {
   return apiRequest(`/admin/shadow/unmask/${anonymousId}`)
 }
 
+export function getAdminUserChats(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/messages-monitor/chats${buildQuery(params)}`)
+}
+
+export function getAdminUserChatMessages(conversationId: string): Promise<any> {
+  return apiRequest(`/admin/messages-monitor/chats/${conversationId}/messages`)
+}
+
+export function getAdminUserCalls(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/messages-monitor/calls${buildQuery(params)}`)
+}
+
+export function getAdminUserMedia(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/messages-monitor/media${buildQuery(params)}`)
+}
+

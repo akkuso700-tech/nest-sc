@@ -2868,6 +2868,176 @@ const getAdminNotificationFeed = asyncHandler(async (req, res) => {
   })
 })
 
+const listAdminUserChats = asyncHandler(async (req, res) => {
+  const search = (req.query.search || '').trim().toLowerCase()
+
+  const conversations = await Conversation.find({})
+    .populate('participantIds', '_id username firstName lastName email avatarUrl accountStatus isVerified')
+    .sort({ lastMessageAt: -1, updatedAt: -1 })
+    .lean()
+
+  const results = []
+
+  for (const conv of conversations) {
+    const participants = (conv.participantIds || []).filter(Boolean)
+    if (!participants.length) continue
+
+    const title = participants
+      .map((p) => `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.username)
+      .join(' & ')
+    const subtitle = participants.map((p) => `@${p.username}`).join(' & ')
+
+    const matchesSearch =
+      !search ||
+      title.toLowerCase().includes(search) ||
+      subtitle.toLowerCase().includes(search) ||
+      (conv.lastMessagePreview && conv.lastMessagePreview.toLowerCase().includes(search)) ||
+      participants.some(
+        (p) =>
+          p.email?.toLowerCase().includes(search) ||
+          p.username?.toLowerCase().includes(search),
+      )
+
+    if (matchesSearch) {
+      const totalMessages = await Message.countDocuments({ conversation: conv._id })
+
+      results.push({
+        id: conv._id.toString(),
+        conversationKey: conv.conversationKey,
+        title,
+        subtitle,
+        participants,
+        totalMessages,
+        lastMessagePreview: conv.lastMessagePreview || '',
+        lastMessageAt: conv.lastMessageAt || conv.updatedAt || conv.createdAt,
+        createdAt: conv.createdAt,
+      })
+    }
+  }
+
+  results.sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0))
+
+  res.json({
+    success: true,
+    total: results.length,
+    chats: results,
+  })
+})
+
+const getAdminUserChatMessages = asyncHandler(async (req, res) => {
+  const { conversationId } = req.params
+
+  if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+    throw new AppError('Geçersiz sohbet kimliği.', 400)
+  }
+
+  const messages = await Message.find({ conversation: conversationId })
+    .populate('sender', '_id username firstName lastName email avatarUrl accountStatus isVerified')
+    .populate('recipient', '_id username firstName lastName email avatarUrl accountStatus isVerified')
+    .populate('replyTo', '_id text media sender createdAt')
+    .sort({ createdAt: 1 })
+    .lean()
+
+  res.json({
+    success: true,
+    conversationId,
+    total: messages.length,
+    messages: messages.map((m) => ({
+      id: m._id.toString(),
+      conversationId: m.conversation?.toString(),
+      sender: m.sender,
+      recipient: m.recipient,
+      text: m.text || '',
+      media: Array.isArray(m.media) ? m.media : [],
+      replyTo: m.replyTo || null,
+      reactions: Array.isArray(m.reactions) ? m.reactions : [],
+      deliveredAt: m.deliveredAt,
+      readAt: m.readAt,
+      deletedByUserIds: m.deletedByUserIds || [],
+      createdAt: m.createdAt,
+    })),
+  })
+})
+
+const listAdminUserCalls = asyncHandler(async (req, res) => {
+  const page = clamp(parseInt(req.query.page, 10) || 1, 1, 1000)
+  const limit = clamp(parseInt(req.query.limit, 10) || 20, 1, 100)
+  const skip = (page - 1) * limit
+  const status = req.query.status || 'all'
+
+  const filter = {}
+  if (status !== 'all') {
+    filter.status = status
+  }
+
+  const [calls, totalItems] = await Promise.all([
+    CallLog.find(filter)
+      .populate('caller', '_id username firstName lastName email avatarUrl isVerified')
+      .populate('recipient', '_id username firstName lastName email avatarUrl isVerified')
+      .populate('conversation', '_id conversationKey')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    CallLog.countDocuments(filter),
+  ])
+
+  res.json({
+    success: true,
+    calls,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const listAdminUserMedia = asyncHandler(async (req, res) => {
+  const page = clamp(parseInt(req.query.page, 10) || 1, 1, 1000)
+  const limit = clamp(parseInt(req.query.limit, 10) || 30, 1, 100)
+  const skip = (page - 1) * limit
+  const typeFilter = req.query.type || 'all'
+
+  const filter = { 'media.0': { $exists: true } }
+  if (typeFilter !== 'all') {
+    filter['media.type'] = typeFilter
+  }
+
+  const [messages, totalItems] = await Promise.all([
+    Message.find(filter)
+      .populate('sender', '_id username firstName lastName email avatarUrl isVerified')
+      .populate('recipient', '_id username firstName lastName email avatarUrl isVerified')
+      .populate('conversation', '_id conversationKey')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Message.countDocuments(filter),
+  ])
+
+  const mediaList = []
+  for (const m of messages) {
+    for (const item of m.media || []) {
+      if (typeFilter !== 'all' && item.type !== typeFilter) continue
+      mediaList.push({
+        id: `${m._id}_${item.url}`,
+        messageId: m._id.toString(),
+        conversationId: m.conversation?._id?.toString() || m.conversation?.toString(),
+        url: item.url,
+        posterUrl: item.posterUrl || '',
+        type: item.type || 'image',
+        durationSeconds: item.durationSeconds || 0,
+        sender: m.sender,
+        recipient: m.recipient,
+        createdAt: m.createdAt,
+      })
+    }
+  }
+
+  res.json({
+    success: true,
+    media: mediaList,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
 module.exports = {
   getOverview,
   getAdminNotificationFeed,
@@ -2909,4 +3079,8 @@ module.exports = {
   listShadowCalls,
   listShadowMedia,
   getUnmaskedShadowUser,
+  listAdminUserChats,
+  getAdminUserChatMessages,
+  listAdminUserCalls,
+  listAdminUserMedia,
 }

@@ -1812,16 +1812,18 @@ function HomePage() {
         />
 
         <div className="content-area space-y-2">
-          <StoryRail
-            title={t('common.storyRailTitle', { defaultValue: 'Hikayeler' })}
-            yourStoryLabel={t('common.yourStory', { defaultValue: 'Senin Hikayen' })}
-            rails={storyState.rails}
-            isLoading={storyState.isLoading}
-            isAuthenticated={isAuthenticated}
-            currentUser={user}
-            onCreateStory={() => openMobileComposer('story')}
-            onOpenRail={handleOpenStoryRail}
-          />
+          {storyState.rails?.length > 0 ? (
+            <StoryRail
+              title={t('common.storyRailTitle', { defaultValue: 'Hikayeler' })}
+              yourStoryLabel={t('common.yourStory', { defaultValue: 'Senin Hikayen' })}
+              rails={storyState.rails}
+              isLoading={storyState.isLoading}
+              isAuthenticated={isAuthenticated}
+              currentUser={user}
+              onCreateStory={() => openMobileComposer('story')}
+              onOpenRail={handleOpenStoryRail}
+            />
+          ) : null}
 
           {selectedTopic ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-border bg-card px-4 py-3 shadow-sm">
