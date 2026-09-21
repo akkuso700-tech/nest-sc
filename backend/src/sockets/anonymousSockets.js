@@ -1,6 +1,8 @@
+const crypto = require('crypto')
 const { AnonymousRoom } = require('../models/AnonymousRoom')
 const { User } = require('../models/User')
 const { Notification } = require('../models/Notification')
+const { AnonymousCallLog } = require('../models/AnonymousCallLog')
 const { sendEmail } = require('../services/emailService')
 const { buildShadowMessageNotificationEmail } = require('../templates/shadowMessageNotificationEmail')
 const { env } = require('../config/env')
@@ -172,6 +174,29 @@ function registerAnonymousSockets(io, socket) {
         activeAnonUsers.get(anonId).activeRoomId = roomId
       }
 
+      // Mark unread site notifications for this room as read (mentions & approval notices)
+      if (socket.user?._id) {
+        const readAt = new Date()
+        void (async () => {
+          try {
+            const updated = await Notification.updateMany(
+              {
+                user: socket.user._id,
+                type: 'shadow_message',
+                entityId: room._id,
+                readAt: null,
+              },
+              { readAt },
+            )
+            if (updated.modifiedCount > 0) {
+              io.to(`user:${socket.user._id}`).emit('notification:read:all', { readAt })
+            }
+          } catch (notifErr) {
+            console.warn('[JoinRoomNotificationSync] Error:', notifErr.message)
+          }
+        })()
+      }
+
       // Update room active count
       room.activeCount = (room.activeCount || 0) + 1
       await room.save()
@@ -338,6 +363,27 @@ function registerAnonymousSockets(io, socket) {
         })()
       }
 
+      // Mark owner's pending join request notification for this room as read
+      if (socket.user?._id) {
+        const readAt = new Date()
+        void (async () => {
+          try {
+            const updated = await Notification.updateMany(
+              {
+                user: socket.user._id,
+                type: 'shadow_message',
+                entityId: roomId,
+                readAt: null,
+              },
+              { readAt },
+            )
+            if (updated.modifiedCount > 0) {
+              io.to(`user:${socket.user._id}`).emit('notification:read:all', { readAt })
+            }
+          } catch (_) {}
+        })()
+      }
+
       if (typeof ack === 'function') ack(result)
     } catch (err) {
       console.error('anon:approve_room_join error:', err)
@@ -361,6 +407,27 @@ function registerAnonymousSockets(io, socket) {
         io.to(requesterData.socketId).emit('anon:room_request_rejected', {
           roomId: result.roomId,
         })
+      }
+
+      // Mark owner's pending join request notification for this room as read
+      if (socket.user?._id) {
+        const readAt = new Date()
+        void (async () => {
+          try {
+            const updated = await Notification.updateMany(
+              {
+                user: socket.user._id,
+                type: 'shadow_message',
+                entityId: roomId,
+                readAt: null,
+              },
+              { readAt },
+            )
+            if (updated.modifiedCount > 0) {
+              io.to(`user:${socket.user._id}`).emit('notification:read:all', { readAt })
+            }
+          } catch (_) {}
+        })()
       }
 
       if (typeof ack === 'function') ack(result)
@@ -592,6 +659,86 @@ function registerAnonymousSockets(io, socket) {
 
       io.to(`anon_room:${roomId}`).emit('anon:new_room_message', savedMessage)
 
+      // 1. Broadcast room activity to all lounge sockets for live unread badges & room reordering
+      io.emit('anon:room_activity', {
+        roomId: roomId.toString(),
+        lastMessage: {
+          id: savedMessage.id || savedMessage._id,
+          text: savedMessage.text,
+          senderAlias: savedMessage.senderAlias,
+          senderAvatar: savedMessage.senderAvatar,
+          createdAt: savedMessage.createdAt,
+          hasMedia,
+        },
+      })
+
+      // 2. Check for @mentions in message text
+      if (hasText) {
+        const mentionMatches = text.match(/@([a-zA-Z0-9çğıöşüÇĞİÖŞÜ#_-]+)/g)
+        if (mentionMatches && mentionMatches.length > 0) {
+          const mentionedAliases = [...new Set(mentionMatches.map((m) => m.slice(1).trim()))]
+          const previewSnippet = text.length > 80 ? text.slice(0, 80) + '...' : text
+
+          for (const alias of mentionedAliases) {
+            if (alias === savedMessage.senderAlias) continue
+
+            // A. Check if mentioned user is active in lounge
+            let targetAnonData = null
+            for (const data of activeAnonUsers.values()) {
+              if (data.alias && data.alias.toLowerCase() === alias.toLowerCase()) {
+                targetAnonData = data
+                break
+              }
+            }
+
+            if (targetAnonData && targetAnonData.socketId) {
+              io.to(targetAnonData.socketId).emit('anon:room_mention', {
+                roomId: roomId.toString(),
+                roomName: room.name,
+                senderAlias: savedMessage.senderAlias,
+                text: previewSnippet,
+                messageId: savedMessage.id || savedMessage._id,
+              })
+            }
+
+            // B. Send site-wide in-app notification if user is NOT currently in this room & preferences allow
+            const isUserInThisRoom = targetAnonData && targetAnonData.activeRoomId === roomId.toString()
+            if (!isUserInThisRoom) {
+              void (async () => {
+                try {
+                  const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  const targetUser = await User.findOne({
+                    'anonymousProfile.alias': new RegExp(`^${escapedAlias}$`, 'i'),
+                  }).select('_id accountStatus preferences')
+
+                  if (targetUser && targetUser.accountStatus !== 'suspended') {
+                    if (targetUser.preferences?.inAppNotifications?.shadowMessages) {
+                      const notification = await Notification.create({
+                        user: targetUser._id,
+                        actor: null,
+                        type: 'shadow_message',
+                        entityKind: 'shadow_message',
+                        entityId: room._id,
+                        title: 'Gölge Odası - Bahsedildiniz',
+                        body: `${savedMessage.senderAlias}, "${room.name}" odasında sizden bahsetti: "${previewSnippet}"`,
+                      })
+
+                      const notifPayload = {
+                        ...(notification.toObject ? notification.toObject() : notification),
+                        entityId: room._id.toString(),
+                      }
+                      io.to(`user:${targetUser._id}`).emit('notification:new', notifPayload)
+                    }
+                  }
+                } catch (notifErr) {
+                  console.warn('[RoomMentionNotification] Error:', notifErr.message)
+                }
+              })()
+            }
+          }
+        }
+      }
+
       if (typeof ack === 'function') ack({ success: true, message: savedMessage })
     } catch (err) {
       console.error('anon:send_room_message error:', err)
@@ -742,11 +889,33 @@ function registerAnonymousSockets(io, socket) {
       // Mark unread messages as read upon entering chat
       if (socket.user) {
         await markDirectChatAsRead(socket.user, targetKey)
+        const readAt = new Date()
+
+        // Sync and clear site-wide notifications for this direct chat
+        void (async () => {
+          try {
+            const updated = await Notification.updateMany(
+              {
+                user: socket.user._id,
+                type: 'shadow_message',
+                targetChatKey: targetKey,
+                readAt: null,
+              },
+              { readAt },
+            )
+            if (updated.modifiedCount > 0) {
+              io.to(`user:${socket.user._id}`).emit('notification:read:all', { readAt })
+            }
+          } catch (notifErr) {
+            console.warn('[JoinDirectNotificationSync] Error:', notifErr.message)
+          }
+        })()
+
         io.to(sessionRoom).emit('anon:messages_read', {
           sessionId: targetKey,
           chatKey: targetKey,
           readBy: myAnonId,
-          readAt: new Date().toISOString(),
+          readAt: readAt.toISOString(),
         })
       }
 
@@ -765,12 +934,33 @@ function registerAnonymousSockets(io, socket) {
       if (!myAnonId) return
 
       await markDirectChatAsRead(socket.user, targetKey)
+      const readAt = new Date()
+
+      // Sync and clear site-wide notifications for this direct chat
+      void (async () => {
+        try {
+          const updated = await Notification.updateMany(
+            {
+              user: socket.user._id,
+              type: 'shadow_message',
+              targetChatKey: targetKey,
+              readAt: null,
+            },
+            { readAt },
+          )
+          if (updated.modifiedCount > 0) {
+            io.to(`user:${socket.user._id}`).emit('notification:read:all', { readAt })
+          }
+        } catch (notifErr) {
+          console.warn('[MarkMessagesReadNotificationSync] Error:', notifErr.message)
+        }
+      })()
 
       io.to(`anon_direct:${targetKey}`).emit('anon:messages_read', {
         sessionId: targetKey,
         chatKey: targetKey,
         readBy: myAnonId,
-        readAt: new Date().toISOString(),
+        readAt: readAt.toISOString(),
       })
 
       if (typeof ack === 'function') ack({ success: true })
@@ -994,7 +1184,7 @@ function registerAnonymousSockets(io, socket) {
   })
 
   // 9.1 ANONYMOUS 1-ON-1 VOICE CALL SIGNALING
-  socket.on('anon:call_start', ({ sessionId, offer }) => {
+  socket.on('anon:call_start', async ({ sessionId, offer }) => {
     try {
       const session = getOrCreateActiveSession(sessionId)
       if (!session) return
@@ -1003,7 +1193,39 @@ function registerAnonymousSockets(io, socket) {
       const myData = activeAnonUsers.get(myAnonId)
       if (!myData) return
 
+      const parts = String(sessionId).split('_')
+      const partnerAnonId = parts.find((p) => p !== myAnonId)
+      const partnerData = partnerAnonId ? activeAnonUsers.get(partnerAnonId) : null
+
+      let recipientUserId = partnerData?.userId || null
+      if (!recipientUserId && partnerAnonId) {
+        const partnerUser = await User.findOne({ 'anonymousProfile.anonymousId': partnerAnonId }).select('_id')
+        recipientUserId = partnerUser?._id || null
+      }
+
+      const callId = `call_${crypto.randomUUID()}`
+      session.activeCallId = callId
+      session.callStartedAt = Date.now()
+      session.callConnectedAt = null
+
+      // Persist call log in MongoDB
+      if (socket.user?._id) {
+        AnonymousCallLog.create({
+          callId,
+          sessionId,
+          callerUserId: socket.user._id,
+          callerAnonymousId: myAnonId,
+          callerAlias: myData.alias || 'Anonim',
+          recipientUserId,
+          recipientAnonymousId: partnerAnonId || '',
+          recipientAlias: partnerData?.alias || 'Anonim',
+          status: 'initiated',
+          startedAt: new Date(),
+        }).catch((logErr) => console.warn('[AnonymousCallLog] Create error:', logErr.message))
+      }
+
       socket.to(`anon_direct:${sessionId}`).emit('anon:incoming_call', {
+        callId,
         sessionId,
         callerAnonId: myAnonId,
         callerAlias: myData.alias,
@@ -1015,10 +1237,18 @@ function registerAnonymousSockets(io, socket) {
     }
   })
 
-  socket.on('anon:call_answer', ({ sessionId, answer }) => {
+  socket.on('anon:call_answer', async ({ sessionId, answer }) => {
     try {
       const session = getOrCreateActiveSession(sessionId)
       if (!session) return
+
+      session.callConnectedAt = Date.now()
+      if (session.activeCallId) {
+        AnonymousCallLog.findOneAndUpdate(
+          { callId: session.activeCallId },
+          { status: 'connected', connectedAt: new Date() },
+        ).catch(() => {})
+      }
 
       socket.to(`anon_direct:${sessionId}`).emit('anon:call_answered', {
         sessionId,
@@ -1043,10 +1273,33 @@ function registerAnonymousSockets(io, socket) {
     }
   })
 
-  socket.on('anon:call_end', ({ sessionId, reason }) => {
+  socket.on('anon:call_end', async ({ sessionId, reason }) => {
     try {
       const session = getOrCreateActiveSession(sessionId)
       if (!session) return
+
+      if (session.activeCallId) {
+        const durationSec = session.callConnectedAt
+          ? Math.max(0, Math.round((Date.now() - session.callConnectedAt) / 1000))
+          : 0
+        const finalStatus = session.callConnectedAt
+          ? 'ended'
+          : reason === 'declined'
+            ? 'declined'
+            : 'missed'
+
+        AnonymousCallLog.findOneAndUpdate(
+          { callId: session.activeCallId },
+          {
+            status: finalStatus,
+            durationSec,
+            endedAt: new Date(),
+          },
+        ).catch(() => {})
+
+        session.activeCallId = null
+        session.callConnectedAt = null
+      }
 
       io.to(`anon_direct:${sessionId}`).emit('anon:call_ended', {
         sessionId,

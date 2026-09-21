@@ -22,7 +22,7 @@ async function attachUserFromAccessToken(req) {
 
   const payload = verifyAccessToken(accessToken)
   const user = await User.findById(payload.sub).select(
-    '_id firstName lastName username email role accountStatus isPrivate avatarUrl verification friendIds blockedUserIds preferences lastLoginAt createdAt discovery.interestProfile.hiddenTopicKeys discovery.interestProfile.hiddenPostIds',
+    '_id firstName lastName username email role accountStatus isPrivate avatarUrl verification friendIds blockedUserIds preferences lastLoginAt createdAt discovery.interestProfile.hiddenTopicKeys discovery.interestProfile.hiddenPostIds anonymousProfile',
   )
 
   if (!user) {

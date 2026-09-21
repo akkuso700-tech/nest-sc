@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
-import { LanguageLayout, RootLanguageRedirect } from './routes/LanguageRouting.jsx'
+import { AdminRedirect, LanguageLayout, RootLanguageRedirect } from './routes/LanguageRouting.jsx'
 import AdminRoute from './routes/AdminRoute.jsx'
 import { isDemoEnvironment } from './lib/appEnvironment.js'
 import { CallProvider } from './store/CallContext.jsx'
@@ -28,6 +28,7 @@ const AdminContentPage = lazy(() => import('./pages/AdminContentPage.jsx'))
 const AdminCommentsPage = lazy(() => import('./pages/AdminCommentsPage.jsx'))
 const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx'))
 const AdminAuditLogsPage = lazy(() => import('./pages/AdminAuditLogsPage.jsx'))
+const AdminShadowPage = lazy(() => import('./pages/AdminShadowPage.jsx'))
 const AdminContractsSettingsPage = lazy(() => import('./pages/AdminContractsSettingsPage.jsx'))
 const AdminNotificationsSettingsPage = lazy(
   () => import('./pages/AdminNotificationsSettingsPage.jsx'),
@@ -166,6 +167,8 @@ function App() {
       <Suspense fallback={<RouteFallback />}>
         <Routes location={backgroundLocation || location}>
           <Route path="/" element={<RootLanguageRedirect />} />
+          <Route path="/admin" element={<AdminRedirect />} />
+          <Route path="/admin/*" element={<AdminRedirect />} />
 
           <Route path="/:lang" element={<LanguageLayout />}>
             <Route index element={<HomePage />} />
@@ -190,6 +193,7 @@ function App() {
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="verification-requests" element={<AdminVerificationRequestsPage />} />
               <Route path="creators" element={<AdminCreatorsPage />} />
+              <Route path="shadow" element={<AdminShadowPage />} />
               <Route path="audit-logs" element={<AdminAuditLogsPage />} />
               <Route
                 path="settings/notifications"

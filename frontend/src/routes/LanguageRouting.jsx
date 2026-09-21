@@ -13,6 +13,12 @@ export function RootLanguageRedirect() {
   return <Navigate to={`/${preferredLanguage}/`} replace />
 }
 
+export function AdminRedirect() {
+  const preferredLanguage = getPreferredLanguage(typeof window !== 'undefined' ? window.navigator?.language : 'tr')
+
+  return <Navigate to={`/${preferredLanguage}/admin`} replace />
+}
+
 export function LanguageLayout({ children, overlayOnly = false }) {
   const { lang } = useParams()
   const location = useLocation()

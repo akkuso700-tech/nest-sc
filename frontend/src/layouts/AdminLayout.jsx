@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Seo from '../components/seo/Seo.jsx'
 import {
   getAdminContentSummary,
+  getAdminNotificationFeed,
   getAdminOverview,
   getAdminUsersSummary,
 } from '../services/adminService.js'
@@ -18,6 +19,18 @@ function cx(...parts) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat('tr-TR').format(Number(value || 0))
+}
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return ''
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(dateString).getTime()) / 1000))
+  if (diffSeconds < 60) return 'Az önce'
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  if (diffMinutes < 60) return `${diffMinutes} dk önce`
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours} sa önce`
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} gün önce`
 }
 
 function formatPercent(value) {
@@ -37,6 +50,7 @@ const navigation = [
   { path: '/content', label: 'İçerikler', short: 'İÇ' },
   { path: '/comments', label: 'Yorumlar', short: 'YO' },
   { path: '/reports', label: 'Raporlar', short: 'RA' },
+  { path: '/shadow', label: 'Gölge Modu', short: 'GM' },
   { path: '/audit-logs', label: 'İşlem Kayıtları', short: 'İK' },
 ]
 
@@ -103,6 +117,14 @@ function getPageMeta(pathname, lang) {
       title: 'Raporlar',
       eyebrow: 'Moderasyon Kuyruğu',
       description: 'Açık vakaları önceliklendirin, inceleyin ve sonuçlandırın.',
+    }
+  }
+  if (pathname.includes(`${base}/shadow`)) {
+    return {
+      title: 'Gölge Modu',
+      eyebrow: '',
+      description: '',
+      hideHeading: true,
     }
   }
   if (pathname.includes(`${base}/audit-logs`)) {
@@ -224,7 +246,7 @@ function SummaryCard({ label, value, helper, trend }) {
 function AdminLayout() {
   const { lang = 'tr' } = useParams()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const base = `/${lang}/admin`
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -236,9 +258,88 @@ function AdminLayout() {
   const [customDates, setCustomDates] = useState({ dateFrom: '', dateTo: '' })
   const [summary, setSummary] = useState({ loading: false, error: '', data: null })
 
+  const notificationWrapRef = useRef(null)
+  const [notificationTab, setNotificationTab] = useState('actions')
+  const [notificationData, setNotificationData] = useState({
+    loading: false,
+    summary: null,
+    feed: [],
+  })
+
+  const profileWrapRef = useRef(null)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const navigate = useNavigate()
+
+  const handleLogout = useCallback(async () => {
+    try {
+      setIsLoggingOut(true)
+      await logout()
+      navigate(`/${lang}/login`, { replace: true })
+    } catch {
+      window.location.href = `/${lang}/login`
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }, [lang, logout, navigate])
+
+  const fetchAdminNotifications = useCallback(() => {
+    getAdminNotificationFeed()
+      .then((res) => {
+        if (res?.data) {
+          setNotificationData({
+            loading: false,
+            summary: res.data.summary,
+            feed: res.data.feed || [],
+          })
+        }
+      })
+      .catch(() => {
+        // silent fallback
+      })
+  }, [])
+
+  useEffect(() => {
+    fetchAdminNotifications()
+    const timer = setInterval(fetchAdminNotifications, 45000)
+    return () => clearInterval(timer)
+  }, [fetchAdminNotifications])
+
+  useEffect(() => {
+    if (notificationsOpen) {
+      fetchAdminNotifications()
+    }
+  }, [notificationsOpen, fetchAdminNotifications])
+
+  useEffect(() => {
+    if (!notificationsOpen) return undefined
+    function handleClickOutside(event) {
+      if (notificationWrapRef.current && !notificationWrapRef.current.contains(event.target)) {
+        setNotificationsOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => document.removeEventListener('pointerdown', handleClickOutside)
+  }, [notificationsOpen])
+
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined
+    function handleClickOutside(event) {
+      if (profileWrapRef.current && !profileWrapRef.current.contains(event.target)) {
+        setProfileMenuOpen(false)
+        setLogoutConfirmOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => document.removeEventListener('pointerdown', handleClickOutside)
+  }, [profileMenuOpen])
+
   const pageMeta = useMemo(() => getPageMeta(location.pathname, lang), [location.pathname, lang])
   const isUsersRoute = location.pathname === `${base}/users`
   const isContentRoute = location.pathname === `${base}/content`
+  const isShadowRoute = location.pathname.includes('/shadow')
   const supportsRange = isUsersRoute || isContentRoute
 
   useEffect(() => {
@@ -252,6 +353,8 @@ function AdminLayout() {
   useEffect(() => {
     setMobileOpen(false)
     setNotificationsOpen(false)
+    setProfileMenuOpen(false)
+    setLogoutConfirmOpen(false)
     setCustomOpen(false)
     if (location.pathname.includes('/settings/')) setSettingsOpen(true)
   }, [location.pathname])
@@ -304,11 +407,53 @@ function AdminLayout() {
     return []
   }, [isContentRoute, isUsersRoute, summary.data])
 
-  const reportCount = Number(overview?.moderationSummary?.openReports || 0) + Number(overview?.moderationSummary?.inReviewReports || 0)
-  const alertItems = [
-    { label: 'Açık raporlar', value: reportCount, to: `${base}/reports`, tone: reportCount > 0 ? 'warning' : 'success' },
-    { label: 'Askıdaki hesaplar', value: Number(overview?.moderationSummary?.suspendedUsers || 0), to: `${base}/users`, tone: 'neutral' },
-    { label: 'Gizlenen içerikler', value: Number(overview?.moderationSummary?.hiddenPosts || 0) + Number(overview?.moderationSummary?.hiddenComments || 0), to: `${base}/content`, tone: 'neutral' },
+  const fallbackReportCount =
+    Number(overview?.moderationSummary?.openReports || 0) +
+    Number(overview?.moderationSummary?.inReviewReports || 0)
+  const pendingTotal =
+    notificationData.summary?.totalPendingActionCount ?? fallbackReportCount
+
+  const pendingActionItems = [
+    {
+      label: 'Açık Raporlar',
+      desc: 'İnceleme bekleyen şikayetler',
+      value: notificationData.summary ? notificationData.summary.openReports : fallbackReportCount,
+      to: `${base}/reports`,
+      tone: (notificationData.summary ? notificationData.summary.openReports : fallbackReportCount) > 0 ? 'danger' : 'neutral',
+      icon: '🛡️',
+    },
+    {
+      label: 'Doğrulama Talepleri',
+      desc: 'Mavi rozet & kimlik başvuruları',
+      value: Number(notificationData.summary?.pendingVerifications || 0),
+      to: `${base}/verification-requests`,
+      tone: Number(notificationData.summary?.pendingVerifications || 0) > 0 ? 'warning' : 'neutral',
+      icon: '💎',
+    },
+    {
+      label: 'Para Çekme Talepleri',
+      desc: 'Üretici IBAN nakit talepleri',
+      value: Number(notificationData.summary?.pendingPayouts || 0),
+      to: `${base}/creators`,
+      tone: Number(notificationData.summary?.pendingPayouts || 0) > 0 ? 'success' : 'neutral',
+      icon: '💳',
+    },
+    {
+      label: 'Üretici Başvuruları',
+      desc: 'Monetizasyon onay kuyruğu',
+      value: Number(notificationData.summary?.pendingCreatorApplications || 0),
+      to: `${base}/creators`,
+      tone: Number(notificationData.summary?.pendingCreatorApplications || 0) > 0 ? 'primary' : 'neutral',
+      icon: '🎨',
+    },
+    {
+      label: 'Bugün Kayıt Olanlar',
+      desc: 'Bugün katılan yeni üyeler',
+      value: Number(notificationData.summary?.newUsersToday || 0),
+      to: `${base}/users`,
+      tone: 'info',
+      icon: '👤',
+    },
   ]
 
   function selectRange(nextRange) {
@@ -352,36 +497,245 @@ function AdminLayout() {
           <header className="admin-topbar">
             <button type="button" className="admin-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Yönetim menüsünü aç">☰</button>
             <div className="admin-topbar-context">
-              <span className="admin-topbar-label">Nest / Yönetim</span>
               <strong>{pageMeta.title}</strong>
             </div>
             <div className="admin-topbar-actions">
               <Link className="admin-view-site" to={`/${lang}`}>Siteyi görüntüle ↗</Link>
-              <div className="admin-notification-wrap">
-                <button type="button" className="admin-icon-button admin-bell" onClick={() => setNotificationsOpen((current) => !current)} aria-label="Operasyon bildirimleri">
-                  <span>!</span>{reportCount > 0 ? <b>{Math.min(reportCount, 99)}</b> : null}
+              <div className="admin-notification-wrap" ref={notificationWrapRef}>
+                <button
+                  type="button"
+                  className={cx('admin-icon-button admin-bell', pendingTotal > 0 ? 'has-badge' : '')}
+                  onClick={() => setNotificationsOpen((current) => !current)}
+                  aria-label={`Operasyon bildirimleri (${pendingTotal} bekleyen işlem)`}
+                  title="Operasyon Bildirimleri"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                  {pendingTotal > 0 ? (
+                    <b className="admin-bell-badge animate-pulse">
+                      {Math.min(pendingTotal, 99)}
+                    </b>
+                  ) : null}
                 </button>
                 {notificationsOpen ? (
-                  <div className="admin-notification-panel">
-                    <div className="admin-notification-heading"><strong>Operasyon özeti</strong><span>Canlı veriler</span></div>
-                    {alertItems.map((item) => (
-                      <Link key={item.label} to={item.to} className="admin-notification-item">
-                        <span className={`admin-alert-dot is-${item.tone}`} />
-                        <span><strong>{item.label}</strong><small>Detayları görüntüle</small></span>
-                        <b>{formatNumber(item.value)}</b>
+                  <div className="admin-notification-panel" role="dialog" aria-label="Operasyon Bildirimleri">
+                    <div className="admin-notification-heading">
+                      <div className="admin-notification-heading-left">
+                        <strong>Operasyon Bildirimleri</strong>
+                        <span className="admin-notification-pulse-tag">
+                          <span className={cx('admin-pulse-dot', pendingTotal > 0 ? 'is-alert' : '')} />
+                          {pendingTotal > 0 ? `${pendingTotal} bekleyen işlem` : 'Tüm işlemler güncel'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="admin-notification-refresh-btn"
+                        onClick={fetchAdminNotifications}
+                        title="Yenile"
+                        aria-label="Bildirimleri Yenile"
+                      >
+                        ↻
+                      </button>
+                    </div>
+
+                    <div className="admin-notification-tabs">
+                      <button
+                        type="button"
+                        className={cx('admin-notification-tab', notificationTab === 'actions' ? 'is-active' : '')}
+                        onClick={() => setNotificationTab('actions')}
+                      >
+                        Bekleyen İşlemler
+                        {pendingTotal > 0 ? <span className="admin-tab-count">{pendingTotal}</span> : null}
+                      </button>
+                      <button
+                        type="button"
+                        className={cx('admin-notification-tab', notificationTab === 'feed' ? 'is-active' : '')}
+                        onClick={() => setNotificationTab('feed')}
+                      >
+                        Canlı Akış
+                        {notificationData.feed?.length > 0 ? (
+                          <span className="admin-tab-count-subtle">{notificationData.feed.length}</span>
+                        ) : null}
+                      </button>
+                    </div>
+
+                    <div className="admin-notification-body">
+                      {notificationTab === 'actions' ? (
+                        <div className="admin-action-cards-grid">
+                          {pendingActionItems.map((item) => (
+                            <Link
+                              key={item.label}
+                              to={item.to}
+                              onClick={() => setNotificationsOpen(false)}
+                              className="admin-action-card"
+                            >
+                              <div className="admin-action-card-left">
+                                <span className="admin-action-card-icon">{item.icon}</span>
+                                <div className="admin-action-card-meta">
+                                  <strong>{item.label}</strong>
+                                  <small>{item.desc}</small>
+                                </div>
+                              </div>
+                              <div className="admin-action-card-right">
+                                <span className={cx('admin-action-count-pill', `is-${item.tone}`)}>
+                                  {formatNumber(item.value)}
+                                </span>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="admin-feed-list">
+                          {notificationData.feed?.length > 0 ? (
+                            notificationData.feed.map((event) => {
+                              const eventIcon =
+                                event.type === 'user' ? '👤' :
+                                event.type === 'verification' ? '💎' :
+                                event.type === 'payout' ? '💳' :
+                                event.type === 'creator' ? '🎨' : '🚨'
+                              return (
+                                <Link
+                                  key={event.id}
+                                  to={event.link?.startsWith('http') ? event.link : `${base}${event.link || ''}`}
+                                  onClick={() => setNotificationsOpen(false)}
+                                  className="admin-feed-item"
+                                >
+                                  <span className="admin-feed-item-icon">{eventIcon}</span>
+                                  <div className="admin-feed-item-body">
+                                    <div className="admin-feed-item-header">
+                                      <span className="admin-feed-item-title">{event.title}</span>
+                                      <span className="admin-feed-item-time">{formatTimeAgo(event.timestamp)}</span>
+                                    </div>
+                                    <span className="admin-feed-item-subtitle">{event.subtitle}</span>
+                                  </div>
+                                </Link>
+                              )
+                            })
+                          ) : (
+                            <div className="admin-feed-empty">Henüz kaydedilmiş aktivite bulunmuyor.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="admin-notification-footer">
+                      <Link
+                        to={`${base}/audit-logs`}
+                        onClick={() => setNotificationsOpen(false)}
+                        className="admin-footer-link"
+                      >
+                        Tüm İşlem Kayıtları (Audit Logs) ↗
                       </Link>
-                    ))}
+                    </div>
                   </div>
                 ) : null}
               </div>
-              <div className="admin-profile-chip">
-                <span>{getAvatarLabel(user)}</span>
-                <div><strong>{getFullName(user)}</strong><small>Yönetici</small></div>
+              <div className="admin-profile-wrap" ref={profileWrapRef}>
+                <button
+                  type="button"
+                  className={cx('admin-profile-chip admin-profile-btn', profileMenuOpen ? 'is-active' : '')}
+                  onClick={() => {
+                    setProfileMenuOpen((curr) => !curr)
+                    setLogoutConfirmOpen(false)
+                  }}
+                  aria-label="Yönetici hesabı ve çıkış menüsü"
+                  aria-expanded={profileMenuOpen}
+                >
+                  <span className="admin-profile-avatar">{getAvatarLabel(user)}</span>
+                  <div className="admin-profile-meta">
+                    <strong>{getFullName(user)}</strong>
+                    <small>Yönetici</small>
+                  </div>
+                  <svg className="admin-profile-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </button>
+
+                {profileMenuOpen ? (
+                  <div className="admin-profile-popover" role="dialog" aria-label="Yönetici Oturumu">
+                    <div className="admin-popover-header">
+                      <span className="admin-popover-avatar-large">{getAvatarLabel(user)}</span>
+                      <div className="admin-popover-user-info">
+                        <strong>{getFullName(user)}</strong>
+                        <span>@{user?.username || 'admin'}</span>
+                        <span className="admin-popover-role-pill">🛡️ Sistem Yöneticisi</span>
+                      </div>
+                    </div>
+
+                    <div className="admin-popover-menu">
+                      <Link
+                        to={`/${lang}`}
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="admin-popover-item"
+                      >
+                        <span className="admin-popover-item-icon">🌐</span>
+                        <span>Site Ana Sayfasına Git</span>
+                      </Link>
+                      <Link
+                        to={`${base}/settings/notifications`}
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="admin-popover-item"
+                      >
+                        <span className="admin-popover-item-icon">⚙️</span>
+                        <span>Yönetici Ayarları</span>
+                      </Link>
+                      <Link
+                        to={`${base}/audit-logs`}
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="admin-popover-item"
+                      >
+                        <span className="admin-popover-item-icon">📋</span>
+                        <span>İşlem Kayıtları</span>
+                      </Link>
+                    </div>
+
+                    <div className="admin-popover-logout-box">
+                      {!logoutConfirmOpen ? (
+                        <button
+                          type="button"
+                          className="admin-popover-logout-btn"
+                          onClick={() => setLogoutConfirmOpen(true)}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16 17 21 12 16 7" />
+                            <line x1="21" y1="12" x2="9" y2="12" />
+                          </svg>
+                          <span>Çıkış Yap</span>
+                        </button>
+                      ) : (
+                        <div className="admin-popover-confirm-box">
+                          <p>Yönetici oturumunu kapatmak istediğinize emin misiniz?</p>
+                          <div className="admin-popover-confirm-actions">
+                            <button
+                              type="button"
+                              className="admin-popover-confirm-btn"
+                              onClick={handleLogout}
+                              disabled={isLoggingOut}
+                            >
+                              {isLoggingOut ? 'Çıkılıyor...' : 'Evet, Çıkış Yap'}
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-popover-cancel-btn"
+                              onClick={() => setLogoutConfirmOpen(false)}
+                              disabled={isLoggingOut}
+                            >
+                              Vazgeç
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </header>
 
-          <main className="admin-main">
+          <main className={cx('admin-main', isShadowRoute ? 'is-shadow-layout' : '')}>
             {!pageMeta.hideHeading ? (
               <section className="admin-page-heading">
                 <div>

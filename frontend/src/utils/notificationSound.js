@@ -1,58 +1,73 @@
-﻿let audioCtx = null
+// Lightweight, pure Web Audio API synthesizer for notification sounds
+// Zero external file dependencies, zero network requests, instant playback
 
-export function playMessageNotificationSound() {
+let audioCtx = null
+
+function getAudioContext() {
+  if (typeof window === 'undefined') return null
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return null
+
+  if (!audioCtx) {
+    audioCtx = new AudioContextClass()
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {})
+  }
+  return audioCtx
+}
+
+export function playMessageSound() {
   try {
-    if (typeof window === 'undefined') {
-      return
-    }
+    const ctx = getAudioContext()
+    if (!ctx) return
 
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext
-    if (!AudioContextClass) {
-      return
-    }
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
 
-    if (!audioCtx) {
-      audioCtx = new AudioContextClass()
-    }
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(587.33, now) // D5
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.12) // A5
 
-    if (audioCtx.state === 'suspended') {
-      void audioCtx.resume()
-    }
+    gain.gain.setValueAtTime(0.08, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25)
 
-    const now = audioCtx.currentTime
+    osc.connect(gain)
+    gain.connect(ctx.destination)
 
-    const osc1 = audioCtx.createOscillator()
-    const gain1 = audioCtx.createGain()
-    osc1.type = 'sine'
-    osc1.frequency.setValueAtTime(880, now)
-    osc1.frequency.exponentialRampToValueAtTime(1320, now + 0.08)
+    osc.start(now)
+    osc.stop(now + 0.25)
+  } catch (_) {
+    // Audio playback blocked or not supported
+  }
+}
 
-    gain1.gain.setValueAtTime(0, now)
-    gain1.gain.linearRampToValueAtTime(0.18, now + 0.02)
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.16)
+export const playMessageNotificationSound = playMessageSound
 
-    osc1.connect(gain1)
-    gain1.connect(audioCtx.destination)
+export function playMentionSound() {
+  try {
+    const ctx = getAudioContext()
+    if (!ctx) return
 
-    osc1.start(now)
-    osc1.stop(now + 0.16)
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
 
-    const osc2 = audioCtx.createOscillator()
-    const gain2 = audioCtx.createGain()
-    osc2.type = 'sine'
-    osc2.frequency.setValueAtTime(1320, now + 0.04)
-    osc2.frequency.exponentialRampToValueAtTime(1760, now + 0.12)
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(659.25, now) // E5
+    osc.frequency.setValueAtTime(880, now + 0.08) // A5
+    osc.frequency.setValueAtTime(1046.5, now + 0.16) // C6
 
-    gain2.gain.setValueAtTime(0, now + 0.04)
-    gain2.gain.linearRampToValueAtTime(0.1, now + 0.06)
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22)
+    gain.gain.setValueAtTime(0.12, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
 
-    osc2.connect(gain2)
-    gain2.connect(audioCtx.destination)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
 
-    osc2.start(now + 0.04)
-    osc2.stop(now + 0.22)
-  } catch {
-    // Silent
+    osc.start(now)
+    osc.stop(now + 0.35)
+  } catch (_) {
+    // Audio playback blocked or not supported
   }
 }

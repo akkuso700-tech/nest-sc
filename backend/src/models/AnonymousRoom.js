@@ -47,7 +47,20 @@ const anonymousRoomSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       default: null,
-      index: { expires: 0 },
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
     isPrivate: {
       type: Boolean,

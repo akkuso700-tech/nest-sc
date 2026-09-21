@@ -82,6 +82,14 @@ async function getOrCreateAnonymousProfile(user) {
   let needsSave = false
 
   if (!user.anonymousProfile || !user.anonymousProfile.alias) {
+    // Check if the user already has an anonymousProfile in the database that wasn't included in the passed document
+    const dbUser = await User.findById(user._id).select('anonymousProfile')
+    if (dbUser && dbUser.anonymousProfile && dbUser.anonymousProfile.alias) {
+      user.anonymousProfile = dbUser.anonymousProfile
+    }
+  }
+
+  if (!user.anonymousProfile || !user.anonymousProfile.alias) {
     user.anonymousProfile = {
       alias: generateRandomAlias(),
       anonymousId: anonId,
@@ -100,7 +108,11 @@ async function getOrCreateAnonymousProfile(user) {
   }
 
   if (needsSave) {
-    await user.save()
+    if (typeof user.save === 'function') {
+      await user.save()
+    } else {
+      await User.findByIdAndUpdate(user._id, { anonymousProfile: user.anonymousProfile })
+    }
   }
   return serializeAnonymousProfile(user)
 }
@@ -172,7 +184,7 @@ function generateRoomAccessCode() {
 async function listRooms(user = null) {
   await cleanupSystemRoomsIfNeeded()
 
-  const rooms = await AnonymousRoom.find({ isSystem: { $ne: true } }).sort({ activeCount: -1, createdAt: -1 }).lean()
+  const rooms = await AnonymousRoom.find({ isSystem: { $ne: true }, isDeleted: { $ne: true } }).sort({ activeCount: -1, createdAt: -1 }).lean()
 
   let userAnonId = null
   let userIdStr = null
@@ -347,7 +359,7 @@ async function getRoomMessages(roomId, user = null, limit = 50) {
     }
   }
 
-  const messages = await AnonymousMessage.find({ roomId })
+  const messages = await AnonymousMessage.find({ roomId, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean()
@@ -391,6 +403,7 @@ async function saveRoomMessage({ roomId, user, text, media = [] }) {
 
   const message = await AnonymousMessage.create({
     roomId,
+    senderUserId: user._id,
     senderAnonymousId: profile.anonymousId,
     senderAlias: profile.alias,
     senderAvatar: profile.avatarKey,
@@ -620,8 +633,16 @@ async function deleteCustomRoom(user, roomId) {
     throw new AppError('Yalnızca kendi açtığınız odayı silebilirsiniz.', 403)
   }
 
-  await AnonymousMessage.deleteMany({ roomId: room._id })
-  await AnonymousRoom.findByIdAndDelete(roomId)
+  const now = new Date()
+  room.isDeleted = true
+  room.deletedAt = now
+  room.deletedBy = user._id
+  await room.save()
+
+  await AnonymousMessage.updateMany(
+    { roomId: room._id },
+    { $set: { isDeleted: true, deletedAt: now, deletedBy: user._id } }
+  )
 
   return { success: true, roomId: roomId.toString() }
 }
@@ -637,7 +658,11 @@ async function deleteRoomMessage(user, messageId) {
     throw new AppError('Yalnızca kendi mesajlarınızı silebilirsiniz.', 403)
   }
 
-  await AnonymousMessage.findByIdAndDelete(messageId)
+  message.isDeleted = true
+  message.deletedAt = new Date()
+  message.deletedBy = user._id
+  await message.save()
+
   return {
     success: true,
     messageId: messageId.toString(),
@@ -843,7 +868,7 @@ async function getDirectChatMessages(user, chatKey, limit = 50) {
     await chat.save()
   }
 
-  const messages = await AnonymousMessage.find({ conversationId: chatKey })
+  const messages = await AnonymousMessage.find({ conversationId: chatKey, isDeleted: { $ne: true } })
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean()
@@ -888,10 +913,11 @@ async function saveDirectChatMessage({ chatKey, user, text, media = [], status =
   const initialStatus = ['sent', 'delivered', 'read'].includes(status) ? status : 'sent'
   const now = new Date()
 
-  // Create message
+  // Create message with real user ID reference
   const message = await AnonymousMessage.create({
     conversationId: chatKey,
     roomId: null,
+    senderUserId: user._id,
     senderAnonymousId: myAnonId,
     senderAlias: myProfile.alias,
     senderAvatar: myProfile.avatarKey,
@@ -900,7 +926,7 @@ async function saveDirectChatMessage({ chatKey, user, text, media = [], status =
     status: initialStatus,
     deliveredAt: initialStatus === 'delivered' || initialStatus === 'read' ? now : null,
     readAt: initialStatus === 'read' ? now : null,
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    expiresAt: null,
   })
 
   // Update chat
@@ -915,7 +941,7 @@ async function saveDirectChatMessage({ chatKey, user, text, media = [], status =
   chat.lastMessageAt = message.createdAt
   // Un-hide chat for anyone who had deleted it previously
   chat.deletedBy = []
-  chat.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  chat.expiresAt = null
 
   // Increment unread count for partner if message is not read immediately
   if (!chat.unreadCounts) chat.unreadCounts = new Map()
@@ -1007,6 +1033,27 @@ async function deleteDirectChatForUser(user, chatKey) {
   return { success: true, chatKey }
 }
 
+async function getRealUserByAnonymousId(anonymousId) {
+  if (!anonymousId) return null
+  // 1. Check if direct field matches
+  let user = await User.findOne({ 'anonymousProfile.anonymousId': anonymousId })
+    .select('_id username firstName lastName email avatarUrl accountStatus role createdAt lastLoginAt anonymousProfile')
+    .lean()
+  if (user) return user
+
+  // 2. Deterministic hash matching fallback
+  const allUsers = await User.find({})
+    .select('_id username firstName lastName email avatarUrl accountStatus role createdAt lastLoginAt anonymousProfile')
+    .lean()
+
+  for (const u of allUsers) {
+    if (getAnonymousId(u._id) === anonymousId) {
+      return u
+    }
+  }
+  return null
+}
+
 module.exports = {
   generateRandomAlias,
   getAnonymousId,
@@ -1037,4 +1084,5 @@ module.exports = {
   rejectRoomJoin,
   kickRoomMember,
   banRoomMember,
+  getRealUserByAnonymousId,
 }

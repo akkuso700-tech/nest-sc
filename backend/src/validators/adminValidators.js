@@ -400,8 +400,17 @@ const updateCreatorWalletStatusSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const adminNotificationsFeedSchema = z.object({
+  body: z.object({}).default({}),
+  params: z.object({}).default({}),
+  query: z.object({
+    limit: z.coerce.number().int().positive().max(50).optional().default(15),
+  }).default({}),
+})
+
 module.exports = {
   adminOverviewSchema,
+  adminNotificationsFeedSchema,
   updateUserRoleSchema,
   updateUserStatusSchema,
   adminListUsersSchema,

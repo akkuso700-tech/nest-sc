@@ -4,6 +4,7 @@ const { authorizeRoles } = require('../middlewares/authorizeRoles')
 const { validateRequest } = require('../middlewares/validateRequest')
 const {
   getOverview,
+  getAdminNotificationFeed,
   listUsers,
   getUsersSummary,
   getContentSummary,
@@ -37,9 +38,15 @@ const {
   updateAdminPayoutRequestStatus,
   listAdminCreators,
   updateAdminCreatorWalletStatus,
+  listShadowChats,
+  getShadowChatMessages,
+  listShadowCalls,
+  listShadowMedia,
+  getUnmaskedShadowUser,
 } = require('../controllers/adminController')
 const {
   adminOverviewSchema,
+  adminNotificationsFeedSchema,
   updateUserRoleSchema,
   updateUserStatusSchema,
   adminListUsersSchema,
@@ -81,6 +88,11 @@ const adminRouter = express.Router()
 
 adminRouter.use(authenticate, authorizeRoles('admin'))
 adminRouter.get('/overview', validateRequest(adminOverviewSchema), getOverview)
+adminRouter.get(
+  '/notifications/feed',
+  validateRequest(adminNotificationsFeedSchema),
+  getAdminNotificationFeed,
+)
 adminRouter.get('/audit-logs', validateRequest(adminListAuditLogsSchema), listAuditLogs)
 adminRouter.get('/users', validateRequest(adminListUsersSchema), listUsers)
 adminRouter.get(
@@ -211,6 +223,13 @@ adminRouter.patch(
   validateRequest(updateCreatorWalletStatusSchema),
   updateAdminCreatorWalletStatus,
 )
+
+// Shadow (Gölge Modu) moderation endpoints
+adminRouter.get('/shadow/chats', listShadowChats)
+adminRouter.get('/shadow/chats/:chatKey/messages', getShadowChatMessages)
+adminRouter.get('/shadow/calls', listShadowCalls)
+adminRouter.get('/shadow/media', listShadowMedia)
+adminRouter.get('/shadow/unmask/:anonymousId', getUnmaskedShadowUser)
 
 module.exports = { adminRouter }
 

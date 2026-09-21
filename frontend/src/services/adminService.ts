@@ -31,6 +31,10 @@ export function getAdminOverview(params: Record<string, any> = {}): Promise<any>
   return apiRequest(`/admin/overview${buildQuery(params)}`)
 }
 
+export function getAdminNotificationFeed(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/notifications/feed${buildQuery(params)}`)
+}
+
 export function getAdminPerformanceSummary(params: Record<string, any> = {}): Promise<any> {
   return apiRequest(`/performance/web-vitals/summary${buildQuery(params)}`)
 }
@@ -217,3 +221,24 @@ export function updateAdminCreatorWalletStatus(userId: string, payload: Record<s
     body: JSON.stringify(payload),
   })
 }
+
+export function getAdminShadowChats(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/shadow/chats${buildQuery(params)}`)
+}
+
+export function getAdminShadowMessages(chatKey: string): Promise<any> {
+  return apiRequest(`/admin/shadow/chats/${chatKey}/messages`)
+}
+
+export function getAdminShadowCalls(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/shadow/calls${buildQuery(params)}`)
+}
+
+export function getAdminShadowMedia(params: Record<string, any> = {}): Promise<any> {
+  return apiRequest(`/admin/shadow/media${buildQuery(params)}`)
+}
+
+export function getAdminUnmaskedUser(anonymousId: string): Promise<any> {
+  return apiRequest(`/admin/shadow/unmask/${anonymousId}`)
+}
+

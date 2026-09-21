@@ -17,6 +17,11 @@ const { CreatorApplication } = require('../models/CreatorApplication')
 const { PayoutRequest } = require('../models/PayoutRequest')
 const { Wallet } = require('../models/Wallet')
 const { Transaction } = require('../models/Transaction')
+const { AnonymousRoom } = require('../models/AnonymousRoom')
+const { AnonymousMessage } = require('../models/AnonymousMessage')
+const { AnonymousDirectChat } = require('../models/AnonymousDirectChat')
+const { AnonymousCallLog } = require('../models/AnonymousCallLog')
+const { getRealUserByAnonymousId, getAnonymousId } = require('../services/anonymousService')
 const {
   getSignupNotificationEmails,
   updateSignupNotificationEmails,
@@ -2348,8 +2353,524 @@ const updateAdminCreatorWalletStatus = asyncHandler(async (req, res) => {
   })
 })
 
+const listShadowChats = asyncHandler(async (req, res) => {
+  const type = req.query.type || 'all' // 'all', 'direct', 'room'
+  const search = (req.query.search || '').trim().toLowerCase()
+
+  const results = []
+
+  // 1. Fetch Rooms if type is 'all' or 'room'
+  if (type === 'all' || type === 'room') {
+    const rooms = await AnonymousRoom.find({})
+      .populate('createdBy', '_id username firstName lastName email avatarUrl')
+      .sort({ createdAt: -1 })
+      .lean()
+
+    for (const r of rooms) {
+      const [totalMessages, deletedMessages, lastMsg] = await Promise.all([
+        AnonymousMessage.countDocuments({ roomId: r._id }),
+        AnonymousMessage.countDocuments({ roomId: r._id, isDeleted: true }),
+        AnonymousMessage.findOne({ roomId: r._id }).sort({ createdAt: -1 }).lean(),
+      ])
+
+      const matchesSearch =
+        !search ||
+        r.name?.toLowerCase().includes(search) ||
+        r.topic?.toLowerCase().includes(search) ||
+        r.creatorAlias?.toLowerCase().includes(search) ||
+        r.createdBy?.username?.toLowerCase().includes(search) ||
+        r.createdBy?.email?.toLowerCase().includes(search)
+
+      if (matchesSearch) {
+        results.push({
+          id: r._id.toString(),
+          type: 'room',
+          chatKey: r._id.toString(),
+          title: r.name,
+          subtitle: r.topic || 'Genel Sohbet Odası',
+          isPrivate: Boolean(r.isPrivate),
+          isDeleted: Boolean(r.isDeleted),
+          deletedAt: r.deletedAt,
+          creator: {
+            alias: r.creatorAlias,
+            user: r.createdBy || null,
+          },
+          participants: [],
+          totalMessages,
+          deletedMessages,
+          lastMessageAt: lastMsg?.createdAt || r.createdAt,
+          lastMessageSnippet: lastMsg?.text || (lastMsg?.media?.length ? '📷 Medya' : ''),
+          createdAt: r.createdAt,
+        })
+      }
+    }
+  }
+
+  // 2. Fetch Direct Chats if type is 'all' or 'direct'
+  if (type === 'all' || type === 'direct') {
+    const directChats = await AnonymousDirectChat.find({})
+      .populate('participantUserIds', '_id username firstName lastName email avatarUrl')
+      .sort({ lastMessageAt: -1 })
+      .lean()
+
+    for (const d of directChats) {
+      const [totalMessages, deletedMessages] = await Promise.all([
+        AnonymousMessage.countDocuments({ conversationId: d.chatKey }),
+        AnonymousMessage.countDocuments({ conversationId: d.chatKey, isDeleted: true }),
+      ])
+
+      // Resolve unmasked participants
+      const participants = []
+      const profiles = d.participantProfiles || {}
+      const anonIds = Array.isArray(d.participants) ? d.participants : []
+
+      for (const anonId of anonIds) {
+        let user = (d.participantUserIds || []).find(
+          (u) => u && getAnonymousId(u._id) === anonId,
+        )
+        if (!user) {
+          user = await getRealUserByAnonymousId(anonId)
+        }
+        const profile = profiles instanceof Map ? profiles.get(anonId) : profiles[anonId]
+        participants.push({
+          anonymousId: anonId,
+          alias: profile?.alias || 'Gölge Kullanıcı',
+          avatarKey: profile?.avatarKey || 'avatar-1',
+          user: user
+            ? {
+                _id: user._id,
+                username: user.username,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                avatarUrl: user.avatarUrl,
+              }
+            : null,
+        })
+      }
+
+      const matchesSearch =
+        !search ||
+        d.chatKey.toLowerCase().includes(search) ||
+        participants.some(
+          (p) =>
+            p.alias.toLowerCase().includes(search) ||
+            p.user?.username?.toLowerCase().includes(search) ||
+            p.user?.email?.toLowerCase().includes(search),
+        )
+
+      if (matchesSearch) {
+        results.push({
+          id: d._id.toString(),
+          type: 'direct',
+          chatKey: d.chatKey,
+          title: participants.map((p) => p.alias).join(' & ') || 'Birebir Sohbet',
+          subtitle: participants
+            .map((p) => (p.user ? `@${p.user.username}` : '(Kimliksiz)'))
+            .join(' & '),
+          isPrivate: true,
+          isDeleted: (d.deletedBy || []).length > 0,
+          deletedByCount: (d.deletedBy || []).length,
+          creator: null,
+          participants,
+          totalMessages,
+          deletedMessages,
+          lastMessageAt: d.lastMessageAt || d.updatedAt || d.createdAt,
+          lastMessageSnippet: d.lastMessage?.text || (d.lastMessage?.hasMedia ? '📷 Medya' : ''),
+          createdAt: d.createdAt,
+        })
+      }
+    }
+  }
+
+  // Sort by lastMessageAt descending
+  results.sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0))
+
+  res.json({
+    success: true,
+    total: results.length,
+    chats: results,
+  })
+})
+
+const getShadowChatMessages = asyncHandler(async (req, res) => {
+  const { chatKey } = req.params
+
+  const filter = {
+    $or: [
+      { conversationId: chatKey },
+      ...(mongoose.Types.ObjectId.isValid(chatKey) ? [{ roomId: chatKey }] : []),
+    ],
+  }
+
+  const messages = await AnonymousMessage.find(filter)
+    .populate('senderUserId', '_id username firstName lastName email avatarUrl accountStatus')
+    .populate('deletedBy', '_id username firstName lastName email')
+    .sort({ createdAt: 1 })
+    .lean()
+
+  // For any messages without senderUserId populated, resolve dynamically
+  for (const msg of messages) {
+    if (!msg.senderUserId && msg.senderAnonymousId) {
+      msg.senderUserId = await getRealUserByAnonymousId(msg.senderAnonymousId)
+    }
+  }
+
+  res.json({
+    success: true,
+    chatKey,
+    total: messages.length,
+    messages: messages.map((m) => ({
+      id: m._id.toString(),
+      roomId: m.roomId?.toString() || null,
+      conversationId: m.conversationId,
+      senderAnonymousId: m.senderAnonymousId,
+      senderAlias: m.senderAlias,
+      senderAvatar: m.senderAvatar,
+      senderUser: m.senderUserId
+        ? {
+            _id: m.senderUserId._id,
+            username: m.senderUserId.username,
+            firstName: m.senderUserId.firstName,
+            lastName: m.senderUserId.lastName,
+            email: m.senderUserId.email,
+            avatarUrl: m.senderUserId.avatarUrl,
+            accountStatus: m.senderUserId.accountStatus,
+          }
+        : null,
+      text: m.text,
+      media: Array.isArray(m.media) ? m.media : [],
+      status: m.status,
+      isDeleted: Boolean(m.isDeleted),
+      deletedAt: m.deletedAt,
+      deletedByUser: m.deletedBy
+        ? {
+            _id: m.deletedBy._id,
+            username: m.deletedBy.username,
+            firstName: m.deletedBy.firstName,
+            lastName: m.deletedBy.lastName,
+          }
+        : null,
+      createdAt: m.createdAt,
+    })),
+  })
+})
+
+const listShadowCalls = asyncHandler(async (req, res) => {
+  const page = clamp(parseInt(req.query.page, 10) || 1, 1, 1000)
+  const limit = clamp(parseInt(req.query.limit, 10) || 20, 1, 100)
+  const skip = (page - 1) * limit
+
+  const [calls, totalItems] = await Promise.all([
+    AnonymousCallLog.find({})
+      .populate('callerUserId', '_id username firstName lastName email avatarUrl')
+      .populate('recipientUserId', '_id username firstName lastName email avatarUrl')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    AnonymousCallLog.countDocuments({}),
+  ])
+
+  // Resolve any unpopulated users dynamically
+  for (const c of calls) {
+    if (!c.callerUserId && c.callerAnonymousId) {
+      c.callerUserId = await getRealUserByAnonymousId(c.callerAnonymousId)
+    }
+    if (!c.recipientUserId && c.recipientAnonymousId) {
+      c.recipientUserId = await getRealUserByAnonymousId(c.recipientAnonymousId)
+    }
+  }
+
+  res.json({
+    success: true,
+    calls,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const listShadowMedia = asyncHandler(async (req, res) => {
+  const page = clamp(parseInt(req.query.page, 10) || 1, 1, 1000)
+  const limit = clamp(parseInt(req.query.limit, 10) || 30, 1, 100)
+  const skip = (page - 1) * limit
+
+  const filter = { 'media.0': { $exists: true } }
+
+  const [messages, totalItems] = await Promise.all([
+    AnonymousMessage.find(filter)
+      .populate('senderUserId', '_id username firstName lastName email avatarUrl')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    AnonymousMessage.countDocuments(filter),
+  ])
+
+  const mediaList = []
+  for (const m of messages) {
+    let uploaderUser = m.senderUserId
+    if (!uploaderUser && m.senderAnonymousId) {
+      uploaderUser = await getRealUserByAnonymousId(m.senderAnonymousId)
+    }
+
+    for (const item of m.media || []) {
+      mediaList.push({
+        id: `${m._id}_${item.url}`,
+        messageId: m._id.toString(),
+        conversationId: m.conversationId,
+        roomId: m.roomId?.toString() || null,
+        url: item.url,
+        posterUrl: item.posterUrl || '',
+        type: item.type || 'image',
+        durationSeconds: item.durationSeconds || 0,
+        senderAlias: m.senderAlias,
+        senderAnonymousId: m.senderAnonymousId,
+        senderUser: uploaderUser
+          ? {
+              _id: uploaderUser._id,
+              username: uploaderUser.username,
+              firstName: uploaderUser.firstName,
+              lastName: uploaderUser.lastName,
+              email: uploaderUser.email,
+              avatarUrl: uploaderUser.avatarUrl,
+            }
+          : null,
+        isDeleted: Boolean(m.isDeleted),
+        deletedAt: m.deletedAt,
+        createdAt: m.createdAt,
+      })
+    }
+  }
+
+  res.json({
+    success: true,
+    media: mediaList,
+    pagination: buildPagination(page, limit, totalItems),
+  })
+})
+
+const getUnmaskedShadowUser = asyncHandler(async (req, res) => {
+  const { anonymousId } = req.params
+  if (!anonymousId) {
+    throw new AppError('Anonim ID belirtilmedi.', 400)
+  }
+
+  const user = await getRealUserByAnonymousId(anonymousId)
+  if (!user) {
+    throw new AppError('Bu gölge ID ile eşleşen kullanıcı bulunamadı.', 404)
+  }
+
+  // Audit Log: Record that the admin unmasked this shadow user
+  await createAuditLog({
+    actorId: req.user._id,
+    action: 'ADMIN_UNMASK_SHADOW_USER',
+    targetKind: 'User',
+    targetId: user._id,
+    summary: `Yönetici "${req.user.username}", "${anonymousId}" gölge kimliğini unmask etti (Kullanıcı: @${user.username})`,
+    metadata: {
+      anonymousId,
+      unmaskedUserId: user._id,
+      unmaskedUsername: user.username,
+      unmaskedEmail: user.email,
+      ip: req.ip,
+    },
+  })
+
+  // Total stats for this user in shadow mode
+  const [sentMessagesCount, callsInitiatedCount, callsReceivedCount] = await Promise.all([
+    AnonymousMessage.countDocuments({ senderAnonymousId: anonymousId }),
+    AnonymousCallLog.countDocuments({ callerAnonymousId: anonymousId }),
+    AnonymousCallLog.countDocuments({ recipientAnonymousId: anonymousId }),
+  ])
+
+  res.json({
+    success: true,
+    anonymousId,
+    user: {
+      _id: user._id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone || null,
+      role: user.role,
+      accountStatus: user.accountStatus,
+      avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt,
+      anonymousProfile: user.anonymousProfile,
+      stats: {
+        sentMessagesCount,
+        callsInitiatedCount,
+        callsReceivedCount,
+      },
+    },
+  })
+})
+
+const getAdminNotificationFeed = asyncHandler(async (req, res) => {
+  const { limit = 15 } = req.validated?.query || {}
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+
+  // 1. Pending Action Counts
+  const [
+    openReportsCount,
+    inReviewReportsCount,
+    pendingVerificationsCount,
+    pendingPayoutsCount,
+    pendingCreatorsCount,
+    newUsersTodayCount,
+  ] = await Promise.all([
+    Report.countDocuments({ status: 'open' }),
+    Report.countDocuments({ status: 'in_review' }),
+    VerificationRequest.countDocuments({ status: 'pending' }),
+    PayoutRequest.countDocuments({ status: 'pending' }),
+    CreatorApplication.countDocuments({ status: 'pending' }),
+    User.countDocuments({ createdAt: { $gte: startOfToday } }),
+  ])
+
+  const totalPendingActionCount =
+    openReportsCount +
+    inReviewReportsCount +
+    pendingVerificationsCount +
+    pendingPayoutsCount +
+    pendingCreatorsCount
+
+  // 2. Fetch latest items across categories
+  const [latestUsers, latestVerifications, latestPayouts, latestCreators, latestReports] =
+    await Promise.all([
+      User.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .select('_id username name avatar createdAt role status')
+        .lean(),
+      VerificationRequest.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .populate('user', '_id username name avatar')
+        .select('_id user category status createdAt')
+        .lean(),
+      PayoutRequest.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .populate('user', '_id username name avatar')
+        .select('_id user amount currency status createdAt fullName')
+        .lean(),
+      CreatorApplication.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .populate('user', '_id username name avatar')
+        .select('_id user status createdAt')
+        .lean(),
+      Report.find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .populate('reporter', '_id username name avatar')
+        .select('_id reporter targetKind reason status createdAt')
+        .lean(),
+    ])
+
+  const feedItems = []
+
+  // Add Users
+  latestUsers.forEach((u) => {
+    feedItems.push({
+      id: `user-${u._id}`,
+      type: 'user',
+      title: 'Yeni Kullanıcı Kaydı',
+      subtitle: `@${u.username || 'isimsiz'} platforma katıldı`,
+      meta: u.name || '',
+      badge: 'Yeni Üye',
+      tone: 'info',
+      timestamp: u.createdAt,
+      link: '/users',
+    })
+  })
+
+  // Add Verifications
+  latestVerifications.forEach((v) => {
+    feedItems.push({
+      id: `verif-${v._id}`,
+      type: 'verification',
+      title: 'Doğrulama Talebi',
+      subtitle: `@${v.user?.username || 'Kullanıcı'} rozet başvurusu yaptı`,
+      meta: v.category || 'Profil',
+      badge: v.status === 'pending' ? 'Bekliyor' : v.status,
+      tone: v.status === 'pending' ? 'warning' : 'primary',
+      timestamp: v.createdAt,
+      link: '/verification-requests',
+    })
+  })
+
+  // Add Payouts
+  latestPayouts.forEach((p) => {
+    feedItems.push({
+      id: `payout-${p._id}`,
+      type: 'payout',
+      title: 'Para Çekme Talebi',
+      subtitle: `@${p.user?.username || p.fullName} ₺${Number(p.amount || 0).toLocaleString('tr-TR')} çekim talebi`,
+      meta: p.fullName,
+      badge: `₺${Number(p.amount || 0).toLocaleString('tr-TR')}`,
+      tone: p.status === 'pending' ? 'success' : 'neutral',
+      timestamp: p.createdAt,
+      link: '/creators',
+    })
+  })
+
+  // Add Creator Applications
+  latestCreators.forEach((c) => {
+    feedItems.push({
+      id: `creator-${c._id}`,
+      type: 'creator',
+      title: 'İçerik Üreticisi Başvurusu',
+      subtitle: `@${c.user?.username || 'Kullanıcı'} üretici programına başvurdu`,
+      meta: '',
+      badge: c.status === 'pending' ? 'Bekliyor' : c.status,
+      tone: 'primary',
+      timestamp: c.createdAt,
+      link: '/creators',
+    })
+  })
+
+  // Add Reports
+  latestReports.forEach((r) => {
+    feedItems.push({
+      id: `report-${r._id}`,
+      type: 'report',
+      title: 'İçerik / Kullanıcı Şikayeti',
+      subtitle: `${r.targetKind?.toUpperCase() || 'Öğe'} raporlandı: ${r.reason || 'Şüpheli aktivite'}`,
+      meta: r.reporter?.username ? `@${r.reporter.username} bildirdi` : '',
+      badge: r.status === 'open' ? 'Açık' : r.status,
+      tone: r.status === 'open' ? 'danger' : 'warning',
+      timestamp: r.createdAt,
+      link: '/reports',
+    })
+  })
+
+  // Sort feed descending by timestamp and slice to limit
+  feedItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  const limitedFeed = feedItems.slice(0, limit)
+
+  return res.json({
+    success: true,
+    data: {
+      summary: {
+        totalPendingActionCount,
+        openReports: openReportsCount + inReviewReportsCount,
+        pendingVerifications: pendingVerificationsCount,
+        pendingPayouts: pendingPayoutsCount,
+        pendingCreatorApplications: pendingCreatorsCount,
+        newUsersToday: newUsersTodayCount,
+      },
+      feed: limitedFeed,
+    },
+  })
+})
+
 module.exports = {
   getOverview,
+  getAdminNotificationFeed,
   listUsers,
   getUsersSummary,
   getContentSummary,
@@ -2383,4 +2904,9 @@ module.exports = {
   updateAdminPayoutRequestStatus,
   listAdminCreators,
   updateAdminCreatorWalletStatus,
+  listShadowChats,
+  getShadowChatMessages,
+  listShadowCalls,
+  listShadowMedia,
+  getUnmaskedShadowUser,
 }
