@@ -758,6 +758,17 @@
     overflow-y: auto;
     overflow-x: auto;
   }
+
+  .admin-users-table-container .admin-table thead tr {
+    height: 42px;
+  }
+
+  .admin-users-table-container .admin-table th {
+    height: 42px;
+    padding-top: 0;
+    padding-bottom: 0;
+    vertical-align: middle;
+  }
 }
 
 .admin-users-table-container::-webkit-scrollbar {

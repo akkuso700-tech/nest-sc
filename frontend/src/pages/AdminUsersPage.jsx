@@ -21,7 +21,7 @@ const initialFilters = {
   sortBy: 'createdAt',
   sortDirection: 'desc',
   page: 1,
-  limit: 12,
+  limit: 20,
   period: 'all',
   dateFrom: '',
   dateTo: '',
@@ -432,6 +432,15 @@ function AdminUsersPage() {
     setFilters((current) => ({ ...current, page: nextPage }))
   }
 
+  function handleLimitChange(nextLimit) {
+    const limitNum = Number(nextLimit) || 20
+    setFilters((current) => ({
+      ...current,
+      limit: limitNum,
+      page: 1,
+    }))
+  }
+
   const allCurrentSelected =
     state.items.length > 0 &&
     state.items.every((item) => selectedUserIds.includes(item._id))
@@ -820,7 +829,7 @@ function AdminUsersPage() {
         {/* Ana İçerik Kartı: Tablo & Kartlar */}
         <div className="admin-users-card overflow-hidden border border-slate-200 bg-white shadow-sm rounded-none md:rounded-md border-x-0 md:border-x">
           {/* Üst Bar: Seçim Sayısı, Tarih Filtresi ve Toplam Kayıt */}
-          <div className="relative z-20 shrink-0 flex items-center justify-between gap-1.5 md:gap-3 border-b border-slate-100 px-2.5 py-2 md:px-5 md:py-3.5 bg-slate-50/50">
+          <div className="relative z-20 shrink-0 flex items-center justify-between gap-1.5 md:gap-3 border-b border-slate-100 px-2.5 md:px-5 h-[42px] min-h-[42px] max-h-[42px] bg-slate-50/50">
             <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
               <label className="inline-flex items-center gap-1.5 md:gap-2 text-xs md:text-sm font-medium text-slate-700 cursor-pointer select-none">
                 <input
@@ -1302,30 +1311,56 @@ function AdminUsersPage() {
           </div>
 
           {/* Sayfalama (Pagination) */}
-          {state.pagination && state.pagination.totalPages > 1 ? (
-            <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3.5 bg-slate-50/50">
-              <p className="text-xs font-medium text-slate-500">
+          {state.pagination ? (
+            <div className="shrink-0 flex items-center justify-between gap-3 border-t border-slate-200 px-3.5 md:px-5 h-[42px] min-h-[42px] max-h-[42px] bg-slate-50/50">
+              <p className="text-xs font-medium text-slate-500 whitespace-nowrap">
                 Sayfa <span className="font-semibold text-slate-800">{state.pagination.page}</span> /{' '}
-                <span className="font-semibold text-slate-800">{state.pagination.totalPages}</span> · Toplam{' '}
+                <span className="font-semibold text-slate-800">{state.pagination.totalPages || 1}</span> · Toplam{' '}
                 <span className="font-semibold text-slate-800">{state.pagination.totalItems}</span> kullanıcı
               </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => changePage(state.pagination.page - 1)}
-                  disabled={!state.pagination.hasPrevPage}
-                  className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  ← Önceki
-                </button>
-                <button
-                  type="button"
-                  onClick={() => changePage(state.pagination.page + 1)}
-                  disabled={!state.pagination.hasNextPage}
-                  className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Sonraki →
-                </button>
+              <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+                {/* Sayfa Başına Gösterilecek Kullanıcı Sayısı (20, 40, 50, 100) */}
+                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                  <span className="hidden sm:inline text-slate-400">Göster:</span>
+                  <div className="relative">
+                    <select
+                      value={filters.limit || 20}
+                      onChange={(e) => handleLimitChange(e.target.value)}
+                      className="h-7.5 cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-6 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50/80 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      aria-label="Sayfa başına kayıt sayısı"
+                    >
+                      <option value={20}>20 / sayfa</option>
+                      <option value={40}>40 / sayfa</option>
+                      <option value={50}>50 / sayfa</option>
+                      <option value={100}>100 / sayfa</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-slate-400">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Önceki ve Sonraki Butonları */}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => changePage(state.pagination.page - 1)}
+                    disabled={!state.pagination.hasPrevPage}
+                    className="inline-flex h-7.5 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ← Önceki
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => changePage(state.pagination.page + 1)}
+                    disabled={!state.pagination.hasNextPage}
+                    className="inline-flex h-7.5 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Sonraki →
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
