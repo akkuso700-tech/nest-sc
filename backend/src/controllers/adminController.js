@@ -1419,8 +1419,20 @@ const revokeUserVerification = asyncHandler(async (req, res) => {
 })
 
 const listContent = asyncHandler(async (req, res) => {
-  const { q, privacy, contentType, mediaKind, visibility, sortBy, sortDirection, page, limit } =
-    req.validated.query
+  const {
+    q,
+    privacy,
+    contentType,
+    mediaKind,
+    visibility,
+    sortBy,
+    sortDirection,
+    page,
+    limit,
+    period,
+    dateFrom,
+    dateTo,
+  } = req.validated.query
   const filter = {}
 
   if (privacy !== 'all') {
@@ -1461,6 +1473,47 @@ const listContent = asyncHandler(async (req, res) => {
       { text: searchRegex },
       { author: { $in: matchingUsers.map((user) => user._id) } },
     ]
+  }
+
+  if (period && period !== 'all') {
+    const now = new Date()
+    let start = null
+    let end = new Date(now)
+    end.setHours(23, 59, 59, 999)
+
+    if (period === 'today') {
+      start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === 'yesterday') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 1)
+      start.setHours(0, 0, 0, 0)
+      end = new Date(start)
+      end.setHours(23, 59, 59, 999)
+    } else if (period === '7d' || period === '7') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 6)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === '28d' || period === '28') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 27)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === '90d' || period === '90') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 89)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === 'custom') {
+      if (dateFrom && dateTo) {
+        start = new Date(dateFrom)
+        start.setHours(0, 0, 0, 0)
+        end = new Date(dateTo)
+        end.setHours(23, 59, 59, 999)
+      }
+    }
+
+    if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      filter.createdAt = { $gte: start, $lte: end }
+    }
   }
 
   const sortFieldMap = {

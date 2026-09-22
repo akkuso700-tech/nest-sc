@@ -721,14 +721,14 @@
   }
 
   .admin-topbar.is-users-page {
-    flex-shrink: 0;
+    display: none !important;
   }
 
   .admin-main.is-users-layout {
     flex: 1;
     min-height: 0;
-    height: calc(100vh - 56px);
-    max-height: calc(100vh - 56px);
+    height: 100vh;
+    max-height: 100vh;
     padding: 16px;
     box-sizing: border-box;
     display: flex;
@@ -744,7 +744,8 @@
     overflow: hidden;
   }
 
-  .admin-users-card {
+  .admin-users-card,
+  .admin-content-card {
     flex: 1;
     min-height: 0;
     display: flex;
@@ -752,18 +753,21 @@
     overflow: hidden;
   }
 
-  .admin-users-table-container {
+  .admin-users-table-container,
+  .admin-content-table-container {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     overflow-x: auto;
   }
 
-  .admin-users-table-container .admin-table thead tr {
+  .admin-users-table-container .admin-table thead tr,
+  .admin-content-table-container .admin-table thead tr {
     height: 42px;
   }
 
-  .admin-users-table-container .admin-table th {
+  .admin-users-table-container .admin-table th,
+  .admin-content-table-container .admin-table th {
     height: 42px;
     padding-top: 0;
     padding-bottom: 0;
@@ -771,18 +775,22 @@
   }
 }
 
-.admin-users-table-container::-webkit-scrollbar {
+.admin-users-table-container::-webkit-scrollbar,
+.admin-content-table-container::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-.admin-users-table-container::-webkit-scrollbar-track {
+.admin-users-table-container::-webkit-scrollbar-track,
+.admin-content-table-container::-webkit-scrollbar-track {
   background: #f8fafc;
 }
-.admin-users-table-container::-webkit-scrollbar-thumb {
+.admin-users-table-container::-webkit-scrollbar-thumb,
+.admin-content-table-container::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
-.admin-users-table-container::-webkit-scrollbar-thumb:hover {
+.admin-users-table-container::-webkit-scrollbar-thumb:hover,
+.admin-content-table-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 

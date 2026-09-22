@@ -105,6 +105,7 @@ function getPageMeta(pathname, lang) {
       title: 'İçerikler',
       eyebrow: 'İçerik Operasyonları',
       description: 'Gönderi, loop ve hikâyeleri performans ve moderasyon durumuyla yönetin.',
+      hideHeading: true,
     }
   }
   if (pathname.includes(`${base}/comments`)) {
@@ -349,8 +350,9 @@ function AdminLayout() {
   const pageMeta = useMemo(() => getPageMeta(location.pathname, lang), [location.pathname, lang])
   const isUsersRoute = location.pathname === `${base}/users`
   const isContentRoute = location.pathname === `${base}/content`
+  const isDataTableRoute = isUsersRoute || isContentRoute
   const isShadowRoute = location.pathname.includes('/shadow') || location.pathname.includes('/messages')
-  const supportsRange = isContentRoute
+  const supportsRange = false
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true')
@@ -478,7 +480,7 @@ function AdminLayout() {
   return (
     <>
       <Seo title={`Nest Yönetim · ${pageMeta.title}`} description={pageMeta.description} />
-      <div className={cx('admin-shell', isUsersRoute ? 'is-users-shell' : '')}>
+      <div className={cx('admin-shell', isDataTableRoute ? 'is-users-shell' : '')}>
         <Sidebar
           base={base}
           collapsed={collapsed}
@@ -503,8 +505,8 @@ function AdminLayout() {
           </div>
         ) : null}
 
-        <div className={cx('admin-workspace', isUsersRoute ? 'is-users-workspace' : '')}>
-          <header className={cx('admin-topbar', isUsersRoute ? 'is-users-page' : '')}>
+        <div className={cx('admin-workspace', isDataTableRoute ? 'is-users-workspace' : '')}>
+          <header className={cx('admin-topbar', isDataTableRoute ? 'is-users-page' : '')}>
             <button type="button" className="admin-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Yönetim menüsünü aç">☰</button>
             <div className="admin-topbar-context">
               <strong className="admin-topbar-title">{pageMeta.title}</strong>
@@ -746,7 +748,7 @@ function AdminLayout() {
             </div>
           </header>
 
-          <main className={cx('admin-main', isShadowRoute ? 'is-shadow-layout' : '', isUsersRoute ? 'is-users-layout' : '')}>
+          <main className={cx('admin-main', isShadowRoute ? 'is-shadow-layout' : '', isDataTableRoute ? 'is-users-layout' : '')}>
             {!pageMeta.hideHeading ? (
               <section className="admin-page-heading">
                 <div>

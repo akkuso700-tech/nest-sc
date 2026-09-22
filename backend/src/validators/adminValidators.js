@@ -133,7 +133,10 @@ const adminListContentSchema = z.object({
       .default('createdAt'),
     sortDirection: z.enum(['asc', 'desc']).optional().default('desc'),
     page: z.coerce.number().int().positive().optional().default(1),
-    limit: z.coerce.number().int().positive().max(100).optional().default(12),
+    limit: z.coerce.number().int().positive().max(100).optional().default(20),
+    period: z.string().trim().max(30).optional().default('all'),
+    dateFrom: z.string().trim().max(30).optional().default(''),
+    dateTo: z.string().trim().max(30).optional().default(''),
   }),
 })
 
