@@ -15,6 +15,7 @@ const { performanceRouter } = require('./performance.routes')
 const { anonymousRouter } = require('./anonymous.routes')
 const { monetizationRouter } = require('./monetization.routes')
 const { locationsRouter } = require('./locations.routes')
+const { aiRouter } = require('./ai.routes')
 const { getHealth } = require('../controllers/healthController')
 
 const apiRouter = express.Router()
@@ -36,5 +37,6 @@ apiRouter.use('/performance', performanceRouter)
 apiRouter.use('/anonymous', anonymousRouter)
 apiRouter.use('/monetization', monetizationRouter)
 apiRouter.use('/locations', locationsRouter)
+apiRouter.use('/ai', aiRouter)
 
 module.exports = { apiRouter }

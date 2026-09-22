@@ -120,6 +120,9 @@ const envSchema = z.object({
   EMAIL_PROVIDER: z.enum(['disabled', 'resend']).default('disabled'),
   EMAIL_FROM: optionalTrimmedString(6),
   RESEND_API_KEY: optionalTrimmedString(10),
+  NVIDIA_API_KEY: optionalTrimmedString(8),
+  NVIDIA_MODEL: z.string().default('meta/llama-3.3-70b-instruct'),
+  NVIDIA_BASE_URL: z.string().default('https://integrate.api.nvidia.com/v1'),
   ADMIN_SIGNUP_NOTIFICATION_EMAILS: z.string().optional(),
   EMAIL_VERIFICATION_PEPPER: optionalTrimmedString(8),
   EMAIL_VERIFICATION_TTL: z.string().default('10m'),
@@ -346,6 +349,11 @@ const env = {
       rawEnv.JWT_PASSWORD_RESET_EXPIRES_IN,
       'JWT_PASSWORD_RESET_EXPIRES_IN',
     ),
+  },
+  nvidia: {
+    apiKey: rawEnv.NVIDIA_API_KEY || process.env.NVIDIA_API_KEY || '',
+    model: rawEnv.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct',
+    baseUrl: rawEnv.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
   },
 }
 

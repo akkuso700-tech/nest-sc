@@ -50,9 +50,11 @@ import {
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  SparklesIcon,
   SunIcon,
   UserIcon,
 } from './SocialLayoutIcons.jsx'
+import AiChatWidget from '../components/ai/AiChatWidget.jsx'
 
 const supportedLangs = ['en', 'tr', 'de', 'es']
 const SEARCH_HISTORY_KEY = 'Nest-Social-recent-searches'
@@ -804,6 +806,8 @@ function MobileBottomBar({
   onCreateClick = null,
   hideCreateButton = false,
   forceDark = false,
+  onAiClick = null,
+  isAiActive = false,
 }) {
   const { lang } = useParams()
   const navigate = useNavigate()
@@ -840,7 +844,7 @@ function MobileBottomBar({
         icon: <BellIcon />,
         badgeCount: notificationUnreadCount,
       },
-      { key: 'profile', to: `/${lang}/profile`, label: t('nav.profile'), icon: <UserIcon /> },
+      { key: 'ai', label: 'AI Asistan', icon: <SparklesIcon /> },
     ],
     [lang, messageUnreadCount, notificationUnreadCount, t],
   )
@@ -963,6 +967,29 @@ function MobileBottomBar({
     >
       <div className="grid grid-cols-5 gap-1">
         {items.map((item) => {
+          if (item.key === 'ai') {
+            const active = isAiActive
+            return (
+              <button
+                key="mobile-ai-button"
+                type="button"
+                onClick={onAiClick}
+                className={`group flex h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl py-0.5 text-[10px] leading-none transition-all duration-200 cursor-pointer ${
+                  active
+                    ? 'bg-nav-active text-primary font-semibold shadow-xs'
+                    : 'text-text hover:bg-nav-hover'
+                }`}
+              >
+                <span className={`relative grid size-6 place-items-center transition-transform duration-200 ${active ? 'scale-105 text-primary' : 'group-active:scale-95 text-text'}`}>
+                  <SparklesIcon filled={active} className="size-5 text-current" />
+                </span>
+                <span className={`leading-none tracking-tight ${active ? 'text-primary font-semibold' : 'text-text'}`}>
+                  {item.label}
+                </span>
+              </button>
+            )
+          }
+
           const active = isItemActive(item.key)
           return (
             <NavLink
@@ -981,7 +1008,6 @@ function MobileBottomBar({
                 {item.key === 'messages' && <MessageIcon filled={active} className="size-5" />}
                 {item.key === 'loop' && <LoopIcon filled={active} className="size-5" />}
                 {item.key === 'notifications' && <BellIcon filled={active} className="size-5" />}
-                {item.key === 'profile' && <UserIcon filled={active} className="size-5" />}
                 <UnreadBadge count={item.badgeCount} className="absolute -right-2 -top-1 ring-1.5 ring-card text-[9px] min-w-[16px] h-[16px] px-0.5" />
               </span>
               <span className={`leading-none tracking-tight ${active ? 'text-primary font-semibold' : ''}`}>
@@ -1205,6 +1231,7 @@ function SocialLayout({
   const [showMobileLanguageMenu, setShowMobileLanguageMenu] = useState(false)
   const [incomingNotification, setIncomingNotification] = useState(null)
   const incomingNotificationTimerRef = useRef(null)
+  const [aiChatOpen, setAiChatOpen] = useState(false)
   const isGroupsMobileHeader = mobileHeaderMode === 'groups'
 
   useEffect(() => {
@@ -2399,6 +2426,8 @@ function SocialLayout({
           onCreateClick={onMobileCreate}
           hideCreateButton={hideMobileCreateButton}
           forceDark={activeKey === 'loop' || forceMobileBottomBarDark}
+          onAiClick={() => setAiChatOpen((prev) => !prev)}
+          isAiActive={aiChatOpen}
         />
       ) : null}
 
@@ -2456,6 +2485,12 @@ function SocialLayout({
           </div>
         </div>
       ) : null}
+
+      <AiChatWidget
+        isOpen={aiChatOpen}
+        onToggle={() => setAiChatOpen((prev) => !prev)}
+        onClose={() => setAiChatOpen(false)}
+      />
     </div>
   )
 }

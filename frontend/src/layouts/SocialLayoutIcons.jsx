@@ -366,3 +366,27 @@ export function CheckIcon({ className = 'size-4' }) {
   )
 }
 
+export function SparklesIcon({ filled = false, className = 'size-6' }) {
+  if (filled) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1"
+        className={`${className} transition-transform duration-200`}
+        aria-hidden="true"
+      >
+        <path d="M12 2L14.4 7.6L20 10L14.4 12.4L12 18L9.6 12.4L4 10L9.6 7.6L12 2Z" />
+        <path d="M19 2L19.8 4.2L22 5L19.8 5.8L19 8L18.2 5.8L16 5L18.2 4.2L19 2Z" />
+      </svg>
+    )
+  }
+  return (
+    <Icon className={className} strokeWidth={2}>
+      <path d="M12 2L14.4 7.6L20 10L14.4 12.4L12 18L9.6 12.4L4 10L9.6 7.6L12 2Z" />
+      <path d="M19 2L19.8 4.2L22 5L19.8 5.8L19 8L18.2 5.8L16 5L18.2 4.2L19 2Z" />
+    </Icon>
+  )
+}
+
