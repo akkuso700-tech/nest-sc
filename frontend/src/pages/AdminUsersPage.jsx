@@ -795,10 +795,10 @@ function AdminUsersPage() {
         </div>
       )}
 
-      <div className="space-y-0 md:space-y-4">
+      <div className="flex-1 min-h-0 flex flex-col space-y-0 md:space-y-3">
         {/* Toplu İşlem / Bildirim Mesajı */}
         {bulkMessage ? (
-          <div className="flex items-center justify-between rounded-none md:rounded-xl border-y md:border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-800">
+          <div className="shrink-0 flex items-center justify-between rounded-none md:rounded-xl border-y md:border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-800">
             <span>{bulkMessage}</span>
             <button
               type="button"
@@ -812,15 +812,15 @@ function AdminUsersPage() {
 
         {/* Hata Alanı */}
         {state.error ? (
-          <div className="rounded-none md:rounded-2xl border-y md:border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="shrink-0 rounded-none md:rounded-2xl border-y md:border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             {state.error}
           </div>
         ) : null}
 
         {/* Ana İçerik Kartı: Tablo & Kartlar */}
-        <div className="overflow-hidden border border-slate-200 bg-white shadow-sm rounded-none md:rounded-md border-x-0 md:border-x">
+        <div className="admin-users-card overflow-hidden border border-slate-200 bg-white shadow-sm rounded-none md:rounded-md border-x-0 md:border-x">
           {/* Üst Bar: Seçim Sayısı, Tarih Filtresi ve Toplam Kayıt */}
-          <div className="flex items-center justify-between gap-1.5 md:gap-3 border-b border-slate-100 px-2.5 py-2 md:px-5 md:py-3.5 bg-slate-50/50">
+          <div className="relative z-20 shrink-0 flex items-center justify-between gap-1.5 md:gap-3 border-b border-slate-100 px-2.5 py-2 md:px-5 md:py-3.5 bg-slate-50/50">
             <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
               <label className="inline-flex items-center gap-1.5 md:gap-2 text-xs md:text-sm font-medium text-slate-700 cursor-pointer select-none">
                 <input
@@ -942,7 +942,7 @@ function AdminUsersPage() {
           </div>
 
           {/* Masaüstü Tablo Görünümü */}
-          <div className="hidden md:block admin-table-container">
+          <div className="hidden md:block admin-table-container admin-users-table-container">
             <table className="admin-table min-w-[1380px]">
               <thead>
                 <tr>
@@ -1303,7 +1303,7 @@ function AdminUsersPage() {
 
           {/* Sayfalama (Pagination) */}
           {state.pagination && state.pagination.totalPages > 1 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 bg-slate-50/50">
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3.5 bg-slate-50/50">
               <p className="text-xs font-medium text-slate-500">
                 Sayfa <span className="font-semibold text-slate-800">{state.pagination.page}</span> /{' '}
                 <span className="font-semibold text-slate-800">{state.pagination.totalPages}</span> · Toplam{' '}

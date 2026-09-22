@@ -478,7 +478,7 @@ function AdminLayout() {
   return (
     <>
       <Seo title={`Nest Yönetim · ${pageMeta.title}`} description={pageMeta.description} />
-      <div className="admin-shell">
+      <div className={cx('admin-shell', isUsersRoute ? 'is-users-shell' : '')}>
         <Sidebar
           base={base}
           collapsed={collapsed}
@@ -503,7 +503,7 @@ function AdminLayout() {
           </div>
         ) : null}
 
-        <div className="admin-workspace">
+        <div className={cx('admin-workspace', isUsersRoute ? 'is-users-workspace' : '')}>
           <header className={cx('admin-topbar', isUsersRoute ? 'is-users-page' : '')}>
             <button type="button" className="admin-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Yönetim menüsünü aç">☰</button>
             <div className="admin-topbar-context">

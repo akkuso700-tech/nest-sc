@@ -704,6 +704,77 @@
   max-width: none;
   width: 100%;
 }
+
+@media (min-width: 769px) {
+  .admin-shell.is-users-shell {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  .admin-workspace.is-users-workspace {
+    height: 100vh;
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .admin-topbar.is-users-page {
+    flex-shrink: 0;
+  }
+
+  .admin-main.is-users-layout {
+    flex: 1;
+    min-height: 0;
+    height: calc(100vh - 56px);
+    max-height: calc(100vh - 56px);
+    padding: 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .admin-main.is-users-layout > .admin-page-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .admin-users-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .admin-users-table-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+}
+
+.admin-users-table-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.admin-users-table-container::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+.admin-users-table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.admin-users-table-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 @media (max-width: 680px) {
   .admin-main.is-shadow-layout {
     padding: 0;
