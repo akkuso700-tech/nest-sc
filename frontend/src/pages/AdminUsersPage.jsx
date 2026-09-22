@@ -447,28 +447,6 @@ function AdminUsersPage() {
 
   return (
     <>
-      <BulkActionBar
-        count={selectedUserIds.length}
-        label="kullanıcı"
-        onClear={() => setSelectedUserIds([])}
-        actions={[
-          {
-            label: 'Yeniden Aktif Et',
-            tone: 'success',
-            onClick: () => handleBulkStatus('active'),
-          },
-          {
-            label: 'Askıya Al',
-            tone: 'danger',
-            onClick: () => handleBulkStatus('suspended'),
-          },
-          {
-            label: 'Hesabı Sil',
-            tone: 'danger',
-            onClick: handleBulkDelete,
-          },
-        ]}
-      />
 
       {portalTarget &&
         createPortal(
@@ -827,7 +805,31 @@ function AdminUsersPage() {
         ) : null}
 
         {/* Ana İçerik Kartı: Tablo & Kartlar */}
-        <div className="admin-users-card overflow-hidden border border-slate-200 bg-white shadow-sm rounded-none md:rounded-md border-x-0 md:border-x">
+        <div className="admin-users-card relative overflow-hidden border border-slate-200 bg-white shadow-sm rounded-none md:rounded-md border-x-0 md:border-x">
+          <BulkActionBar
+            count={selectedUserIds.length}
+            label="kullanıcı"
+            onClear={() => setSelectedUserIds([])}
+            className="absolute top-1.5 left-2 right-2 md:left-1/2 md:right-auto md:-translate-x-1/2 md:min-w-[560px] max-w-2xl"
+            actions={[
+              {
+                label: 'Yeniden Aktif Et',
+                tone: 'success',
+                onClick: () => handleBulkStatus('active'),
+              },
+              {
+                label: 'Askıya Al',
+                tone: 'danger',
+                onClick: () => handleBulkStatus('suspended'),
+              },
+              {
+                label: 'Hesabı Sil',
+                tone: 'danger',
+                onClick: handleBulkDelete,
+              },
+            ]}
+          />
+
           {/* Üst Bar: Seçim Sayısı, Tarih Filtresi ve Toplam Kayıt */}
           <div className="relative z-20 shrink-0 flex items-center justify-between gap-1.5 md:gap-3 border-b border-slate-100 px-2.5 md:px-5 h-[42px] min-h-[42px] max-h-[42px] bg-slate-50/50">
             <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
