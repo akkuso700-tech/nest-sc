@@ -281,6 +281,53 @@ export function AdminUserDetailOverviewTab({
                       : 'Tespit Edilemedi'
                   }
                 />
+                <DetailRow
+                  label="Kayıt Sayfası (Dönüşüm)"
+                  value={
+                    user.acquisition?.sourcePage === 'shadow_mode'
+                      ? '🟣 Gölge Modu (Lounge)'
+                      : user.acquisition?.sourcePage === 'about'
+                      ? '🔵 Hakkımızda Sayfası'
+                      : user.acquisition?.sourcePage === 'creators'
+                      ? '🟠 İçerik Üretici Başvurusu'
+                      : user.acquisition?.sourcePage === 'login'
+                      ? '🟢 Giriş Ekranı'
+                      : user.acquisition?.sourcePage === 'normal'
+                      ? '⚪ Standart Kayıt'
+                      : 'Belirtilmemiş'
+                  }
+                />
+                <DetailRow
+                  label="Trafik Kaynağı (Platform)"
+                  value={
+                    user.acquisition?.platform
+                      ? user.acquisition.platform.toUpperCase()
+                      : 'DOĞRUDAN (DIRECT)'
+                  }
+                />
+                {user.acquisition?.referrer ? (
+                  <DetailRow
+                    label="Yönlendiren Link (Referrer)"
+                    value={user.acquisition.referrer}
+                    copyValue={user.acquisition.referrer}
+                    fullWidth
+                  />
+                ) : null}
+                {user.acquisition?.utmCampaign || user.acquisition?.utmSource ? (
+                  <DetailRow
+                    label="Pazarlama / UTM Kampanyası"
+                    value={`Kaynak: ${user.acquisition?.utmSource || '-'} | Kampanya: ${user.acquisition?.utmCampaign || '-'}${user.acquisition?.utmMedium ? ` | Ortam: ${user.acquisition.utmMedium}` : ''}`}
+                    fullWidth
+                  />
+                ) : null}
+                {user.acquisition?.landingPage ? (
+                  <DetailRow
+                    label="İlk Giriş / Landing Sayfası"
+                    value={user.acquisition.landingPage}
+                    copyValue={user.acquisition.landingPage}
+                    fullWidth
+                  />
+                ) : null}
                 <DetailRow label="KVKK Onay Zamanı" value={consent.acceptedAt} isDate />
                 <DetailRow
                   label="Tarayıcı Dili"

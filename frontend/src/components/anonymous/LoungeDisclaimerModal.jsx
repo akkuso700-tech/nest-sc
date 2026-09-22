@@ -128,7 +128,7 @@ export function GuestTimeoutModal({ show, lang, navigate, t }) {
             type="button"
             onClick={() =>
               navigate(
-                `/${lang}/signup?returnTo=${encodeURIComponent(`/${lang}/hidden-profile`)}`,
+                `/${lang}/signup?source=shadow_mode&returnTo=${encodeURIComponent(`/${lang}/hidden-profile`)}`,
               )
             }
             className="w-full rounded-md bg-primary px-5 py-3 text-sm font-bold !text-white shadow-lg hover:bg-primary-hover active:scale-[0.98] transition-all cursor-pointer"

@@ -259,7 +259,7 @@ export function MonetizationPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     {!isAuthenticated ? (
                       <Link
-                        to={`/${lang}/signup`}
+                        to={`/${lang}/signup?source=creators`}
                         className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold !text-white shadow-xs hover:bg-primary-hover"
                       >
                         Hemen Kayıt Ol & Başvur

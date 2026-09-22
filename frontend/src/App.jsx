@@ -1,10 +1,11 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AdminRedirect, LanguageLayout, RootLanguageRedirect } from './routes/LanguageRouting.jsx'
 import AdminRoute from './routes/AdminRoute.jsx'
 import { isDemoEnvironment } from './lib/appEnvironment.js'
 import { CallProvider } from './store/CallContext.jsx'
+import { initAcquisitionTracking } from './utils/acquisitionTracker.js'
 
 const HomePage = lazy(() => import('./pages/HomePage.jsx'))
 const LoopPage = lazy(() => import('./pages/LoopPage.jsx'))
@@ -147,6 +148,11 @@ function RouteFallback({ overlay = false }) {
 
 function App() {
   const location = useLocation()
+
+  useEffect(() => {
+    initAcquisitionTracking()
+  }, [])
+
   const backgroundLocation = location.state?.backgroundLocation
   const normalizedPathname =
     location.pathname.length > 1 && location.pathname.endsWith('/')

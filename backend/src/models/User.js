@@ -164,6 +164,24 @@ const userSchema = new mongoose.Schema(
       browserLanguage: { type: String, trim: true, default: '' },
       userAgent: { type: String, trim: true, default: '' },
     },
+    acquisition: {
+      sourcePage: {
+        type: String,
+        enum: ['normal', 'shadow_mode', 'about', 'creators', 'login', 'other'],
+        default: 'normal',
+        index: true,
+      },
+      platform: {
+        type: String,
+        default: 'direct',
+        index: true,
+      },
+      referrer: { type: String, trim: true, default: '' },
+      utmSource: { type: String, trim: true, default: '' },
+      utmMedium: { type: String, trim: true, default: '' },
+      utmCampaign: { type: String, trim: true, default: '' },
+      landingPage: { type: String, trim: true, default: '' },
+    },
     friendIds: [
       {
         type: mongoose.Schema.Types.ObjectId,

@@ -618,8 +618,21 @@ const getOverview = asyncHandler(async (req, res) => {
 })
 
 const listUsers = asyncHandler(async (req, res) => {
-  const { q, role, accountStatus, country, sortBy, sortDirection, page, limit } =
-    req.validated.query
+  const {
+    q,
+    role,
+    accountStatus,
+    sourcePage,
+    platform,
+    country,
+    sortBy,
+    sortDirection,
+    page,
+    limit,
+    period,
+    dateFrom,
+    dateTo,
+  } = req.validated.query
   const filter = {}
 
   if (role !== 'all') {
@@ -628,6 +641,14 @@ const listUsers = asyncHandler(async (req, res) => {
 
   if (accountStatus !== 'all') {
     filter.accountStatus = accountStatus
+  }
+
+  if (sourcePage && sourcePage !== 'all') {
+    filter['acquisition.sourcePage'] = sourcePage
+  }
+
+  if (platform && platform !== 'all') {
+    filter['acquisition.platform'] = platform
   }
 
   if (country) {
@@ -641,7 +662,52 @@ const listUsers = asyncHandler(async (req, res) => {
       { lastName: searchRegex },
       { username: searchRegex },
       { email: searchRegex },
+      { 'location.country': searchRegex },
+      { 'location.city': searchRegex },
+      { 'signupConsent.country': searchRegex },
+      { 'signupConsent.city': searchRegex },
     ]
+  }
+
+  if (period && period !== 'all') {
+    const now = new Date()
+    let start = null
+    let end = new Date(now)
+    end.setHours(23, 59, 59, 999)
+
+    if (period === 'today') {
+      start = new Date(now)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === 'yesterday') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 1)
+      start.setHours(0, 0, 0, 0)
+      end = new Date(start)
+      end.setHours(23, 59, 59, 999)
+    } else if (period === '7d' || period === '7') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 6)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === '28d' || period === '28') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 27)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === '90d' || period === '90') {
+      start = new Date(now)
+      start.setDate(start.getDate() - 89)
+      start.setHours(0, 0, 0, 0)
+    } else if (period === 'custom') {
+      if (dateFrom && dateTo) {
+        start = new Date(dateFrom)
+        start.setHours(0, 0, 0, 0)
+        end = new Date(dateTo)
+        end.setHours(23, 59, 59, 999)
+      }
+    }
+
+    if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      filter.createdAt = { $gte: start, $lte: end }
+    }
   }
 
   const sortField = sortBy === 'lastLoginAt' ? 'lastLoginAt' : 'createdAt'
@@ -650,7 +716,7 @@ const listUsers = asyncHandler(async (req, res) => {
   const totalItems = await User.countDocuments(filter)
   const users = await User.find(filter)
     .select(
-      'firstName lastName username email birthDate location role accountStatus moderation avatarUrl lastLoginAt createdAt friendIds activity signupConsent.ipAddress signupConsent.city signupConsent.country signupConsent.language signupConsent.browserLanguage',
+      'firstName lastName username email birthDate location role accountStatus moderation avatarUrl lastLoginAt createdAt friendIds activity signupConsent.ipAddress signupConsent.city signupConsent.country signupConsent.language signupConsent.browserLanguage acquisition',
     )
     .sort({ [sortField]: sortValue, _id: -1 })
     .skip((page - 1) * limit)

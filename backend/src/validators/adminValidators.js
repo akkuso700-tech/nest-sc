@@ -28,11 +28,16 @@ const adminListUsersSchema = z.object({
     q: z.string().trim().max(120).optional().default(''),
     role: z.enum(['all', 'user', 'moderator', 'admin']).optional().default('all'),
     accountStatus: z.enum(['all', 'active', 'suspended']).optional().default('all'),
+    sourcePage: z.string().trim().max(60).optional().default('all'),
+    platform: z.string().trim().max(60).optional().default('all'),
     country: z.string().trim().max(80).optional().default(''),
     sortBy: z.enum(['createdAt', 'lastLoginAt']).optional().default('createdAt'),
     sortDirection: z.enum(['asc', 'desc']).optional().default('desc'),
     page: z.coerce.number().int().positive().optional().default(1),
     limit: z.coerce.number().int().positive().max(100).optional().default(12),
+    period: z.string().trim().max(30).optional().default('all'),
+    dateFrom: z.string().trim().max(30).optional().default(''),
+    dateTo: z.string().trim().max(30).optional().default(''),
   }),
 })
 

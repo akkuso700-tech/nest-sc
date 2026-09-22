@@ -65,7 +65,7 @@ export function GuestLoungeGateModal({ isOpen, onClose, actionLabel }) {
               {t('lounge.gateModal.loginBtn', { defaultValue: 'Giriş Yap' })}
             </button>
             <button
-              onClick={() => navigate(`/${lang}/signup?returnTo=${returnPath}`)}
+              onClick={() => navigate(`/${lang}/signup?source=shadow_mode&returnTo=${returnPath}`)}
               className="w-full rounded-md border border-border bg-secondary px-5 py-3 text-sm font-semibold text-text hover:bg-secondary-hover active:scale-[0.98] transition-all"
             >
               {t('lounge.gateModal.signupBtn', { defaultValue: 'Ücretsiz Kaydol' })}

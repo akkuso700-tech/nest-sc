@@ -12,6 +12,7 @@ import {
   verifySignUpCode,
 } from '../services/authService.js'
 import { useAuth } from '../store/AuthContext.jsx'
+import { getAcquisitionData } from '../utils/acquisitionTracker.js'
 
 const NAME_MAX_LENGTH = 15
 const SIGNUP_CONSENT_VERSION = '2026-04-16'
@@ -391,6 +392,7 @@ function SignUpPage() {
     setError('')
 
     try {
+      const acquisition = getAcquisitionData()
       await register({
         firstName,
         lastName,
@@ -403,6 +405,7 @@ function SignUpPage() {
         },
         locale: i18n.language || lang || 'tr',
         signupConsentVersion: SIGNUP_CONSENT_VERSION,
+        acquisition,
       })
 
       navigate(`/${lang}/`, { replace: true })

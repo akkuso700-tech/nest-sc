@@ -408,7 +408,7 @@ export default function AboutPage() {
             {isTr ? 'Telefon numarası gerekmeden saniyeler içinde hesabınızı açın.' : 'Create an account in seconds without a phone number.'}
           </p>
           <Link
-            to={`/${lang}/signup`}
+            to={`/${lang}/signup?source=about`}
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold !text-white transition hover:bg-primary-hover"
           >
             <span>{isTr ? 'Hemen Kaydol' : 'Sign Up Free'}</span>
@@ -465,7 +465,7 @@ export default function AboutPage() {
                 ) : (
                   <>
                     <Link
-                      to={`/${lang}/signup`}
+                      to={`/${lang}/signup?source=about`}
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-primary-hover w-full sm:w-auto"
                     >
                       <span>{t('aboutPage.ctaJoin', { defaultValue: isTr ? 'Topluluğa Katıl' : 'Join Now' })}</span>
@@ -828,7 +828,7 @@ export default function AboutPage() {
                 ) : (
                   <>
                     <Link
-                      to={`/${lang}/signup`}
+                      to={`/${lang}/signup?source=about`}
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-primary-hover w-full sm:w-auto"
                     >
                       <span>{t('aboutPage.ctaRegister', { defaultValue: isTr ? 'Ücretsiz Hesap Oluştur' : 'Create Free Account' })}</span>

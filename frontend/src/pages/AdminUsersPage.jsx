@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useParams } from 'react-router-dom'
 import BulkActionBar from '../components/admin/BulkActionBar.jsx'
 import ActionToast from '../components/feedback/ActionToast.jsx'
@@ -15,17 +16,145 @@ const initialFilters = {
   q: '',
   role: 'all',
   accountStatus: 'all',
+  sourcePage: 'all',
   country: '',
   sortBy: 'createdAt',
   sortDirection: 'desc',
   page: 1,
   limit: 12,
+  period: 'all',
+  dateFrom: '',
+  dateTo: '',
+}
+
+function formatPlatformName(platform) {
+  if (!platform || platform === 'direct') return 'Doğrudan'
+  const p = platform.toLowerCase()
+  if (p === 'instagram') return 'Instagram'
+  if (p === 'google') return 'Google'
+  if (p === 'twitter') return 'X (Twitter)'
+  if (p === 'tiktok') return 'TikTok'
+  if (p === 'facebook') return 'Facebook'
+  if (p === 'youtube') return 'YouTube'
+  if (p === 'linkedin') return 'LinkedIn'
+  if (p === 'threads') return 'Threads'
+  if (p === 'whatsapp') return 'WhatsApp'
+  if (p === 'telegram') return 'Telegram'
+  if (p === 'referral') return 'Dış Bağlantı'
+  return platform
+}
+
+function renderPlatformIcon(platform) {
+  const p = (platform || 'direct').toLowerCase()
+  if (p === 'instagram') {
+    return (
+      <span className="inline-flex size-3.5 items-center justify-center rounded-sm bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-[8px] text-white font-bold">
+        ig
+      </span>
+    )
+  }
+  if (p === 'google') {
+    return <span className="text-[11px]">🔍</span>
+  }
+  if (p === 'twitter') {
+    return <span className="text-[11px] font-bold">𝕏</span>
+  }
+  if (p === 'tiktok') {
+    return <span className="text-[11px]">🎵</span>
+  }
+  if (p === 'facebook') {
+    return <span className="text-[11px] font-bold text-blue-600">f</span>
+  }
+  if (p === 'youtube') {
+    return <span className="text-[11px] text-red-600">▶</span>
+  }
+  return <span className="text-[11px] text-slate-400">🌐</span>
+}
+
+function renderSourcePageBadge(sourcePage) {
+  if (!sourcePage) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+        -
+      </span>
+    )
+  }
+
+  if (sourcePage === 'shadow_mode') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 border border-purple-200/70">
+        <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+        Gölge Modu
+      </span>
+    )
+  }
+
+  if (sourcePage === 'about') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700 border border-sky-200/70">
+        <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+        Hakkımızda
+      </span>
+    )
+  }
+
+  if (sourcePage === 'creators') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 border border-amber-200/70">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        İçerik Üretici
+      </span>
+    )
+  }
+
+  if (sourcePage === 'login') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200/70">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        Giriş Ekranı
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 border border-slate-200/70">
+      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+      Standart (Web)
+    </span>
+  )
+}
+
+function renderAcquisitionTooltip(acquisition) {
+  if (!acquisition) return 'Kayıt kaynağı bilgisi mevcut değil'
+  const lines = []
+  if (acquisition.sourcePage) lines.push(`Kayıt Sayfası: ${acquisition.sourcePage}`)
+  if (acquisition.platform) lines.push(`Trafik Platformu: ${formatPlatformName(acquisition.platform)}`)
+  if (acquisition.referrer) lines.push(`Yönlendiren (Referrer): ${acquisition.referrer}`)
+  if (acquisition.utmSource) lines.push(`UTM Kaynağı: ${acquisition.utmSource}`)
+  if (acquisition.utmMedium) lines.push(`UTM Ortamı: ${acquisition.utmMedium}`)
+  if (acquisition.utmCampaign) lines.push(`UTM Kampanyası: ${acquisition.utmCampaign}`)
+  if (acquisition.landingPage) lines.push(`İlk Giriş Sayfası: ${acquisition.landingPage}`)
+  return lines.join('\n') || 'Kayıt kaynağı bilgisi mevcut değil'
 }
 
 function AdminUsersPage() {
   const { lang = 'tr' } = useParams()
   const [filters, setFilters] = useState(initialFilters)
   const [draftFilters, setDraftFilters] = useState(initialFilters)
+  const [searchInput, setSearchInput] = useState(initialFilters.q)
+  const [portalTarget, setPortalTarget] = useState(null)
+  const [customDateOpen, setCustomDateOpen] = useState(false)
+  const [customDateRange, setCustomDateRange] = useState({
+    dateFrom: '',
+    dateTo: '',
+  })
+  const customDateWrapRef = useRef(null)
+
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false)
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
+  const mobileSearchInputRef = useRef(null)
+
   const [selectedUserIds, setSelectedUserIds] = useState([])
   const [bulkMessage, setBulkMessage] = useState('')
   const [toast, setToast] = useState({ message: '', tone: 'success' })
@@ -37,6 +166,56 @@ function AdminUsersPage() {
     isLoading: true,
     error: '',
   })
+
+  useEffect(() => {
+    setPortalTarget(document.getElementById('admin-topbar-portal'))
+  }, [])
+
+  useEffect(() => {
+    setSearchInput(filters.q)
+  }, [filters.q])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.q) {
+        setFilters((curr) => ({ ...curr, q: searchInput, page: 1 }))
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput, filters.q])
+
+  useEffect(() => {
+    if (isMobileSearchOpen && mobileSearchInputRef.current) {
+      mobileSearchInputRef.current.focus()
+    }
+  }, [isMobileSearchOpen])
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsMobileSearchOpen(false)
+        setIsMobileFilterOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const activeFilterCount =
+    (filters.role !== 'all' ? 1 : 0) +
+    (filters.accountStatus !== 'all' ? 1 : 0) +
+    (filters.sourcePage !== 'all' ? 1 : 0)
+
+  useEffect(() => {
+    if (!customDateOpen) return undefined
+    function handleClickOutside(event) {
+      if (customDateWrapRef.current && !customDateWrapRef.current.contains(event.target)) {
+        setCustomDateOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => document.removeEventListener('pointerdown', handleClickOutside)
+  }, [customDateOpen])
 
   useEffect(() => {
     if (!toast.message) return undefined
@@ -120,15 +299,46 @@ function AdminUsersPage() {
     )
   }
 
-  function handleFilterSubmit(event) {
-    event.preventDefault()
-    setFilters({
-      ...draftFilters,
+  function handleFilterSelect(key, val) {
+    setFilters((current) => ({
+      ...current,
+      [key]: val,
       page: 1,
-    })
+    }))
+  }
+
+  function handlePeriodSelect(period) {
+    if (period === 'custom') {
+      setCustomDateOpen((current) => !current)
+      return
+    }
+    setCustomDateOpen(false)
+    setFilters((current) => ({
+      ...current,
+      period,
+      dateFrom: '',
+      dateTo: '',
+      page: 1,
+    }))
+  }
+
+  function handleApplyCustomDate(event) {
+    event.preventDefault()
+    if (!customDateRange.dateFrom || !customDateRange.dateTo) return
+    setFilters((current) => ({
+      ...current,
+      period: 'custom',
+      dateFrom: customDateRange.dateFrom,
+      dateTo: customDateRange.dateTo,
+      page: 1,
+    }))
+    setCustomDateOpen(false)
   }
 
   function handleResetFilters() {
+    setSearchInput('')
+    setCustomDateOpen(false)
+    setCustomDateRange({ dateFrom: '', dateTo: '' })
     setDraftFilters(initialFilters)
     setFilters(initialFilters)
   }
@@ -251,108 +461,344 @@ function AdminUsersPage() {
         ]}
       />
 
-      <div className="space-y-4">
-        {/* Filtre ve Arama Toolbarı */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <form
-            onSubmit={handleFilterSubmit}
-            className="flex flex-col gap-3 lg:flex-row lg:items-center"
-          >
-            {/* Arama Alanı */}
-            <div className="relative min-w-0 flex-1">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+      {portalTarget &&
+        createPortal(
+          <>
+            {/* Masaüstü Görünüm (md ve üzeri ekranlar) */}
+            <div className="hidden md:flex items-center gap-2 w-full min-w-0">
+              {/* Arama Alanı (ad, kullanıcı adı, e-posta ve ülke) */}
+              <div className="relative min-w-[170px] max-w-xs sm:max-w-sm flex-1">
+                <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-slate-400">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Ara (ad, kullanıcı, e-posta, ülke)..."
+                  className="h-8.5 w-full rounded-lg border border-slate-200 bg-slate-50/90 pl-8 pr-7 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                />
+                {searchInput ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('')
+                      setFilters((curr) => ({ ...curr, q: '', page: 1 }))
+                    }}
+                    className="absolute inset-y-0 right-2 flex items-center text-xs text-slate-400 hover:text-slate-600"
+                    aria-label="Aramayı temizle"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Rol Filtresi */}
+              <div className="relative shrink-0">
+                <select
+                  value={filters.role}
+                  onChange={(e) => handleFilterSelect('role', e.target.value)}
+                  className="h-8.5 cursor-pointer appearance-none rounded-lg border border-slate-200 bg-slate-50/90 pl-2.5 pr-6 text-xs font-medium text-slate-700 outline-none transition hover:bg-slate-100/90 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                >
+                  <option value="all">Tüm Roller</option>
+                  <option value="user">Kullanıcı</option>
+                  <option value="moderator">Moderatör</option>
+                  <option value="admin">Yönetici (Admin)</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-slate-400">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Durum Filtresi */}
+              <div className="relative shrink-0">
+                <select
+                  value={filters.accountStatus}
+                  onChange={(e) => handleFilterSelect('accountStatus', e.target.value)}
+                  className="h-8.5 cursor-pointer appearance-none rounded-lg border border-slate-200 bg-slate-50/90 pl-2.5 pr-6 text-xs font-medium text-slate-700 outline-none transition hover:bg-slate-100/90 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                >
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="active">Aktif Hesaplar</option>
+                  <option value="suspended">Askıdaki Hesaplar</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-slate-400">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Kayıt Kaynağı Filtresi */}
+              <div className="relative shrink-0">
+                <select
+                  value={filters.sourcePage}
+                  onChange={(e) => handleFilterSelect('sourcePage', e.target.value)}
+                  className="h-8.5 cursor-pointer appearance-none rounded-lg border border-slate-200 bg-slate-50/90 pl-2.5 pr-6 text-xs font-medium text-slate-700 outline-none transition hover:bg-slate-100/90 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                >
+                  <option value="all">Tüm Kaynaklar</option>
+                  <option value="normal">⚪ Standart (Web)</option>
+                  <option value="shadow_mode">🟣 Gölge Modu</option>
+                  <option value="about">🔵 Hakkımızda</option>
+                  <option value="creators">🟠 İçerik Üretici</option>
+                  <option value="login">🟢 Giriş Ekranı</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-slate-400">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobil Görünüm (md altı: 48px navbar ikonları) */}
+            <div className="flex md:hidden items-center gap-1.5 ml-auto">
+              {/* Arama İkon Butonu */}
+              <button
+                type="button"
+                onClick={() => setIsMobileSearchOpen(true)}
+                className={`relative flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                  searchInput
+                    ? 'border-blue-500 bg-blue-50 text-blue-600 font-semibold'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+                aria-label="Kullanıcı ara"
+                title="Kullanıcı Ara"
+              >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-              </span>
-              <input
-                type="text"
-                value={draftFilters.q}
-                onChange={(e) => setDraftFilters((curr) => ({ ...curr, q: e.target.value }))}
-                placeholder="Ad, kullanıcı adı veya e-posta ara..."
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-8 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-              {draftFilters.q && (
+                {searchInput ? (
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-600 ring-2 ring-white" />
+                ) : null}
+              </button>
+
+              {/* Filtre İkon Butonu */}
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className={`relative flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                  activeFilterCount > 0
+                    ? 'border-blue-500 bg-blue-50 text-blue-600 font-semibold'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+                aria-label="Filtreleri aç"
+                title="Filtreler"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                {activeFilterCount > 0 ? (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-extrabold text-white ring-2 ring-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+          </>,
+          portalTarget,
+        )}
+
+      {/* Mobilde Arama İkonuna Basınca Açılan 48px Tam Genişlik Arama Barı */}
+      {isMobileSearchOpen && (
+        <div className="fixed top-0 left-0 right-0 h-12 z-50 flex items-center gap-2 bg-white px-3 border-b border-slate-200 shadow-md md:hidden animate-in fade-in duration-150">
+          <button
+            type="button"
+            onClick={() => setIsMobileSearchOpen(false)}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 active:bg-slate-200 transition"
+            aria-label="Aramayı kapat"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="relative min-w-0 flex-1">
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-slate-400">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              ref={mobileSearchInputRef}
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Ad, kullanıcı adı, e-posta veya ülke ara..."
+              className="h-8.5 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-7 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white"
+              autoFocus
+            />
+            {searchInput ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput('')
+                  setFilters((curr) => ({ ...curr, q: '', page: 1 }))
+                }}
+                className="absolute inset-y-0 right-2 flex items-center text-xs text-slate-400 hover:text-slate-600"
+                aria-label="Aramayı temizle"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileSearchOpen(false)}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-1 py-1"
+          >
+            Bitti
+          </button>
+        </div>
+      )}
+
+      {/* Mobilde Filtre İkonuna Tıklayınca Açılan Filtre Paneli (Tüm roller, tüm durumlar, tüm kaynaklar) */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
+          {/* Karartma Arkalığı */}
+          <div
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileFilterOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Bottom Sheet Kartı */}
+          <div className="relative z-10 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Kullanıcı Filtreleri</h3>
+                  {activeFilterCount > 0 ? (
+                    <span className="text-[11px] font-medium text-blue-600">{activeFilterCount} filtre aktif</span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">Rol, durum ve kaynak seçin</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilters((curr) => ({
+                        ...curr,
+                        role: 'all',
+                        accountStatus: 'all',
+                        sourcePage: 'all',
+                        page: 1,
+                      }))
+                    }}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-md hover:bg-rose-50 transition"
+                  >
+                    Sıfırla
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => setDraftFilters((curr) => ({ ...curr, q: '' }))}
-                  className="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-600"
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Filtreleri kapat"
                 >
                   ✕
                 </button>
-              )}
-            </div>
-
-            {/* Rol Filtresi */}
-            <div className="relative w-full sm:w-44">
-              <select
-                value={draftFilters.role}
-                onChange={(e) => setDraftFilters((curr) => ({ ...curr, role: e.target.value }))}
-                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 pr-8 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-100/70 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              >
-                <option value="all">Tüm Roller</option>
-                <option value="user">Kullanıcı</option>
-                <option value="moderator">Moderatör</option>
-                <option value="admin">Yönetici (Admin)</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
               </div>
             </div>
 
-            {/* Durum Filtresi */}
-            <div className="relative w-full sm:w-40">
-              <select
-                value={draftFilters.accountStatus}
-                onChange={(e) => setDraftFilters((curr) => ({ ...curr, accountStatus: e.target.value }))}
-                className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 pr-8 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-100/70 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              >
-                <option value="all">Tüm Durumlar</option>
-                <option value="active">Aktif Hesaplar</option>
-                <option value="suspended">Askıdaki Hesaplar</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
+            {/* Form Elemanları */}
+            <div className="mt-4 space-y-4">
+              {/* 1. Tüm Roller */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Rol</label>
+                <div className="relative">
+                  <select
+                    value={filters.role}
+                    onChange={(e) => handleFilterSelect('role', e.target.value)}
+                    className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                  >
+                    <option value="all">Tüm Roller</option>
+                    <option value="user">Kullanıcı</option>
+                    <option value="moderator">Moderatör</option>
+                    <option value="admin">Yönetici (Admin)</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Tüm Durumlar */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Hesap Durumu</label>
+                <div className="relative">
+                  <select
+                    value={filters.accountStatus}
+                    onChange={(e) => handleFilterSelect('accountStatus', e.target.value)}
+                    className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                  >
+                    <option value="all">Tüm Durumlar</option>
+                    <option value="active">Aktif Hesaplar</option>
+                    <option value="suspended">Askıdaki Hesaplar</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Tüm Kaynaklar */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Kayıt Kaynağı</label>
+                <div className="relative">
+                  <select
+                    value={filters.sourcePage}
+                    onChange={(e) => handleFilterSelect('sourcePage', e.target.value)}
+                    className="h-10 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                  >
+                    <option value="all">Tüm Kaynaklar</option>
+                    <option value="normal">⚪ Standart (Web)</option>
+                    <option value="shadow_mode">🟣 Gölge Modu</option>
+                    <option value="about">🔵 Hakkımızda</option>
+                    <option value="creators">🟠 İçerik Üretici</option>
+                    <option value="login">🟢 Giriş Ekranı</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Ülke Filtresi */}
-            <div className="w-full sm:w-36">
-              <input
-                type="text"
-                value={draftFilters.country}
-                onChange={(e) => setDraftFilters((curr) => ({ ...curr, country: e.target.value }))}
-                placeholder="Ülke kodu/adı"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+            {/* Buton */}
+            <button
+              type="button"
+              onClick={() => setIsMobileFilterOpen(false)}
+              className="mt-6 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-blue-600 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.99]"
+            >
+              <span>Sonuçları Göster</span>
+              {state.pagination ? `(${state.pagination.totalItems} Kayıt)` : ''}
+            </button>
+          </div>
+        </div>
+      )}
 
-            {/* Aksiyon Butonları */}
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:ring-4 focus:ring-blue-500/20 active:scale-[0.98]"
-              >
-                Filtrele
-              </button>
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-              >
-                Sıfırla
-              </button>
-            </div>
-          </form>
-        </section>
-
+      <div className="space-y-0 md:space-y-4">
         {/* Toplu İşlem / Bildirim Mesajı */}
         {bulkMessage ? (
-          <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-800">
+          <div className="flex items-center justify-between rounded-none md:rounded-xl border-y md:border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-800">
             <span>{bulkMessage}</span>
             <button
               type="button"
@@ -366,40 +812,138 @@ function AdminUsersPage() {
 
         {/* Hata Alanı */}
         {state.error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="rounded-none md:rounded-2xl border-y md:border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
             {state.error}
           </div>
         ) : null}
 
         {/* Ana İçerik Kartı: Tablo & Kartlar */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* Üst Bar: Seçim Sayısı ve Başlık */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5 bg-slate-50/50">
-            <div className="flex items-center gap-3">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+        <div className="overflow-hidden border border-slate-200 bg-white shadow-sm rounded-none md:rounded-md border-x-0 md:border-x">
+          {/* Üst Bar: Seçim Sayısı, Tarih Filtresi ve Toplam Kayıt */}
+          <div className="flex items-center justify-between gap-1.5 md:gap-3 border-b border-slate-100 px-2.5 py-2 md:px-5 md:py-3.5 bg-slate-50/50">
+            <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+              <label className="inline-flex items-center gap-1.5 md:gap-2 text-xs md:text-sm font-medium text-slate-700 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={allCurrentSelected}
                   onChange={toggleSelectAllCurrentPage}
-                  className="size-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  className="size-3.5 md:size-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span>Tümünü Seç</span>
+                <span className="hidden md:inline">Tümünü Seç</span>
+                <span className="inline md:hidden">Tümü</span>
               </label>
               {selectedUserIds.length > 0 && (
-                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-                  {selectedUserIds.length} kullanıcı seçili
+                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 md:px-2.5 text-[10px] md:text-xs font-semibold text-blue-700 whitespace-nowrap">
+                  <span className="hidden md:inline">{selectedUserIds.length} kullanıcı seçili</span>
+                  <span className="inline md:hidden">{selectedUserIds.length} seçili</span>
                 </span>
               )}
             </div>
 
-            <div className="text-xs font-medium text-slate-500">
-              {state.pagination ? `Toplam ${state.pagination.totalItems} kayıt` : ''}
+            <div className="flex items-center gap-1.5 md:gap-3 ml-auto shrink-0">
+              {/* Tarih Filtreleme: Bugün, Dün, 7, 28, 90, Özel */}
+              <div className="relative" ref={customDateWrapRef}>
+                <div className="inline-flex items-center p-0.5 rounded-lg border border-slate-200 bg-slate-100/70 text-[11px] md:text-xs font-medium text-slate-600">
+                  {[
+                    ['all', 'Tümü'],
+                    ['today', 'Bugün'],
+                    ['yesterday', 'Dün'],
+                    ['7d', '7'],
+                    ['28d', '28'],
+                    ['90d', '90'],
+                  ].map(([key, label]) => {
+                    const isActive = (filters.period || 'all') === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handlePeriodSelect(key)}
+                        className={`px-1.5 py-0.5 md:px-2 md:py-1 rounded-md transition whitespace-nowrap ${
+                          isActive
+                            ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                            : 'hover:text-slate-900'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => handlePeriodSelect('custom')}
+                    className={`px-1.5 py-0.5 md:px-2 md:py-1 rounded-md transition inline-flex items-center gap-0.5 md:gap-1 whitespace-nowrap ${
+                      filters.period === 'custom'
+                        ? 'bg-white font-semibold text-slate-900 shadow-sm'
+                        : 'hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Özel</span>
+                    <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+
+                {customDateOpen && (
+                  <div className="absolute right-0 top-full mt-2 z-30 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-3.5 shadow-xl">
+                    <form onSubmit={handleApplyCustomDate} className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Başlangıç Tarihi</label>
+                        <input
+                          type="date"
+                          value={customDateRange.dateFrom}
+                          onChange={(e) => setCustomDateRange((curr) => ({ ...curr, dateFrom: e.target.value }))}
+                          className="h-8.5 w-full rounded-lg border border-slate-200 px-2.5 text-xs text-slate-800 outline-none focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Bitiş Tarihi</label>
+                        <input
+                          type="date"
+                          value={customDateRange.dateTo}
+                          onChange={(e) => setCustomDateRange((curr) => ({ ...curr, dateTo: e.target.value }))}
+                          className="h-8.5 w-full rounded-lg border border-slate-200 px-2.5 text-xs text-slate-800 outline-none focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setCustomDateOpen(false)}
+                          className="h-7.5 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          İptal
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!customDateRange.dateFrom || !customDateRange.dateTo}
+                          className="h-7.5 px-3 rounded-lg bg-blue-600 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          Uygula
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              {/* Toplam Kayıt Sayısı */}
+              <div className="text-[11px] md:text-xs font-semibold text-slate-500 whitespace-nowrap shrink-0">
+                {state.pagination ? (
+                  <>
+                    <span className="hidden sm:inline">Toplam </span>
+                    {state.pagination.totalItems} kayıt
+                  </>
+                ) : ''}
+              </div>
             </div>
           </div>
 
           {/* Masaüstü Tablo Görünümü */}
           <div className="hidden md:block admin-table-container">
-            <table className="admin-table min-w-[1240px]">
+            <table className="admin-table min-w-[1380px]">
               <thead>
                 <tr>
                   <th className="sticky-col-0 w-12 text-center">
@@ -412,17 +956,8 @@ function AdminUsersPage() {
                   <th className="w-28">Dil</th>
                   <th className="w-32">Rol</th>
                   <th className="w-32">Durum</th>
-                  <th className="w-36">
-                    <button
-                      type="button"
-                      onClick={() => handleSort('lastLoginAt')}
-                      className="inline-flex items-center text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-slate-900"
-                    >
-                      <span>Son Giriş</span>
-                      {renderSortIcon('lastLoginAt')}
-                    </button>
-                  </th>
-                  <th className="w-36">
+                  <th className="w-44">Kayıt Kaynağı</th>
+                  <th className="w-40">
                     <button
                       type="button"
                       onClick={() => handleSort('createdAt')}
@@ -587,18 +1122,53 @@ function AdminUsersPage() {
                           </span>
                         </td>
 
-                        {/* Son Giriş */}
-                        <td className="text-xs text-slate-600">
-                          {userItem.lastLoginAt
-                            ? formatRelativeTime(userItem.lastLoginAt)
-                            : 'Hiç giriş yapmadı'}
+                        {/* Kayıt Kaynağı & Platform */}
+                        <td>
+                          <div className="text-xs">
+                            <div className="flex items-center gap-1.5">
+                              {renderSourcePageBadge(userItem.acquisition?.sourcePage)}
+                            </div>
+                            <div
+                              className="mt-1 flex items-center gap-1 text-slate-500 font-medium truncate max-w-[170px]"
+                              title={renderAcquisitionTooltip(userItem.acquisition)}
+                            >
+                              {renderPlatformIcon(userItem.acquisition?.platform)}
+                              <span className="capitalize truncate">
+                                {formatPlatformName(userItem.acquisition?.platform)}
+                              </span>
+                              {userItem.acquisition?.utmCampaign ? (
+                                <span
+                                  className="rounded bg-blue-50 text-blue-700 px-1 py-0.2 text-[9px] font-mono font-semibold"
+                                  title={`UTM Kampanya: ${userItem.acquisition.utmCampaign}`}
+                                >
+                                  UTM
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
                         </td>
 
-                        {/* Kayıt Tarihi */}
-                        <td className="text-xs text-slate-600">
-                          {userItem.createdAt
-                            ? new Date(userItem.createdAt).toLocaleDateString('tr-TR')
-                            : '-'}
+                        {/* Kayıt Tarihi & Son Giriş */}
+                        <td>
+                          <div className="text-xs">
+                            <p className="font-medium text-slate-700">
+                              {userItem.createdAt
+                                ? new Date(userItem.createdAt).toLocaleDateString('tr-TR')
+                                : '-'}
+                            </p>
+                            <p
+                              className="mt-0.5 text-slate-400 truncate"
+                              title={
+                                userItem.lastLoginAt
+                                  ? `Son Giriş: ${new Date(userItem.lastLoginAt).toLocaleString('tr-TR')}`
+                                  : 'Hiç giriş yapmadı'
+                              }
+                            >
+                              {userItem.lastLoginAt
+                                ? formatRelativeTime(userItem.lastLoginAt)
+                                : 'Hiç giriş yapmadı'}
+                            </p>
+                          </div>
                         </td>
 
                         {/* İşlem */}
@@ -684,6 +1254,18 @@ function AdminUsersPage() {
                       </div>
                     </div>
 
+                    {/* Mobil Kayıt Kaynağı Bilgisi */}
+                    <div className="mt-2.5 flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-500 font-medium">Kaynak:</span>
+                        {renderSourcePageBadge(userItem.acquisition?.sourcePage)}
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-slate-600 font-medium truncate">
+                        {renderPlatformIcon(userItem.acquisition?.platform)}
+                        <span>{formatPlatformName(userItem.acquisition?.platform)}</span>
+                      </div>
+                    </div>
+
                     <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
                       <div className="flex items-center gap-2">
                         <span className="admin-badge is-neutral">
@@ -693,11 +1275,18 @@ function AdminUsersPage() {
                               ? 'Moderatör'
                               : 'Kullanıcı'}
                         </span>
-                        <span>
-                          {userItem.createdAt
-                            ? new Date(userItem.createdAt).toLocaleDateString('tr-TR')
-                            : ''}
-                        </span>
+                        <div>
+                          <p className="font-medium text-slate-700">
+                            {userItem.createdAt
+                              ? new Date(userItem.createdAt).toLocaleDateString('tr-TR')
+                              : ''}
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            {userItem.lastLoginAt
+                              ? formatRelativeTime(userItem.lastLoginAt)
+                              : 'Hiç giriş yapmadı'}
+                          </p>
+                        </div>
                       </div>
                       <Link
                         to={`/${lang}/admin/users/${userItem._id}`}

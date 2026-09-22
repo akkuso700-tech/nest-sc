@@ -25,6 +25,17 @@ const registerSchema = z.object({
         city: z.string().trim().max(80).optional().default(''),
       })
       .optional(),
+    acquisition: z
+      .object({
+        sourcePage: z.string().trim().max(60).optional(),
+        platform: z.string().trim().max(60).optional(),
+        referrer: z.string().trim().max(500).optional(),
+        utmSource: z.string().trim().max(120).optional(),
+        utmMedium: z.string().trim().max(120).optional(),
+        utmCampaign: z.string().trim().max(120).optional(),
+        landingPage: z.string().trim().max(500).optional(),
+      })
+      .optional(),
   }),
   params: z.object({}).default({}),
   query: z.object({}).default({}),

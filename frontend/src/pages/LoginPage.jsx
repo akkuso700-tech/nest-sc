@@ -9,6 +9,7 @@ import { authInputClassName } from '../components/auth/authStyles.js'
 import { apiOrigin } from '../lib/apiClient.js'
 import { checkLoginIdentifier, requestPasswordReset } from '../services/authService.js'
 import { useAuth } from '../store/AuthContext.jsx'
+import { getAcquisitionData } from '../utils/acquisitionTracker.js'
 
 const rememberedLoginKey = 'Nest Social-Login'
 
@@ -20,7 +21,18 @@ function resolveGoogleAuthUrl(lang) {
   }
 
   const normalizedLang = String(lang || 'tr').trim() || 'tr'
-  return `${apiOrigin}/api/v1/auth/google/start?lang=${encodeURIComponent(normalizedLang)}`
+  const acq = getAcquisitionData('login')
+  const params = new URLSearchParams({
+    lang: normalizedLang,
+    source: acq.sourcePage || 'login',
+    platform: acq.platform || 'google',
+    referrer: acq.referrer || '',
+    utmSource: acq.utmSource || '',
+    utmMedium: acq.utmMedium || '',
+    utmCampaign: acq.utmCampaign || '',
+    landingPage: acq.landingPage || '',
+  })
+  return `${apiOrigin}/api/v1/auth/google/start?${params.toString()}`
 }
 
 function LoginPage() {

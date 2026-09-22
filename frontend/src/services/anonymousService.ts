@@ -28,6 +28,57 @@ export const ANONYMOUS_AVATARS: AnonymousAvatar[] = [
   { key: 'avatar-12', label: 'Retro Canavar', emoji: '👾', bgStyle: 'linear-gradient(135deg, #84cc16, #059669)' },
 ]
 
+export const ANONYMOUS_ADJECTIVES = [
+  'Gizemli',
+  'Sessiz',
+  'Kozmik',
+  'Mavi',
+  'Cesur',
+  'Gölge',
+  'Sakin',
+  'Kutup',
+  'Parlak',
+  'Hızlı',
+  'Derin',
+  'Uzak',
+  'Gece',
+  'Uçarı',
+  'Sonsuz',
+  'Gizli',
+  'Yıldız',
+  'Efsanevi',
+  'Neon',
+  'Şanslı',
+]
+
+export const ANONYMOUS_NOUNS = [
+  'Gezgin',
+  'Kuş',
+  'Kurt',
+  'Panda',
+  'Yolcu',
+  'Gölge',
+  'Kedi',
+  'Kaptan',
+  'Rüzgar',
+  'Avcı',
+  'Pilot',
+  'Şahin',
+  'Gözcü',
+  'Kaşif',
+  'Sfenks',
+  'Dalgıç',
+  'Tilki',
+  'Kartal',
+]
+
+export function generateRandomAlias(): string {
+  const adj = ANONYMOUS_ADJECTIVES[Math.floor(Math.random() * ANONYMOUS_ADJECTIVES.length)]
+  const noun = ANONYMOUS_NOUNS[Math.floor(Math.random() * ANONYMOUS_NOUNS.length)]
+  const tag = Math.floor(100 + Math.random() * 900)
+  return `${adj}${noun}#${tag}`
+}
+
 export function getAvatarByKey(key: string): AnonymousAvatar {
   return ANONYMOUS_AVATARS.find((a) => a.key === key) || ANONYMOUS_AVATARS[0]
 }

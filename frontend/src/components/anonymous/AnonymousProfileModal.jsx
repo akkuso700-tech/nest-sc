@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ANONYMOUS_AVATARS, updateAnonymousProfile, randomizeAlias } from '../../services/anonymousService.js'
+import { ANONYMOUS_AVATARS, updateAnonymousProfile, generateRandomAlias } from '../../services/anonymousService.js'
 
 export function AnonymousProfileModal({ isOpen, onClose, currentProfile, onProfileUpdated }) {
   const { t } = useTranslation()
@@ -109,17 +109,18 @@ export function AnonymousProfileModal({ isOpen, onClose, currentProfile, onProfi
 
   if (!isOpen) return null
 
-  async function handleRandomize() {
+  function handleRandomize() {
     setIsRolling(true)
     setErrorMsg('')
     try {
-      const updated = await randomizeAlias()
-      setAlias(updated.alias)
-      if (onProfileUpdated) onProfileUpdated(updated)
+      const newAlias = generateRandomAlias()
+      setAlias(newAlias)
     } catch (err) {
-      setErrorMsg(err.message || t('lounge.profileModal.generateAliasError', { defaultValue: 'Rumuz üretilemedi.' }))
+      setErrorMsg(err?.message || t('lounge.profileModal.generateAliasError', { defaultValue: 'Rumuz üretilemedi.' }))
     } finally {
-      setIsRolling(false)
+      setTimeout(() => {
+        setIsRolling(false)
+      }, 150)
     }
   }
 
@@ -210,7 +211,7 @@ export function AnonymousProfileModal({ isOpen, onClose, currentProfile, onProfi
                 className="flex items-center gap-1.5 rounded-md border border-border bg-secondary px-3.5 py-2 text-xs font-medium text-text hover:bg-secondary-hover transition-colors disabled:opacity-50"
                 title={t('lounge.profileModal.refresh', { defaultValue: 'Yeni Rumuz Üret' })}
               >
-                <span>{isRolling ? '...' : '🎲'}</span>
+                <span className={`inline-block transition-transform ${isRolling ? 'rotate-180 duration-150' : ''}`}>🎲</span>
                 <span>{t('lounge.profileModal.refresh', { defaultValue: 'Yenile' })}</span>
               </button>
             </div>

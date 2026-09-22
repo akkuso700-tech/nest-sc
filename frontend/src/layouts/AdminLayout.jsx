@@ -83,6 +83,7 @@ function getPageMeta(pathname, lang) {
       title: 'Kullanıcılar',
       eyebrow: 'Kullanıcı Operasyonları',
       description: 'Üyeleri filtreleyin, durumlarını yönetin ve büyüme sinyallerini takip edin.',
+      hideHeading: true,
     }
   }
   if (pathname.includes(`${base}/verification-requests`)) {
@@ -349,7 +350,7 @@ function AdminLayout() {
   const isUsersRoute = location.pathname === `${base}/users`
   const isContentRoute = location.pathname === `${base}/content`
   const isShadowRoute = location.pathname.includes('/shadow') || location.pathname.includes('/messages')
-  const supportsRange = isUsersRoute || isContentRoute
+  const supportsRange = isContentRoute
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true')
@@ -503,10 +504,11 @@ function AdminLayout() {
         ) : null}
 
         <div className="admin-workspace">
-          <header className="admin-topbar">
+          <header className={cx('admin-topbar', isUsersRoute ? 'is-users-page' : '')}>
             <button type="button" className="admin-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Yönetim menüsünü aç">☰</button>
             <div className="admin-topbar-context">
-              <strong>{pageMeta.title}</strong>
+              <strong className="admin-topbar-title">{pageMeta.title}</strong>
+              <div id="admin-topbar-portal" className="admin-topbar-portal-area" />
             </div>
             <div className="admin-topbar-actions">
               <Link className="admin-view-site" to={`/${lang}`}>Siteyi görüntüle ↗</Link>
@@ -744,7 +746,7 @@ function AdminLayout() {
             </div>
           </header>
 
-          <main className={cx('admin-main', isShadowRoute ? 'is-shadow-layout' : '')}>
+          <main className={cx('admin-main', isShadowRoute ? 'is-shadow-layout' : '', isUsersRoute ? 'is-users-layout' : '')}>
             {!pageMeta.hideHeading ? (
               <section className="admin-page-heading">
                 <div>

@@ -418,11 +418,28 @@ const startGoogleAuth = asyncHandler(async (req, res) => {
 
   const language = normalizeLanguage(req.query.lang || 'tr')
   const nonce = crypto.randomUUID()
+  const sourcePage = String(req.query.sourcePage || req.query.source || 'normal').trim().slice(0, 60)
+  const platform = String(req.query.platform || '').trim().slice(0, 60)
+  const referrer = String(req.query.referrer || req.headers['referer'] || '').trim().slice(0, 500)
+  const utmSource = String(req.query.utmSource || '').trim().slice(0, 120)
+  const utmMedium = String(req.query.utmMedium || '').trim().slice(0, 120)
+  const utmCampaign = String(req.query.utmCampaign || '').trim().slice(0, 120)
+  const landingPage = String(req.query.landingPage || '').trim().slice(0, 500)
+
   const statePayload = Buffer.from(
     JSON.stringify({
       nonce,
       lang: language,
       ts: Date.now(),
+      acq: {
+        sourcePage,
+        platform,
+        referrer,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+        landingPage,
+      },
     }),
   ).toString('base64url')
   const redirectUri = env.googleRedirectUri || `${origin}/api/v1/auth/google/callback`
@@ -609,6 +626,19 @@ const googleCallback = asyncHandler(async (req, res) => {
         browserLanguage: String(req.headers['accept-language'] || '').trim().slice(0, 80),
         userAgent: String(req.headers['user-agent'] || ''),
       },
+      acquisition: {
+        sourcePage: ['normal', 'shadow_mode', 'about', 'creators', 'login', 'other'].includes(
+          parsedState?.acq?.sourcePage,
+        )
+          ? parsedState.acq.sourcePage
+          : 'normal',
+        platform: parsedState?.acq?.platform || 'google',
+        referrer: String(parsedState?.acq?.referrer || '').slice(0, 500),
+        utmSource: String(parsedState?.acq?.utmSource || '').slice(0, 120),
+        utmMedium: String(parsedState?.acq?.utmMedium || '').slice(0, 120),
+        utmCampaign: String(parsedState?.acq?.utmCampaign || '').slice(0, 120),
+        landingPage: String(parsedState?.acq?.landingPage || '').slice(0, 500),
+      },
     })
     isNewUser = true
   } else {
@@ -702,6 +732,7 @@ const register = asyncHandler(async (req, res) => {
     locale,
     signupConsentVersion: incomingConsentVersion,
     signupConsentText: incomingConsentText,
+    acquisition: incomingAcquisition,
   } =
     req.validated.body
 
@@ -734,6 +765,24 @@ const register = asyncHandler(async (req, res) => {
   const acceptedText = resolveConsentText(resolvedLanguage, incomingConsentText)
   const geoSummary = resolveRequestGeoSummary(req)
   const userAgent = String(req.headers['user-agent'] || '')
+  const fallbackReferrer = String(req.headers['referer'] || '').slice(0, 500)
+  const resolvedSourcePage = ['normal', 'shadow_mode', 'about', 'creators', 'login', 'other'].includes(
+    incomingAcquisition?.sourcePage,
+  )
+    ? incomingAcquisition.sourcePage
+    : 'normal'
+  const resolvedPlatform =
+    String(incomingAcquisition?.platform || '').trim() || (fallbackReferrer ? 'referral' : 'direct')
+
+  const resolvedAcquisition = {
+    sourcePage: resolvedSourcePage,
+    platform: resolvedPlatform,
+    referrer: String(incomingAcquisition?.referrer || fallbackReferrer).slice(0, 500),
+    utmSource: String(incomingAcquisition?.utmSource || '').slice(0, 120),
+    utmMedium: String(incomingAcquisition?.utmMedium || '').slice(0, 120),
+    utmCampaign: String(incomingAcquisition?.utmCampaign || '').slice(0, 120),
+    landingPage: String(incomingAcquisition?.landingPage || '').slice(0, 500),
+  }
 
   const user = await User.create({
     firstName,
@@ -757,6 +806,7 @@ const register = asyncHandler(async (req, res) => {
       browserLanguage: String(req.headers['accept-language'] || '').trim().slice(0, 80),
       userAgent,
     },
+    acquisition: resolvedAcquisition,
   })
 
   const tokens = createTokenPair(user)
