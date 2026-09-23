@@ -128,27 +128,34 @@ export default function PostTranslateSection({
           {error && <span className="text-red-500 text-[11px]">{error}</span>}
         </div>
       ) : (
-        <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-2.5 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-primary/10">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
-              <span>✨</span>
-              <span>{aiHeaderText}</span>
-            </span>
+        <div className="mt-2.5 overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/80 dark:border-zinc-800/70 dark:bg-black/35 p-3.5 backdrop-blur-sm transition-all duration-200 shadow-xs animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-200/60 dark:border-white/[0.06]">
+            <div className="flex items-center gap-2">
+              <span className="text-sm select-none">✨</span>
+              <span className="text-xs font-semibold text-text tracking-tight">{aiHeaderText}</span>
+              <span className="rounded-full border border-slate-200/70 bg-white/90 dark:border-zinc-800/80 dark:bg-zinc-900/80 px-2 py-0.5 text-[10px] font-medium text-muted">
+                {currentLang.toUpperCase()}
+              </span>
+            </div>
             <button
               type="button"
               onClick={handleShowOriginal}
-              className="text-[11px] text-muted hover:text-text hover:underline cursor-pointer transition-colors"
+              className="rounded-lg px-2 py-1 text-[11px] font-medium text-muted hover:bg-secondary hover:text-text cursor-pointer transition-colors"
             >
               {showOriginalText}
             </button>
           </div>
-          <p className="w-full text-left text-[14px] leading-relaxed font-normal text-text whitespace-pre-line break-words">
+          <p className="w-full text-left text-[14px] leading-relaxed font-normal text-text/90 whitespace-pre-line break-words">
             <HashtagText
               text={translatedText}
               onHashtagClick={onTopicClick}
               onMentionClick={onMentionClick}
             />
           </p>
+          <div className="pt-2 mt-2 text-[10px] text-muted flex items-center justify-between border-t border-slate-200/50 dark:border-white/[0.05]">
+            <span>{currentLang === 'tr' ? 'Yapay zeka ile çevrilmiştir' : 'Translated with AI'}</span>
+            <span className="font-medium text-text/60">Nest AI</span>
+          </div>
         </div>
       )}
     </div>
