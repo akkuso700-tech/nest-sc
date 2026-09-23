@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { getFullName } from '../../utils/social.js'
@@ -43,6 +43,8 @@ import {
 } from './utils/composerHelpers.js'
 import ComposerHighlightedDraft, { renderHighlightedDraft } from './components/composer/ComposerHighlightedDraft.jsx'
 import ComposerMediaPreview from './components/composer/ComposerMediaPreview.jsx'
+
+const PostComposerAiMenu = lazy(() => import('./components/PostComposerAiMenu.jsx'))
 
 function PostComposer({
   user,
@@ -1514,6 +1516,13 @@ function PostComposer({
               >
                 <VideoIcon className="size-5" />
               </button>
+              <Suspense fallback={null}>
+                <PostComposerAiMenu
+                  draft={draft}
+                  onApplyResult={(newText) => setDraft(newText)}
+                  disabled={isComposerBusy}
+                />
+              </Suspense>
               <span className="text-xs text-soft">
                 {isOptimizingMedia
                   ? t('composer.optimizingMedia', { defaultValue: 'Optimizing media...' })
@@ -1913,6 +1922,13 @@ function PostComposer({
                     >
                       <VideoIcon className="size-5" />
                     </button>
+                    <Suspense fallback={null}>
+                      <PostComposerAiMenu
+                        draft={draft}
+                        onApplyResult={(newText) => setDraft(newText)}
+                        disabled={isComposerBusy}
+                      />
+                    </Suspense>
                     <span className="text-xs text-soft">
                       {isOptimizingMedia
                         ? t('composer.optimizingMedia', { defaultValue: 'Optimizing media...' })

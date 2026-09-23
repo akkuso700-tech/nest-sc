@@ -1,7 +1,7 @@
 const express = require('express')
 const rateLimit = require('express-rate-limit')
 const { authenticateOptional } = require('../middlewares/authenticate')
-const { streamChat } = require('../controllers/aiController')
+const { streamChat, summarizePost, magicCompose, translateContent } = require('../controllers/aiController')
 
 const aiRouter = express.Router()
 
@@ -17,5 +17,9 @@ const aiRateLimiter = rateLimit({
 })
 
 aiRouter.post('/stream', authenticateOptional, aiRateLimiter, streamChat)
+aiRouter.post('/summarize-post/:postId', authenticateOptional, aiRateLimiter, summarizePost)
+aiRouter.get('/summarize-post/:postId', authenticateOptional, aiRateLimiter, summarizePost)
+aiRouter.post('/magic-compose', authenticateOptional, aiRateLimiter, magicCompose)
+aiRouter.post('/translate', authenticateOptional, aiRateLimiter, translateContent)
 
 module.exports = { aiRouter }

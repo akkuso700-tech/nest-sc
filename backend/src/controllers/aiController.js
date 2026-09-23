@@ -1,4 +1,9 @@
-const { callNvidiaStreaming } = require('../services/aiService')
+const {
+  callNvidiaStreaming,
+  buildNestSocialSystemPrompt,
+  magicComposeText,
+  translatePostText,
+} = require('../services/aiService')
 
 /**
  * Handle streaming AI chat completions via Server-Sent Events (SSE).
@@ -25,9 +30,11 @@ async function streamChat(req, res) {
   })
 
   try {
+    const activeSystemPrompt = systemPrompt || buildNestSocialSystemPrompt(req.user)
+
     const upstreamResponse = await callNvidiaStreaming({
       messages,
-      systemPrompt,
+      systemPrompt: activeSystemPrompt,
       signal: abortController.signal,
     })
 
@@ -104,6 +111,156 @@ async function streamChat(req, res) {
   }
 }
 
+/**
+ * Handle AI summary generation for a specific post.
+ */
+async function summarizePost(req, res) {
+  const { postId } = req.params
+  const forceRefresh = req.query.refresh === 'true'
+
+  if (!postId) {
+    return res.status(400).json({ success: false, message: 'postId parametresi gereklidir.' })
+  }
+
+  try {
+    const { Post } = require('../models/Post')
+    const { Comment } = require('../models/Comment')
+    const { summarizePostContent } = require('../services/aiService')
+
+    const post = await Post.findById(postId).populate('author', 'username firstName lastName')
+
+    if (!post) {
+      return res.status(404).json({ success: false, message: 'Gönderi bulunamadı.' })
+    }
+
+    // Return cached summary if available and not forced to refresh
+    if (!forceRefresh && post.aiSummary && post.aiSummary.text) {
+      return res.json({
+        success: true,
+        summary: post.aiSummary.text,
+        cached: true,
+        generatedAt: post.aiSummary.generatedAt,
+      })
+    }
+
+    // Fetch up to 3 top comments for richer context
+    let commentTexts = []
+    try {
+      const topComments = await Comment.find({
+        post: postId,
+        'moderation.visibility': 'visible',
+      })
+        .sort({ likeCount: -1, createdAt: -1 })
+        .limit(3)
+        .select('text')
+
+      commentTexts = topComments.map((c) => c.text).filter(Boolean)
+    } catch {
+      // Ignore comment fetch errors
+    }
+
+    const summary = await summarizePostContent({
+      postText: post.text,
+      authorName: post.author?.username,
+      topComments: commentTexts,
+    })
+
+    // Cache to post document
+    post.aiSummary = {
+      text: summary,
+      generatedAt: new Date(),
+      language: 'tr',
+    }
+    await post.save()
+
+    return res.json({
+      success: true,
+      summary,
+      cached: false,
+      generatedAt: post.aiSummary.generatedAt,
+    })
+  } catch (err) {
+    console.error('[AI summarizePost Error]:', err.message || err)
+    return res.status(500).json({
+      success: false,
+      message: 'Gönderi özeti oluşturulurken bir hata oluştu.',
+      details: err.message,
+    })
+  }
+}
+
+/**
+ * Handle AI Magic Compose / rewrite / hashtags / poll for post drafting.
+ */
+async function magicCompose(req, res) {
+  const { text, action, language } = req.body || {}
+
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'İçerik (text) alanı boş bırakılamaz.',
+    })
+  }
+
+  try {
+    const outcome = await magicComposeText({
+      text,
+      action: action || 'enhance',
+      language: language || 'tr',
+    })
+
+    return res.json({
+      success: true,
+      result: outcome.result,
+      action: outcome.action,
+    })
+  } catch (err) {
+    console.error('[AI magicCompose Error]:', err.message || err)
+    return res.status(500).json({
+      success: false,
+      message: 'Yapay zeka ile içerik üretilirken bir hata oluştu.',
+      details: err.message,
+    })
+  }
+}
+
+/**
+ * Handle on-the-fly post translation with AI.
+ */
+async function translateContent(req, res) {
+  const { text, targetLanguage } = req.body || {}
+
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Çevrilecek metin (text) boş bırakılamaz.',
+    })
+  }
+
+  try {
+    const outcome = await translatePostText({
+      text,
+      targetLanguage: targetLanguage || 'tr',
+    })
+
+    return res.json({
+      success: true,
+      translatedText: outcome.translatedText,
+      targetLanguage: outcome.targetLanguage,
+    })
+  } catch (err) {
+    console.error('[AI translateContent Error]:', err.message || err)
+    return res.status(500).json({
+      success: false,
+      message: 'Metin çevrilirken bir hata oluştu.',
+      details: err.message,
+    })
+  }
+}
+
 module.exports = {
   streamChat,
+  summarizePost,
+  magicCompose,
+  translateContent,
 }

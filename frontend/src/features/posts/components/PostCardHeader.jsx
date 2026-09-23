@@ -31,6 +31,8 @@ export default function PostCardHeader({
   onMarkNotInterested,
   onOpenReport,
   onOpenInsights,
+  onToggleAiSummary,
+  isSummaryOpen,
   t,
 }) {
   return (
@@ -121,15 +123,34 @@ export default function PostCardHeader({
         </div>
       </div>
 
-      <div ref={menuRef} className="relative">
-        <button
-          type="button"
-          onClick={onMenuToggle}
-          className="grid min-h-11 min-w-11 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text cursor-pointer"
-          aria-label={t('postDetail.postOptions')}
-        >
-          <MoreIcon />
-        </button>
+      <div className="flex items-center gap-0.5">
+        {typeof onToggleAiSummary === 'function' ? (
+          <button
+            type="button"
+            onClick={onToggleAiSummary}
+            className={`group grid size-10 place-items-center rounded-full transition-all duration-200 cursor-pointer ${
+              isSummaryOpen
+                ? 'bg-amber-500/15 ring-1 ring-amber-500/30 scale-105'
+                : 'hover:bg-secondary active:scale-95'
+            }`}
+            aria-label="Nest AI Özeti"
+            title="Nest AI Özeti"
+          >
+            <span className="text-[17px] leading-none select-none transition-transform duration-200 group-hover:scale-115">
+              ✨
+            </span>
+          </button>
+        ) : null}
+
+        <div ref={menuRef} className="relative">
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            className="grid min-h-11 min-w-11 place-items-center rounded-full text-muted transition hover:bg-secondary hover:text-text cursor-pointer"
+            aria-label={t('postDetail.postOptions')}
+          >
+            <MoreIcon />
+          </button>
 
         {isMenuOpen ? (
           <div className="dropdown-pop absolute right-0 top-[calc(100%+8px)] z-20 w-48 rounded-lg border border-border bg-card p-2 shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
@@ -192,6 +213,7 @@ export default function PostCardHeader({
             )}
           </div>
         ) : null}
+        </div>
       </div>
     </div>
   )

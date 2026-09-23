@@ -214,6 +214,11 @@ const postSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    aiSummary: {
+      text: { type: String, default: '' },
+      generatedAt: { type: Date, default: null },
+      language: { type: String, default: 'tr' },
+    },
   },
   {
     timestamps: true,

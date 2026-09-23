@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import HashtagText from '../../../components/common/HashtagText.jsx'
 
 const MediaGallery = lazy(() => import('../MediaGallery.jsx'))
+const PostTranslateSection = lazy(() => import('./PostTranslateSection.jsx'))
 
 export default function PostCardBody({
   groupHeaderName,
@@ -66,6 +67,13 @@ export default function PostCardBody({
               ) : null}
             </p>
           )}
+          <Suspense fallback={null}>
+            <PostTranslateSection
+              text={content}
+              onTopicClick={onTopicClick}
+              onMentionClick={onMentionClick}
+            />
+          </Suspense>
         </div>
       ) : null}
 

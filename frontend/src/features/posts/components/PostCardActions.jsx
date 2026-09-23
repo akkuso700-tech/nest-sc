@@ -24,6 +24,8 @@ export default function PostCardActions({
   shareTargets,
   isMobileViewport,
   canViewInsights,
+  isSummaryOpen = false,
+  onToggleSummary,
   lang,
   t,
   formatViewCount,

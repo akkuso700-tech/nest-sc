@@ -98,3 +98,113 @@ export async function streamAiChat({
     onDone?.()
   }
 }
+
+export interface PostSummaryResult {
+  success: boolean
+  summary: string
+  cached: boolean
+  generatedAt?: string
+}
+
+export async function getPostSummary(
+  postId: string,
+  refresh: boolean = false,
+  signal?: AbortSignal
+): Promise<PostSummaryResult> {
+  const url = `${apiBaseUrl}/ai/summarize-post/${postId}${refresh ? '?refresh=true' : ''}`
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    signal,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    const errorMsg =
+      errorData.message ||
+      errorData.error ||
+      `Özet alınamadı (${response.status})`
+    throw new Error(errorMsg)
+  }
+
+  return response.json()
+}
+
+export interface MagicComposeOptions {
+  text: string
+  action: 'enhance' | 'hashtags' | 'fix' | 'poll'
+  language?: string
+  signal?: AbortSignal
+}
+
+export interface MagicComposeResult {
+  success: boolean
+  result: string
+  action: string
+}
+
+export async function magicComposeText({
+  text,
+  action,
+  language = 'tr',
+  signal,
+}: MagicComposeOptions): Promise<MagicComposeResult> {
+  const url = `${apiBaseUrl}/ai/magic-compose`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ text, action, language }),
+    signal,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || errorData.error || 'İşlem gerçekleştirilemedi.')
+  }
+
+  return response.json()
+}
+
+export interface TranslateTextOptions {
+  text: string
+  targetLanguage?: string
+  signal?: AbortSignal
+}
+
+export interface TranslateTextResult {
+  success: boolean
+  translatedText: string
+  targetLanguage: string
+}
+
+export async function translatePostContent({
+  text,
+  targetLanguage = 'tr',
+  signal,
+}: TranslateTextOptions): Promise<TranslateTextResult> {
+  const url = `${apiBaseUrl}/ai/translate`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ text, targetLanguage }),
+    signal,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || errorData.error || 'Çeviri yapılamadı.')
+  }
+
+  return response.json()
+}
+

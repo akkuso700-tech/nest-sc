@@ -2013,6 +2013,20 @@ const createPost = asyncHandler(async (req, res) => {
       invalidatePublicFeedCache()
       perf.mark('trends_emit_done')
 
+      // Trigger @nestai mention asynchronously if post text tags @nestai
+      if (/@nestai\b/i.test(parsedInput.text) && req.user.username !== 'nestai') {
+        const { handleNestAiMention } = require('../services/aiBotService')
+        handleNestAiMention({
+          post,
+          comment: null,
+          user: req.user,
+          io,
+          createNotification,
+        }).catch((err) => {
+          console.error('[NestAI Mention in Post Error]:', err.message || err)
+        })
+      }
+
     const isScheduled = parsedInput.publication?.status === 'scheduled'
 
     const isProcessing = Boolean(parsedInput.processingJobs?.length)
@@ -2930,6 +2944,20 @@ const createComment = asyncHandler(async (req, res) => {
     }
 
     emitTrendsUpdate(io)
+
+    // Trigger @nestai mention asynchronously if tagged
+    if (/@nestai\b/i.test(parsedInput.text) && req.user.username !== 'nestai') {
+      const { handleNestAiMention } = require('../services/aiBotService')
+      handleNestAiMention({
+        post,
+        comment,
+        user: req.user,
+        io,
+        createNotification,
+      }).catch((err) => {
+        console.error('[NestAI Mention in Comment Error]:', err.message || err)
+      })
+    }
 
     res.status(201).json({
       message: 'Comment created successfully.',

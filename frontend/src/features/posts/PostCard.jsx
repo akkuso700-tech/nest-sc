@@ -73,6 +73,8 @@ const ConfirmActionDialog = lazy(() => import('../../components/feedback/Confirm
 const ReplyComposer = lazy(() => import('./ReplyComposer.jsx'))
 const MediaGallery = lazy(() => import('./MediaGallery.jsx'))
 const PostEditModal = lazy(() => import('./PostEditModal.jsx'))
+const PostTranslateSection = lazy(() => import('./components/PostTranslateSection.jsx'))
+const PostAiSummaryCard = lazy(() => import('./components/PostAiSummaryCard.jsx'))
 
 function getSafeRecommendationContext(recommendation) {
   if (
@@ -236,6 +238,41 @@ function PostCard({
   const isMobileViewport = useMediaQuery(MOBILE_VIEWPORT_QUERY)
   const [toast, setToast] = useState({ message: '', tone: 'success' })
   const quickCommentTextareaRef = useRef(null)
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false)
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false)
+  const [summaryData, setSummaryData] = useState(() => {
+    if (localPost?.aiSummary?.text) {
+      return {
+        summary: localPost.aiSummary.text,
+        cached: true,
+        generatedAt: localPost.aiSummary.generatedAt,
+      }
+    }
+    return null
+  })
+  const [summaryError, setSummaryError] = useState(null)
+
+  const handleToggleSummary = async (forceRefresh = false) => {
+    if (isSummaryOpen && !forceRefresh) {
+      setIsSummaryOpen(false)
+      return
+    }
+    setIsSummaryOpen(true)
+    if (summaryData?.summary && !forceRefresh) {
+      return
+    }
+    setIsSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const { getPostSummary } = await import('../../services/aiService.ts')
+      const res = await getPostSummary(postId, forceRefresh)
+      setSummaryData(res)
+    } catch (err) {
+      setSummaryError(err.message || 'Özet oluşturulamadı.')
+    } finally {
+      setIsSummaryLoading(false)
+    }
+  }
   const commentMediaInputRef = useRef(null)
   const menuRef = useRef(null)
   const shareMenuRef = useRef(null)
@@ -2056,6 +2093,8 @@ function PostCard({
                 onMarkNotInterested={handleMarkNotInterested}
                 onOpenReport={() => setIsReportOpen(true)}
                 onOpenInsights={() => setIsInsightsModalOpen(true)}
+                onToggleAiSummary={() => handleToggleSummary()}
+                isSummaryOpen={isSummaryOpen}
                 t={t}
               />
             ) : null}
@@ -2110,7 +2149,28 @@ function PostCard({
                     </p>
                   </div>
                 )}
+                <Suspense fallback={null}>
+                  <PostTranslateSection
+                    text={content}
+                    onTopicClick={handleTopicNavigate}
+                    onMentionClick={handleMentionNavigate}
+                  />
+                </Suspense>
               </div>
+            ) : null}
+
+            {isSummaryOpen ? (
+              <Suspense fallback={null}>
+                <PostAiSummaryCard
+                  summary={summaryData?.summary}
+                  isLoading={isSummaryLoading}
+                  error={summaryError}
+                  isCached={summaryData?.cached}
+                  onRefresh={() => handleToggleSummary(true)}
+                  onClose={() => setIsSummaryOpen(false)}
+                  onShowToast={setToast}
+                />
+              </Suspense>
             ) : null}
 
             {mediaItems.length ? (
@@ -2420,6 +2480,8 @@ function PostCard({
                 shareTargets={shareTargets}
                 isMobileViewport={isMobileViewport}
                 canViewInsights={canViewInsights}
+                isSummaryOpen={isSummaryOpen}
+                onToggleSummary={() => handleToggleSummary()}
                 lang={lang}
                 t={t}
                 formatViewCount={formatViewCount}

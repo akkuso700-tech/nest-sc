@@ -6,6 +6,8 @@ import UserAvatar from '../../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import HashtagText from '../../components/common/HashtagText.jsx'
 import ActionToast from '../../components/feedback/ActionToast.jsx'
+
+const PostTranslateSection = lazy(() => import('./components/PostTranslateSection.jsx'))
 import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js'
 import {
   buildPostSharePayload,
@@ -25,6 +27,9 @@ import {
   togglePostShare,
   updateComment,
 } from '../../services/postsService.js'
+import { SparklesIcon } from '../../layouts/SocialLayoutIcons.jsx'
+
+const PostAiSummaryCard = lazy(() => import('./components/PostAiSummaryCard.jsx'))
 import { getConversations } from '../../services/messagesService.js'
 import { getNotifications } from '../../services/notificationsService.js'
 import { connectSocketClient, disconnectSocketClient } from '../../services/socketClient.js'
@@ -480,6 +485,40 @@ function PostDetailModal() {
   const [reportTarget, setReportTarget] = useState({ kind: 'post', id: null })
   const [pendingDeleteComment, setPendingDeleteComment] = useState(null)
   const [openRepliesById, setOpenRepliesById] = useState({})
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false)
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false)
+  const [summaryData, setSummaryData] = useState(null)
+  const [summaryError, setSummaryError] = useState(null)
+
+  const handleToggleSummary = async (forceRefresh = false) => {
+    if (isSummaryOpen && !forceRefresh) {
+      setIsSummaryOpen(false)
+      return
+    }
+    setIsSummaryOpen(true)
+    const existingSummary = summaryData?.summary || detailState.post?.aiSummary?.text
+    if (existingSummary && !forceRefresh) {
+      if (!summaryData) {
+        setSummaryData({
+          summary: existingSummary,
+          cached: true,
+          generatedAt: detailState.post?.aiSummary?.generatedAt,
+        })
+      }
+      return
+    }
+    setIsSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const { getPostSummary } = await import('../../services/aiService.ts')
+      const res = await getPostSummary(postId, forceRefresh)
+      setSummaryData(res)
+    } catch (err) {
+      setSummaryError(err.message || 'Özet oluşturulamadı.')
+    } finally {
+      setIsSummaryLoading(false)
+    }
+  }
 
   const resolveInitialMediaIndex = useCallback((mediaCount = 0) => {
     if (!mediaCount) {
@@ -1231,6 +1270,15 @@ function PostDetailModal() {
                         ) : null}
                       </p>
                     )}
+                    <div className="px-3">
+                      <Suspense fallback={null}>
+                        <PostTranslateSection
+                          text={fullPostText}
+                          onTopicClick={handleTopicNavigate}
+                          onMentionClick={handleMentionNavigate}
+                        />
+                      </Suspense>
+                    </div>
                   </div>
                 ) : null}
 
@@ -1279,6 +1327,12 @@ function PostDetailModal() {
                       onShowToast={setToast}
                     />
                     </div>
+                    <InlineActionButton
+                      icon={<SparklesIcon className="size-4.5" />}
+                      label={t('common.aiSummary', { defaultValue: 'AI Özeti' })}
+                      active={isSummaryOpen}
+                      onClick={() => handleToggleSummary()}
+                    />
                   </div>
                   {canViewInsights ? (
                     <button
@@ -1305,6 +1359,20 @@ function PostDetailModal() {
                     </div>
                   )}
                 </div>
+
+                {isSummaryOpen ? (
+                  <Suspense fallback={null}>
+                    <PostAiSummaryCard
+                      summary={summaryData?.summary}
+                      isLoading={isSummaryLoading}
+                      error={summaryError}
+                      isCached={summaryData?.cached}
+                      onRefresh={() => handleToggleSummary(true)}
+                      onClose={() => setIsSummaryOpen(false)}
+                      onShowToast={setToast}
+                    />
+                  </Suspense>
+                ) : null}
               </div>
             </div>
             ) : null}
@@ -1394,6 +1462,13 @@ function PostDetailModal() {
                             </p>
                           </div>
                         )}
+                        <Suspense fallback={null}>
+                          <PostTranslateSection
+                            text={fullPostText}
+                            onTopicClick={handleTopicNavigate}
+                            onMentionClick={handleMentionNavigate}
+                          />
+                        </Suspense>
                       </div>
                     ) : null}
 
@@ -1429,6 +1504,12 @@ function PostDetailModal() {
                           onShowToast={setToast}
                         />
                       </div>
+                      <InlineActionButton
+                        icon={<SparklesIcon className="size-5" />}
+                        label={t('common.aiSummary', { defaultValue: 'AI Özeti' })}
+                        active={isSummaryOpen}
+                        onClick={() => handleToggleSummary()}
+                      />
                       {canViewInsights ? (
                         <button
                           type="button"
@@ -1456,6 +1537,20 @@ function PostDetailModal() {
                     </div>
                   </div>
                 </div>
+
+                {isSummaryOpen ? (
+                  <Suspense fallback={null}>
+                    <PostAiSummaryCard
+                      summary={summaryData?.summary}
+                      isLoading={isSummaryLoading}
+                      error={summaryError}
+                      isCached={summaryData?.cached}
+                      onRefresh={() => handleToggleSummary(true)}
+                      onClose={() => setIsSummaryOpen(false)}
+                      onShowToast={setToast}
+                    />
+                  </Suspense>
+                ) : null}
               </div>
 
               <div className="flex items-center gap-2 justify-end  px-4 py-2  xl:px-4 xl:py-2 ">
