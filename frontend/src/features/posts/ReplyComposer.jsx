@@ -1,4 +1,5 @@
 import { resolveMediaUrl } from '../../utils/media.js'
+import { renderHighlightedDraft } from './components/composer/ComposerHighlightedDraft.jsx'
 
 function CloseIcon({ className = 'size-4' }) {
   return (
@@ -95,14 +96,21 @@ function ReplyComposer({
         </div>
       ) : null}
       <div className="flex items-end gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap break-words px-1 pt-1 pb-1.5 pr-9 font-sans text-sm leading-5 text-text"
+          >
+            {renderHighlightedDraft(draft)}
+          </div>
           <textarea
             rows={1}
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
             disabled={disabled || isSubmitting}
             placeholder={placeholder}
-            className="max-h-[170px] min-h-[68px] w-full resize-none bg-transparent pr-9 px-1 pt-1 pb-1.5 text-sm text-text outline-none placeholder:text-soft disabled:cursor-not-allowed"
+            className="relative z-[1] max-h-[170px] min-h-[68px] w-full resize-none bg-transparent px-1 pt-1 pb-1.5 pr-9 font-sans text-sm leading-5 text-transparent outline-none placeholder:text-soft selection:bg-primary/25 disabled:cursor-not-allowed"
+            style={{ caretColor: 'rgb(var(--color-text))' }}
           />
           {commentPreview ? (
             <div className="relative mt-2 h-16 w-16 overflow-hidden rounded-xl border border-border bg-secondary">

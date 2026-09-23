@@ -37,7 +37,7 @@ export default function PostCardHeader({
 }) {
   return (
     <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-1">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <Link
           to={`/${lang}/u/${author.username || ''}`}
           className="shrink-0 transition hover:scale-[1.02]"
@@ -81,7 +81,7 @@ export default function PostCardHeader({
           )}
         </Link>
 
-        <div className="min-w-0 rounded-2xl">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <div className="min-w-0">
               {groupHeaderName ? (
@@ -113,17 +113,22 @@ export default function PostCardHeader({
               </button>
             ) : null}
           </div>
-          <div>
-            <span className="text-sm text-muted">@{author.username}</span>
-            <span className="text-sm text-muted">
-              {' '}
-              - {formatRelativeTime(localPost.createdAt)}
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+            <Link
+              to={`/${lang}/u/${author.username || ''}`}
+              className="min-w-0 truncate hover:underline hover:text-text transition-colors"
+            >
+              @{author.username}
+            </Link>
+            <span className="shrink-0">-</span>
+            <span className="shrink-0">
+              {formatRelativeTime(localPost.createdAt)}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-0.5">
         {typeof onToggleAiSummary === 'function' ? (
           <button
             type="button"

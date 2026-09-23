@@ -152,30 +152,73 @@ async function callNvidiaStreaming({ messages, systemPrompt, signal }) {
 /**
  * Summarizes a post and its context into 2-3 concise bullet points.
  * @param {Object} options
+/**
+ * Summarize post text, media, and author profile in 3 concise bullet points (X / Grok style).
+ * @param {Object} options
  * @param {string} options.postText
  * @param {string} [options.authorName]
+ * @param {Object} [options.authorDetails]
+ * @param {Array<Object>} [options.mediaList]
  * @param {Array<string>} [options.topComments]
  * @returns {Promise<string>}
  */
-async function summarizePostContent({ postText, authorName, topComments = [] }) {
+async function summarizePostContent({
+  postText,
+  authorName,
+  authorDetails = {},
+  mediaList = [],
+  topComments = [],
+}) {
   const apiKey = env.nvidia.apiKey || process.env.NVIDIA_API_KEY || ''
   if (!apiKey) {
     throw new Error('Yapay zeka servisi yapılandırılmamış (API anahtarı eksik).')
   }
 
-  const prompt = `Aşağıdaki sosyal medya gönderisini ve varsa öne çıkan yorumları analiz et.
-Gönderinin temel fikrini ve önemli noktalarını 2 veya 3 kısa, net madde halinde Türkçe olarak özetle.
+  const username = authorDetails.username || authorName || 'kullanici'
+  const authorBioText = authorDetails.bio ? `Biyografi: "${authorDetails.bio}"` : 'Biyografi belirtilmemiş'
+  const authorInfoText = [
+    `Kullanıcı Adı: @${username}`,
+    authorDetails.fullName ? `Ad Soyad: ${authorDetails.fullName}` : '',
+    authorDetails.isVerified ? `Doğrulanmış Hesap: Evet (${authorDetails.verificationCategory || 'Doğrulanmış'})` : '',
+    authorBioText,
+  ].filter(Boolean).join(', ')
 
-Gönderi Sahibi: @${authorName || 'kullanici'}
-Gönderi Metni:
-"""${postText || '(Metin yok, medya paylaşımı)'}"""
-${topComments && topComments.length > 0 ? `\nÖne Çıkan Yorumlar:\n${topComments.map((c) => `- ${c}`).join('\n')}` : ''}
+  let mediaInfoText = 'Medyasız (Yalnızca metin paylaşımı)'
+  if (mediaList && mediaList.length > 0) {
+    const imagesCount = mediaList.filter((m) => m.type === 'image').length
+    const videosCount = mediaList.filter((m) => m.type === 'video').length
+    const parts = []
+    if (imagesCount > 0) parts.push(`${imagesCount} adet görsel/fotoğraf`)
+    if (videosCount > 0) {
+      const totalDuration = mediaList
+        .filter((m) => m.type === 'video')
+        .reduce((sum, v) => sum + (v.durationSeconds || 0), 0)
+      parts.push(`${videosCount} adet video${totalDuration > 0 ? ` (yaklaşık ${Math.round(totalDuration)} sn)` : ''}`)
+    }
+    mediaInfoText = parts.join(', ') || 'Medya içeriyor'
+  }
+
+  const prompt = `Aşağıdaki sosyal medya gönderisini, medyasını ve paylaşan profilini analiz et.
+X / Grok tarzında, TAM OLARAK 3 MADDE halinde Türkçe olarak özetle:
+
+1. Madde (Açıklama Özeti): Gönderi metninin ana konusunu ve verilmek istenen temel mesajı açık ve net şekilde özetleyen TEK bir cümle.
+2. Madde (Medya Özeti): Paylaşımdaki görsel veya videonun durumunu, türünü ve içeriğe katkısını özetleyen TEK bir cümle (eğer medya yoksa içeriğin yalnızca metin paylaşımı olduğunu zarifçe belirt).
+3. Madde (Profil Bilgisi): İçeriği paylaşan @${username} profili hakkında bilgi veren KESİNLİKLE TEK bir cümle.
+
+Gönderi Bilgileri:
+- Paylaşan Profil: ${authorInfoText}
+- Gönderi Metni: """${postText || '(Metin yok, medya odaklı paylaşım)'}"""
+- Medya Durumu: ${mediaInfoText}
+${topComments && topComments.length > 0 ? `- Öne Çıkan Yorumlar:\n${topComments.map((c) => `  * ${c}`).join('\n')}` : ''}
 
 Kurallar:
-- Yanıtın SADECE 2 veya 3 maddelik özet olsun.
-- Asla selamlama veya giriş cümlesi kurma ("İşte özet:", "Bu gönderide..." vb. yazma).
-- Asla kapanış veya son söz ekleme.
-- Her madde "• " ile başlasın ve net bir cümle olsun.`
+- Yanıtın KESİNLİKLE VE SADECE 3 MADDEDEN (3 satırdan) oluşmalıdır.
+- Her madde "• " ile başlamalıdır.
+- 1. Madde: Açıklama ve içerik özeti (tek bir cümle).
+- 2. Madde: Görsel veya video medya özeti (tek bir cümle).
+- 3. Madde: YALNIZCA @${username} profili hakkında bilgi veren TEK bir cümle olmalıdır. Bu maddede gönderi konusunu veya metnini ASLA tekrar anlatma ("... açıklamasını paylaştı" vb. YAZMA). Sadece profilin kim olduğunu, onaylı durumunu veya biyografisini belirt. Biyografi yoksa sadece "Paylaşım, @${username} isimli kullanıcı tarafından yapılmıştır." şeklinde sade tek bir cümle yaz. Asla "daha fazla bilgi bulunmamaktadır" veya "ancak içerik ... içermektedir" gibi mükerrer veya ikinci cümleler ekleme.
+- Asla selamlama, başlık, ön söz ("İşte özet:", "1. Madde:", "İçerik:", "Medya:", "Profil:" vb.) yazma. Doğrudan "• " ile başla.
+- Asla kapanış veya son söz ekleme.`
 
   const baseUrl = (env.nvidia.baseUrl || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '')
   const endpoint = `${baseUrl}/chat/completions`
@@ -189,11 +232,11 @@ Kurallar:
     body: JSON.stringify({
       model: env.nvidia.model || 'meta/llama-3.3-70b-instruct',
       messages: [
-        { role: 'system', content: 'Sen sosyal medya içeriklerini 2-3 kısa maddede özetleyen uzman, tarafsız ve pürüzsüz Türkçe kullanan bir asistansın.' },
+        { role: 'system', content: 'Sen sosyal medya içeriklerini ve yazarlarını 3 maddede özetleyen uzman, tarafsız ve kusursuz Türkçe kullanan bir asistansın.' },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
-      max_tokens: 350,
+      max_tokens: 380,
       stream: false,
     }),
   })

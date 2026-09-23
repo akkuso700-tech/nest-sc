@@ -3,13 +3,16 @@ export function renderHighlightedDraft(text = '') {
     return null
   }
 
-  const parts = text.split(/(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+)/gu)
+  const parts = text.split(/(#[a-zA-Z0-9_\p{L}]+|@[a-zA-Z0-9_\p{L}]*|#)/gu)
   const elements = parts.map((part, index) => {
     if (!part) {
       return null
     }
 
-    const isTag = /^(#[\p{L}\p{N}_]+|@[\p{L}\p{N}_]+)$/u.test(part)
+    const isTag =
+      (part.startsWith('@') || part.startsWith('#')) &&
+      /^(#[a-zA-Z0-9_\p{L}]*|@[a-zA-Z0-9_\p{L}]*)$/u.test(part)
+
     if (isTag) {
       return (
         <span key={`${part}-${index}`} className="text-primary font-normal">

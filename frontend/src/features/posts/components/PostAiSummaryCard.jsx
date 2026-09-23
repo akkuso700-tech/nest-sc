@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { SparklesIcon } from '../../../layouts/SocialLayoutIcons.jsx'
+import HashtagText from '../../../components/common/HashtagText.jsx'
 
 export default function PostAiSummaryCard({
   summary,
@@ -9,6 +9,8 @@ export default function PostAiSummaryCard({
   onRefresh,
   onClose,
   onShowToast,
+  onMentionClick,
+  onHashtagClick,
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -101,7 +103,7 @@ export default function PostAiSummaryCard({
         <div className="space-y-2 py-1">
           <div className="flex items-center gap-2 text-xs text-muted mb-2 animate-pulse">
             <span className="size-2 rounded-full bg-primary animate-ping" />
-            <span>Gönderi ve öne çıkan yorumlar analiz ediliyor...</span>
+            <span>Gönderi içeriği, medyası ve profili analiz ediliyor...</span>
           </div>
           <div className="h-3 w-4/5 animate-pulse rounded bg-secondary/80" />
           <div className="h-3 w-full animate-pulse rounded bg-secondary/80" />
@@ -122,13 +124,22 @@ export default function PostAiSummaryCard({
           </button>
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {lines.map((line, idx) => {
-            const cleanText = line.replace(/^[•\-\*]\s*/, '').replace(/^\d+\.\s*/, '')
+            const cleanText = line
+              .replace(/^[•\-\*]\s*/, '')
+              .replace(/^\d+[\.\)]\s*/, '')
+              .replace(/^(İçerik|Medya|Profil)\s*[:\-]\s*/i, '')
             return (
-              <div key={idx} className="flex items-start gap-2 text-[13px] leading-relaxed text-text/90">
+              <div key={idx} className="flex items-start gap-2.5 text-[13px] leading-relaxed text-text/90">
                 <span className="mt-1 text-xs text-primary/80 font-bold select-none">•</span>
-                <span className="flex-1">{cleanText}</span>
+                <span className="flex-1">
+                  <HashtagText
+                    text={cleanText}
+                    onMentionClick={onMentionClick}
+                    onHashtagClick={onHashtagClick}
+                  />
+                </span>
               </div>
             )
           })}

@@ -2169,6 +2169,8 @@ function PostCard({
                   onRefresh={() => handleToggleSummary(true)}
                   onClose={() => setIsSummaryOpen(false)}
                   onShowToast={setToast}
+                  onMentionClick={handleMentionNavigate}
+                  onHashtagClick={handleTopicNavigate}
                 />
               </Suspense>
             ) : null}

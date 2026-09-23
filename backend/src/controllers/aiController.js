@@ -127,7 +127,7 @@ async function summarizePost(req, res) {
     const { Comment } = require('../models/Comment')
     const { summarizePostContent } = require('../services/aiService')
 
-    const post = await Post.findById(postId).populate('author', 'username firstName lastName')
+    const post = await Post.findById(postId).populate('author', 'username firstName lastName bio verification role')
 
     if (!post) {
       return res.status(404).json({ success: false, message: 'Gönderi bulunamadı.' })
@@ -159,9 +159,25 @@ async function summarizePost(req, res) {
       // Ignore comment fetch errors
     }
 
+    const authorDetails = {
+      username: post.author?.username || 'kullanici',
+      fullName: [post.author?.firstName, post.author?.lastName].filter(Boolean).join(' ') || '',
+      bio: post.author?.bio || '',
+      isVerified: post.author?.verification?.status === 'approved',
+      verificationCategory: post.author?.verification?.category || '',
+      role: post.author?.role || 'user',
+    }
+
+    const mediaList = (post.media || []).map((m) => ({
+      type: m.type,
+      durationSeconds: m.durationSeconds || 0,
+    }))
+
     const summary = await summarizePostContent({
       postText: post.text,
       authorName: post.author?.username,
+      authorDetails,
+      mediaList,
       topComments: commentTexts,
     })
 

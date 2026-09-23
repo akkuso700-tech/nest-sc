@@ -874,7 +874,9 @@ function PostDetailModal() {
   }
 
   function handleMentionNavigate(mention) {
-    navigate(`/${lang}/u/${mention.replace(/^@/, '')}`)
+    const username = mention.replace(/^@/, '')
+    if (username.toLowerCase() === 'nestai') return
+    navigate(`/${lang}/u/${username}`)
   }
 
   function resetComposerState() {
@@ -1370,6 +1372,8 @@ function PostDetailModal() {
                       onRefresh={() => handleToggleSummary(true)}
                       onClose={() => setIsSummaryOpen(false)}
                       onShowToast={setToast}
+                      onMentionClick={handleMentionNavigate}
+                      onHashtagClick={handleTopicNavigate}
                     />
                   </Suspense>
                 ) : null}
@@ -1548,6 +1552,8 @@ function PostDetailModal() {
                       onRefresh={() => handleToggleSummary(true)}
                       onClose={() => setIsSummaryOpen(false)}
                       onShowToast={setToast}
+                      onMentionClick={handleMentionNavigate}
+                      onHashtagClick={handleTopicNavigate}
                     />
                   </Suspense>
                 ) : null}

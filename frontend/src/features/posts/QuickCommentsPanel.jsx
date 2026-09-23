@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HashtagText from '../../components/common/HashtagText.jsx'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
@@ -17,6 +17,7 @@ import {
 } from './PostCardIcons.jsx'
 import { PhotoIcon } from './PostComposerIcons.jsx'
 import ShareMenuPopover from './ShareMenuPopover.jsx'
+import { renderHighlightedDraft } from './components/composer/ComposerHighlightedDraft.jsx'
 const ReplyComposer = lazy(() => import('./ReplyComposer.jsx'))
 const MediaGallery = lazy(() => import('./MediaGallery.jsx'))
 
@@ -93,16 +94,6 @@ function formatViewCount(value, locale = 'tr-TR') {
   }).format(numericValue)
 }
 
-function shouldClampCommentText(text) {
-  if (!text) {
-    return false
-  }
-
-  const normalized = String(text).replace(/\r/g, '')
-  const lineCount = normalized.split('\n').length
-  return lineCount > 3 || normalized.length > 220
-}
-
 function QuickCommentItem({
   comment,
   lang,
@@ -129,70 +120,63 @@ function QuickCommentItem({
   level = 0,
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const commentId = comment.id || comment._id
-  const [isExpanded, setIsExpanded] = useState(false)
   const [isRepliesOpen, setIsRepliesOpen] = useState(false)
   const isMenuOpen = activeCommentMenuId === commentId
   const canDeleteComment = Boolean(comment?.canDelete || comment?.canEdit)
   const canEditComment = Boolean(comment?.canEdit)
+
+  function handleMentionNavigate(mention) {
+    const username = mention.replace(/^@/, '')
+    if (username.toLowerCase() === 'nestai') return
+    navigate(`/${lang}/u/${username}`)
+  }
+
+  function handleTopicNavigate(topic) {
+    navigate(`/${lang}?topic=${encodeURIComponent(topic)}`)
+  }
   const isReplying = replyTargetId === commentId
   const isEditing = editingCommentId === commentId
   const isInlineComposerOpen = isReplying || isEditing
-  const avatarAnchorRef = useRef(null)
-  const repliesRailRef = useRef(null)
-  const [threadGeometry, setThreadGeometry] = useState({ x: 18, start: -54, indent: 46 })
-  const hasLongText = shouldClampCommentText(comment.text)
   const replyCount = comment.replies?.length || 0
 
-  useLayoutEffect(() => {
-    if (!isRepliesOpen) return
-
-    function updateThreadGeometry() {
-      const avatarEl = avatarAnchorRef.current
-      const railEl = repliesRailRef.current
-      if (!avatarEl || !railEl) return
-
-      const avatarRect = avatarEl.getBoundingClientRect()
-      const railRect = railEl.getBoundingClientRect()
-      const x = Math.max(8, Math.round(avatarRect.left + avatarRect.width / 2 - railRect.left))
-      const start = Math.round(avatarRect.bottom - railRect.top)
-      const indent = Math.max(x + 28, 44)
-      setThreadGeometry({ x, start, indent })
-    }
-
-    updateThreadGeometry()
-    window.addEventListener('resize', updateThreadGeometry)
-    return () => window.removeEventListener('resize', updateThreadGeometry)
-  }, [isRepliesOpen])
-
   return (
-    <div className="space-y-0" style={{ marginLeft: `${level * 14}px` }}>
-      <div className=" md:px-4 py-1">
-        <div className="flex items-start gap-1">
-          <Link
-            ref={avatarAnchorRef}
-            to={`/${lang}/u/${comment.author?.username || ''}`}
-            className="shrink-0 transition hover:scale-[1.02]"
-          >
-            <UserAvatar
-              user={comment.author}
-              className="size-9 text-[11px] font-semibold"
-            />
-          </Link>
+    <div className="space-y-0">
+      <div className="py-1">
+        <div className="relative min-w-0 rounded-xl bg-secondary p-2.5 sm:p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Link
+                to={`/${lang}/u/${comment.author?.username || ''}`}
+                className="shrink-0 transition hover:scale-[1.02]"
+              >
+                <UserAvatar
+                  user={comment.author}
+                  className="size-8 text-[11px] font-semibold"
+                />
+              </Link>
+              <div className="min-w-0">
+                <Link
+                  to={`/${lang}/u/${comment.author?.username || ''}`}
+                  className="flex min-w-0 items-center gap-1.5 transition hover:opacity-80"
+                >
+                  <span className="truncate text-sm font-semibold text-text">
+                    {getFullName(comment.author)}
+                  </span>
+                  <VerifiedBadge user={comment.author} size="xs" />
+                </Link>
+                <div className="flex min-w-0 items-center gap-1 text-xs text-soft">
+                  <span className="truncate">@{comment.author?.username}</span>
+                  <span className="shrink-0">-</span>
+                  <span className="shrink-0">
+                    {formatRelativeTime(comment.createdAt)}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-          <div className="relative min-w-0 flex-1 rounded-lg bg-secondary p-2 pr-10">
-            <Link
-              to={`/${lang}/u/${comment.author?.username || ''}`}
-              className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl transition hover:opacity-80"
-            >
-              <span className="truncate text-sm font-semibold text-text">
-                <span className="flex items-center gap-1">{getFullName(comment.author)} <VerifiedBadge user={comment.author} size="xs" /></span>
-              </span>
-              <span className="text-xs text-soft">
-                @{comment.author?.username} - {formatRelativeTime(comment.createdAt)}
-              </span>
-            </Link>
-            <div className="absolute right-2 top-2 z-10">
+            <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => onToggleCommentMenu(commentId)}
@@ -229,167 +213,126 @@ function QuickCommentItem({
                 </div>
               ) : null}
             </div>
+          </div>
 
-            {comment.text ? (
-              <>
-                <p
-                  className="md:mt-2 whitespace-pre-line text-base leading-6 text-text"
-                  style={
-                    !isExpanded
-                      ? {
-                          display: '-webkit-box',
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }
-                      : undefined
-                  }
-                >
-                  {comment.text}
-                </p>
-                {hasLongText ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsExpanded((current) => !current)}
-                    className="mt-1 text-xs font-medium text-accent transition hover:text-primary"
-                  >
-                    {isExpanded ? t('postDetail.less') : t('postDetail.more')}
-                  </button>
-                ) : null}
-              </>
-            ) : null}
+          {comment.text ? (
+            <p className="mt-2 whitespace-pre-line text-sm sm:text-[15px] leading-6 text-text">
+              <HashtagText
+                text={comment.text}
+                onHashtagClick={handleTopicNavigate}
+                onMentionClick={handleMentionNavigate}
+              />
+            </p>
+          ) : null}
 
-            <div className="md:mt-1 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onLike(comment)}
+              disabled={!isAuthenticated}
+              className={`text-xs cursor-pointer font-medium transition ${
+                comment.likedByViewer
+                  ? 'text-primary dark:text-primary'
+                  : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white'
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              {t('postDetail.likeCount', { count: comment.stats?.likes ?? 0 })}
+            </button>
+            <button
+              type="button"
+              onClick={() => onReply(comment)}
+              className="rounded-full cursor-pointer px-2.5 py-1 text-xs font-medium text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white transition"
+            >
+              {isReplying ? t('postDetail.hideReplies') : t('common.reply')}
+            </button>
+            {canEditComment ? (
               <button
                 type="button"
-                onClick={() => onLike(comment)}
-                disabled={!isAuthenticated}
-                className={`text-xs cursor-pointer font-medium transition ${
-                  comment.likedByViewer
-                    ? 'text-primary dark:text-primary'
-                    : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white'
-                } disabled:cursor-not-allowed disabled:opacity-60`}
+                onClick={() => onEdit(comment)}
+                className="rounded-full cursor-pointer px-2.5 py-1 text-xs font-medium text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white transition"
               >
-                {t('postDetail.likeCount', { count: comment.stats?.likes ?? 0 })}
+                {isEditing ? t('postDetail.editing') : t('postDetail.edit')}
               </button>
-              <button
-                type="button"
-                onClick={() => onReply(comment)}
-                className={`rounded-full cursor-pointer px-2.5 py-1.5 text-xs font-medium transition ${
-                  replyTargetId === commentId
-                    ? 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white '
-                    : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white '
-                }`}
-              >
-                {isReplying ? t('postDetail.hideReplies') : t('common.reply')}
-              </button>
-              {canEditComment ? (
-                <button
-                  type="button"
-                  onClick={() => onEdit(comment)}
-                  className={`rounded-full cursor-pointer px-2.5 py-1.5 text-xs font-medium transition ${
-                    isEditing ? 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white' : 'text-zinc-500 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white'
-                  }`}
-                >
-                  {isEditing ? t('postDetail.editing') : t('postDetail.edit')}
-                </button>
-              ) : null}
-            </div>
-
-            {replyCount ? (
-              <button
-                type="button"
-                onClick={() => setIsRepliesOpen((current) => !current)}
-                className="md:mt-1 cursor-pointer rounded-full px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-secondary hover:text-text"
-              >
-                {isRepliesOpen
-                  ? t('postDetail.hideReplies')
-                  : t('postDetail.viewReplies', { count: replyCount })}
-              </button>
-            ) : null}
-
-            {isInlineComposerOpen ? (
-              <div className="relative mt-3 pl-4">
-                <span className="absolute -left-[28px] top-[-12px] h-5 w-[24px] rounded-bl-[12px] border-b border-l border-zinc-300/75 dark:border-zinc-600/80" />
-                <span className="absolute left-0 top-2 bottom-2 w-px rounded-full bg-zinc-300/75 dark:bg-zinc-600/80" />
-                <Suspense fallback={null}>
-                  <ReplyComposer
-                    draft={draft}
-                    onDraftChange={onDraftChange}
-                    disabled={!isAuthenticated}
-                    isSubmitting={isSubmitting}
-                    placeholder={
-                      isAuthenticated
-                        ? isEditing
-                          ? t('postDetail.updateComment')
-                          : `${getFullName(comment.author)} ${t('postDetail.replyingToUser')}`
-                        : t('postDetail.commentLoginPlaceholder')
-                    }
-                    onCancel={onCancelReply}
-                    onOpenMediaPicker={onOpenMediaPicker}
-                    onSubmit={onSubmitReply}
-                    canSubmit={canSubmit}
-                    commentPreview={commentPreview}
-                    onClearMedia={onClearMedia}
-                    submitError={submitError}
-                    labels={{
-                      cancel: t('postDetail.cancel'),
-                      addMedia: t('postDetail.addMedia'),
-                      send: t('postDetail.sendComment'),
-                      removePreview: t('postDetail.removePreview'),
-                    }}
-                  />
-                </Suspense>
-              </div>
             ) : null}
           </div>
+
+          {replyCount ? (
+            <button
+              type="button"
+              onClick={() => setIsRepliesOpen((current) => !current)}
+              className="mt-1 cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium text-muted transition hover:bg-card hover:text-text"
+            >
+              {isRepliesOpen
+                ? t('postDetail.hideReplies')
+                : t('postDetail.viewReplies', { count: replyCount })}
+            </button>
+          ) : null}
+
+          {isInlineComposerOpen ? (
+            <div className="relative mt-2.5">
+              <Suspense fallback={null}>
+                <ReplyComposer
+                  draft={draft}
+                  onDraftChange={onDraftChange}
+                  disabled={!isAuthenticated}
+                  isSubmitting={isSubmitting}
+                  placeholder={
+                    isAuthenticated
+                      ? isEditing
+                        ? t('postDetail.updateComment')
+                        : `${getFullName(comment.author)} ${t('postDetail.replyingToUser')}`
+                      : t('postDetail.commentLoginPlaceholder')
+                  }
+                  onCancel={onCancelReply}
+                  onOpenMediaPicker={onOpenMediaPicker}
+                  onSubmit={onSubmitReply}
+                  canSubmit={canSubmit}
+                  commentPreview={commentPreview}
+                  onClearMedia={onClearMedia}
+                  submitError={submitError}
+                  labels={{
+                    cancel: t('postDetail.cancel'),
+                    addMedia: t('postDetail.addMedia'),
+                    send: t('postDetail.sendComment'),
+                    removePreview: t('postDetail.removePreview'),
+                  }}
+                />
+              </Suspense>
+            </div>
+          ) : null}
         </div>
       </div>
 
       {replyCount && isRepliesOpen ? (
-        <div ref={repliesRailRef} className="relative">
-          <span
-            className="absolute w-px rounded-full bg-zinc-300/85 dark:bg-zinc-600/90"
-            style={{ left: `${threadGeometry.x}px`, top: `${threadGeometry.start}px`, bottom: '26px' }}
-          />
-          <div className="space-y-3" style={{ paddingLeft: `${threadGeometry.indent}px` }}>
-            {comment.replies.map((reply) => (
-              <div key={reply.id || reply._id} className="relative">
-                <span
-                  className="absolute top-[22px] h-px bg-zinc-300/85 dark:bg-zinc-600/90"
-                  style={{
-                    left: `${-(threadGeometry.indent - threadGeometry.x)}px`,
-                    width: `${threadGeometry.indent - threadGeometry.x}px`,
-                  }}
-                />
-                <QuickCommentItem
-                  comment={reply}
-                  lang={lang}
-                  isAuthenticated={isAuthenticated}
-                  replyTargetId={replyTargetId}
-                  onReply={onReply}
-                  onLike={onLike}
-                  draft={draft}
-                  onDraftChange={onDraftChange}
-                  onSubmitReply={onSubmitReply}
-                  onCancelReply={onCancelReply}
-                  onOpenMediaPicker={onOpenMediaPicker}
-                  commentPreview={commentPreview}
-                  onClearMedia={onClearMedia}
-                  submitError={submitError}
-                  canSubmit={canSubmit}
-                  isSubmitting={isSubmitting}
-                  activeCommentMenuId={activeCommentMenuId}
-                  onToggleCommentMenu={onToggleCommentMenu}
-                  onRequestDelete={onRequestDelete}
-                  onReportComment={onReportComment}
-                  onEdit={onEdit}
-                  editingCommentId={editingCommentId}
-                  level={level + 1}
-                />
-              </div>
-            ))}
-          </div>
+        <div className="relative mt-1 ml-2 sm:ml-3 pl-2 sm:pl-3 border-l-2 border-border/80 space-y-1">
+          {comment.replies.map((reply) => (
+            <QuickCommentItem
+              key={reply.id || reply._id}
+              comment={reply}
+              lang={lang}
+              isAuthenticated={isAuthenticated}
+              replyTargetId={replyTargetId}
+              onReply={onReply}
+              onLike={onLike}
+              draft={draft}
+              onDraftChange={onDraftChange}
+              onSubmitReply={onSubmitReply}
+              onCancelReply={onCancelReply}
+              onOpenMediaPicker={onOpenMediaPicker}
+              commentPreview={commentPreview}
+              onClearMedia={onClearMedia}
+              submitError={submitError}
+              canSubmit={canSubmit}
+              isSubmitting={isSubmitting}
+              activeCommentMenuId={activeCommentMenuId}
+              onToggleCommentMenu={onToggleCommentMenu}
+              onRequestDelete={onRequestDelete}
+              onReportComment={onReportComment}
+              onEdit={onEdit}
+              editingCommentId={editingCommentId}
+              level={level + 1}
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -544,38 +487,55 @@ function QuickCommentsPanel({
 
   const composer = (
     <div className="space-y-3">
-      {!replyTarget ? <div className="flex items-end gap-2">
-        <textarea
-          ref={commentInputRef}
-          rows={isMobile ? 3 : 2}
-          value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
-          disabled={disabled}
-          placeholder={disabled ? t('postDetail.commentLoginPlaceholder') : (replyTarget ? t('postDetail.replyPlaceholder') : t('postDetail.addComment'))}
-          className="flex-1 resize-none rounded-lg h-10 border border-border bg-card px-4 py-2 text-sm text-text outline-none placeholder:text-soft"
-        />
-        <button
-          type="button"
-          onClick={onOpenMediaPicker}
-          disabled={disabled || isSubmitting}
-          className="grid size-10 place-items-center rounded-lg border border-border text-muted transition hover:bg-secondary hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={t('postDetail.addMedia')}
-        >
-          <PhotoIcon />
-        </button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={disabled || isSubmitting || !canSubmit}
-          className="grid size-10 place-items-center rounded-lg bg-primary text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
-          aria-label={t('postDetail.sendComment')}
-          title={t('postDetail.sendComment')}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="size-5" aria-hidden="true">
-            <path d="M3 12 20 4l-4.5 16-4-6-8.5-2z" />
-          </svg>
-        </button>
-      </div> : null}
+      {!replyTarget ? (
+        <div className="flex items-end gap-2">
+          <div className="relative min-w-0 flex-1 rounded-lg border border-border bg-card focus-within:border-primary">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-pre-wrap break-words px-3.5 py-2 font-sans text-sm leading-5 text-text"
+            >
+              {renderHighlightedDraft(draft)}
+            </div>
+            <textarea
+              ref={commentInputRef}
+              rows={isMobile ? 2 : 1}
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+              disabled={disabled}
+              placeholder={
+                disabled
+                  ? t('postDetail.commentLoginPlaceholder')
+                  : replyTarget
+                    ? t('postDetail.replyPlaceholder')
+                    : t('postDetail.addComment')
+              }
+              className="relative z-[1] block w-full resize-none bg-transparent px-3.5 py-2 font-sans text-sm leading-5 text-transparent outline-none placeholder:text-soft selection:bg-primary/25 disabled:cursor-not-allowed"
+              style={{ caretColor: 'rgb(var(--color-text))' }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onOpenMediaPicker}
+            disabled={disabled || isSubmitting}
+            className="grid size-10 shrink-0 place-items-center rounded-lg border border-border text-muted transition hover:bg-secondary hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={t('postDetail.addMedia')}
+          >
+            <PhotoIcon />
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={disabled || isSubmitting || !canSubmit}
+            className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-inverse transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-secondary-hover disabled:text-soft"
+            aria-label={t('postDetail.sendComment')}
+            title={t('postDetail.sendComment')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="size-5" aria-hidden="true">
+              <path d="M3 12 20 4l-4.5 16-4-6-8.5-2z" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 
