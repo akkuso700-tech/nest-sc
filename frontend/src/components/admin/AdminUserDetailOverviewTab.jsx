@@ -274,12 +274,11 @@ export function AdminUserDetailOverviewTab({
                 <DetailRow
                   label="Kayıt Şehri / Ülkesi"
                   value={
-                    consent.city || consent.country
-                      ? `${consent.city || 'Şehir Yok'} / ${consent.country || 'Ülke Yok'}`
-                      : user.location?.city || user.location?.country
-                      ? `${user.location?.city || 'Şehir Yok'} / ${user.location?.country || 'Ülke Yok'} (Profil Konumu)`
+                    consent.city || (consent.country && consent.country !== 'Unknown')
+                      ? `${consent.city || 'Şehir Yok'} / ${consent.country && consent.country !== 'Unknown' ? consent.country : 'Ülke Yok'}`
                       : 'Tespit Edilemedi'
                   }
+
                 />
                 <DetailRow
                   label="Kayıt Sayfası (Dönüşüm)"

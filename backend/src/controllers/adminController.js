@@ -30,6 +30,7 @@ const {
   getSignupContractsSettings,
   updateSignupContractsSettings,
 } = require('../services/adminSettingsService')
+const { lookupIpLocation } = require('../services/locationService')
 const { asyncHandler } = require('../utils/asyncHandler')
 const { AppError } = require('../utils/AppError')
 const { createAuditLog } = require('../utils/auditLog')
@@ -723,12 +724,38 @@ const listUsers = asyncHandler(async (req, res) => {
     .sort({ [sortField]: sortValue, _id: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
+    .lean()
+
+  const enrichedUsers = users.map((user) => {
+    const consent = user.signupConsent || {}
+    let city = consent.city || ''
+    let country = consent.country || ''
+
+    if ((!city || !country || country === 'Unknown') && consent.ipAddress && consent.ipAddress !== 'Unknown') {
+      const geo = lookupIpLocation(consent.ipAddress)
+      if (geo.city || (geo.country && geo.country !== 'Unknown')) {
+        city = city || geo.city
+        country = (!country || country === 'Unknown') ? geo.country : country
+        return {
+          ...user,
+          signupConsent: {
+            ...consent,
+            city,
+            country,
+          },
+        }
+      }
+    }
+
+    return user
+  })
 
   res.json({
-    users,
+    users: enrichedUsers,
     pagination: buildPagination(page, limit, totalItems),
   })
 })
+
 
 const getUsersSummary = asyncHandler(async (req, res) => {
   const { period, dateFrom, dateTo } = req.validated.query
@@ -1221,8 +1248,26 @@ const getUserDetail = asyncHandler(async (req, res) => {
     throw new AppError('Kullanici bulunamadi.', 404)
   }
 
+  const userObj = user.toObject ? user.toObject() : { ...user }
+  const consent = userObj.signupConsent || {}
+  let city = consent.city || ''
+  let country = consent.country || ''
+
+  if ((!city || !country || country === 'Unknown') && consent.ipAddress && consent.ipAddress !== 'Unknown') {
+    const geo = lookupIpLocation(consent.ipAddress)
+    if (geo.city || (geo.country && geo.country !== 'Unknown')) {
+      city = city || geo.city
+      country = (!country || country === 'Unknown') ? geo.country : country
+      userObj.signupConsent = {
+        ...consent,
+        city,
+        country,
+      }
+    }
+  }
+
   res.json({
-    user,
+    user: userObj,
     posts,
     conversations,
     messages,
@@ -1230,6 +1275,7 @@ const getUserDetail = asyncHandler(async (req, res) => {
     callLogs,
   })
 })
+
 
 const listVerificationRequests = asyncHandler(async (req, res) => {
   const { q, status, category, page, limit } = req.validated.query

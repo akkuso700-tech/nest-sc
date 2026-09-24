@@ -1019,10 +1019,16 @@ function AdminUsersPage() {
                     const username = userItem.username ? `@${userItem.username}` : '-'
                     const email = userItem.email || '-'
                     const ipAddress = userItem.signupConsent?.ipAddress || '-'
-                    const approxCity = userItem.signupConsent?.city || ''
-                    const approxCountry = userItem.signupConsent?.country || ''
-                    const approxLocation = [approxCity, approxCountry].filter(Boolean).join(', ')
-                    const location = formatLocation(userItem.location)
+                    const approxCity =
+                      userItem.signupConsent?.city && userItem.signupConsent.city !== 'Unknown'
+                        ? userItem.signupConsent.city
+                        : ''
+                    const approxCountry =
+                      userItem.signupConsent?.country && userItem.signupConsent.country !== 'Unknown'
+                        ? userItem.signupConsent.country
+                        : ''
+                    const ipLocation = [approxCity, approxCountry].filter(Boolean).join(', ')
+
                     const profileLanguage = userItem.signupConsent?.language || '-'
                     const isSuspended = userItem.accountStatus === 'suspended'
                     const isSelected = selectedUserIds.includes(userItem._id)
@@ -1081,9 +1087,10 @@ function AdminUsersPage() {
                         <td>
                           <div className="text-xs">
                             <p className="font-mono text-slate-700">{ipAddress}</p>
-                            <p className="mt-0.5 text-slate-500 truncate max-w-[150px]">
-                              {location || approxLocation || '-'}
+                            <p className="mt-0.5 text-slate-500 truncate max-w-[150px]" title={ipLocation || 'Konum tespit edilemedi'}>
+                              {ipLocation || '-'}
                             </p>
+
                           </div>
                         </td>
 

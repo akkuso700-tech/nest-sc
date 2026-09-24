@@ -1,7 +1,108 @@
+const geoip = require('geoip-lite')
 const { LocationConsentLog } = require('../models/LocationConsentLog')
+
+let trCountryDisplay = null
+try {
+  trCountryDisplay = new Intl.DisplayNames(['tr'], { type: 'region' })
+} catch {
+  trCountryDisplay = null
+}
+
+function isPrivateIp(ip) {
+  if (!ip) return true
+  const cleanIp = String(ip).trim()
+  if (['127.0.0.1', '::1', 'localhost', '::ffff:127.0.0.1'].includes(cleanIp)) return true
+  if (cleanIp.startsWith('10.') || cleanIp.startsWith('192.168.')) return true
+  if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(cleanIp)) return true
+  if (cleanIp.startsWith('fc00:') || cleanIp.startsWith('fe80:')) return true
+  return false
+}
+
+function lookupIpLocation(ipAddress) {
+  if (!ipAddress) {
+    return {
+      city: '',
+      country: '',
+      countryCode: '',
+      region: '',
+      latitude: null,
+      longitude: null,
+      isLocal: false,
+    }
+  }
+
+  let cleanIp = String(ipAddress).split(',')[0].trim()
+  if (cleanIp.startsWith('::ffff:')) {
+    cleanIp = cleanIp.replace('::ffff:', '')
+  }
+
+  if (isPrivateIp(cleanIp)) {
+    return {
+      city: 'Yerel Ağ',
+      country: 'Localhost',
+      countryCode: 'LOCAL',
+      region: '',
+      latitude: null,
+      longitude: null,
+      isLocal: true,
+    }
+  }
+
+  try {
+    const geo = geoip.lookup(cleanIp)
+    if (!geo) {
+      return {
+        city: '',
+        country: '',
+        countryCode: '',
+        region: '',
+        latitude: null,
+        longitude: null,
+        isLocal: false,
+      }
+    }
+
+    let countryName = geo.country || ''
+    if (trCountryDisplay && geo.country) {
+      try {
+        countryName = trCountryDisplay.of(geo.country) || geo.country
+      } catch {
+        countryName = geo.country || ''
+      }
+    }
+
+    let city = (geo.city || '').trim()
+    if (city.toLowerCase() === 'istanbul') {
+      city = 'İstanbul'
+    } else if (city.toLowerCase() === 'izmir') {
+      city = 'İzmir'
+    }
+
+    return {
+      city,
+      country: countryName,
+      countryCode: geo.country || '',
+      region: geo.region || '',
+      latitude: Array.isArray(geo.ll) ? geo.ll[0] : null,
+      longitude: Array.isArray(geo.ll) ? geo.ll[1] : null,
+      isLocal: false,
+    }
+  } catch {
+    return {
+      city: '',
+      country: '',
+      countryCode: '',
+      region: '',
+      latitude: null,
+      longitude: null,
+      isLocal: false,
+    }
+  }
+}
 
 function roundCoordinate(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
+
     return null
   }
 
@@ -112,4 +213,6 @@ module.exports = {
   normalizeApproximateLocation,
   calculateDistanceKm,
   logLocationConsent,
+  lookupIpLocation,
+  isPrivateIp,
 }

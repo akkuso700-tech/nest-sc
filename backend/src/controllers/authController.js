@@ -27,6 +27,7 @@ const {
   getSignupContractsForLanguage,
   getConsentTextByLanguage,
 } = require('../services/adminSettingsService')
+const { lookupIpLocation } = require('../services/locationService')
 
 function createVerificationCode() {
   const number = Math.floor(Math.random() * 1000000)
@@ -164,23 +165,37 @@ async function sendPasswordResetEmail({ to, resetToken, language = 'tr' }) {
 
 function resolveRequestGeoSummary(req) {
   const ipAddress = String(req.ip || req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+  const ipGeo = lookupIpLocation(ipAddress)
+
+  const city =
+    ipGeo.city ||
+    String(req.headers['x-vercel-ip-city'] || req.headers['x-city'] || '').trim()
+
   const country =
+    (ipGeo.country && ipGeo.country !== 'Unknown' ? ipGeo.country : '') ||
     String(req.headers['cf-ipcountry'] || req.headers['x-vercel-ip-country'] || req.headers['x-country-code'] || '')
       .trim()
-      .toUpperCase()
-  const region = String(req.headers['x-vercel-ip-country-region'] || req.headers['x-country-region'] || '')
-    .trim()
-  const city = String(req.headers['x-vercel-ip-city'] || req.headers['x-city'] || '').trim()
-  const locationLabel = [city, region, country].filter(Boolean).join(', ') || 'Unknown'
+      .toUpperCase() ||
+    'Unknown'
+
+  const region =
+    ipGeo.region ||
+    String(req.headers['x-vercel-ip-country-region'] || req.headers['x-country-region'] || '')
+      .trim()
+
+  const locationLabel = [city, country !== 'Unknown' ? country : ''].filter(Boolean).join(', ') || 'Unknown'
 
   return {
     ipAddress: ipAddress || 'Unknown',
-    country: country || 'Unknown',
-    region: region || '',
-    city: city || '',
+    country,
+    region,
+    city,
     locationLabel,
+    latitude: ipGeo.latitude,
+    longitude: ipGeo.longitude,
   }
 }
+
 
 async function sendSignupNotificationEmail({
   user,
@@ -603,6 +618,8 @@ const googleCallback = asyncHandler(async (req, res) => {
     const fallbackBirthDate = new Date()
     fallbackBirthDate.setFullYear(fallbackBirthDate.getFullYear() - 18)
 
+    const googleGeo = resolveRequestGeoSummary(req)
+
     user = await User.create({
       firstName: defaultFirstName,
       lastName: defaultLastName,
@@ -610,7 +627,10 @@ const googleCallback = asyncHandler(async (req, res) => {
       username: resolvedUsername,
       passwordHash: randomPasswordHash,
       birthDate: fallbackBirthDate,
-      location: { country: 'Unknown', city: '' },
+      location: {
+        city: googleGeo.city || '',
+        country: googleGeo.country && googleGeo.country !== 'Unknown' ? googleGeo.country : '',
+      },
       authProvider: 'google',
       googleSub,
       emailVerifiedAt: now,
@@ -620,9 +640,9 @@ const googleCallback = asyncHandler(async (req, res) => {
         text: consentText,
         language,
         method: 'google',
-        ipAddress: resolveRequestGeoSummary(req).ipAddress,
-        city: resolveRequestGeoSummary(req).city,
-        country: resolveRequestGeoSummary(req).country,
+        ipAddress: googleGeo.ipAddress,
+        city: googleGeo.city,
+        country: googleGeo.country,
         browserLanguage: String(req.headers['accept-language'] || '').trim().slice(0, 80),
         userAgent: String(req.headers['user-agent'] || ''),
       },
@@ -790,9 +810,14 @@ const register = asyncHandler(async (req, res) => {
     email: normalizedEmail,
     username: resolvedUsername,
     passwordHash,
-    birthDate,
-    location,
-    authProvider: 'password',
+    location:
+      location && (location.city || (location.country && location.country !== 'Unknown'))
+        ? location
+        : {
+            city: geoSummary.city || '',
+            country: geoSummary.country && geoSummary.country !== 'Unknown' ? geoSummary.country : '',
+          },
+
     emailVerifiedAt: new Date(),
     signupConsent: {
       acceptedAt,
