@@ -1,3 +1,5 @@
+const fs = require('fs')
+const path = require('path')
 const mongoose = require('mongoose')
 const { User } = require('../models/User')
 const { Post } = require('../models/Post')
@@ -1996,33 +1998,70 @@ const deleteAdminConversation = asyncHandler(async (req, res) => {
     throw new AppError('Sohbet bulunamadi.', 404)
   }
 
-  const messageCount = await Message.countDocuments({ conversation: conversationId })
+  // 1. Fetch messages to collect media paths and message IDs
+  const messages = await Message.find({ conversation: conversationId }).select('_id media').lean()
+  const messageIds = messages.map((m) => m._id)
 
-  // 1. Delete all messages of this conversation
+  // 2. Clean up local media files from disk if any
+  for (const m of messages) {
+    if (Array.isArray(m.media)) {
+      for (const item of m.media) {
+        if (item.url && typeof item.url === 'string' && item.url.startsWith('/uploads/')) {
+          const filePath = path.join(__dirname, '..', '..', item.url.replace(/^\//, ''))
+          fs.promises.unlink(filePath).catch(() => {})
+        }
+        if (item.posterUrl && typeof item.posterUrl === 'string' && item.posterUrl.startsWith('/uploads/')) {
+          const posterPath = path.join(__dirname, '..', '..', item.posterUrl.replace(/^\//, ''))
+          fs.promises.unlink(posterPath).catch(() => {})
+        }
+      }
+    }
+  }
+
+  // 3. Delete all messages of this conversation
   await Message.deleteMany({ conversation: conversationId })
 
-  // 2. Delete the conversation record
+  // 4. Delete all call logs associated with this conversation
+  await CallLog.deleteMany({ conversation: conversationId })
+
+  // 5. Delete all notifications referencing this conversation or its messages
+  await Notification.deleteMany({
+    $or: [
+      { entityId: conversationId },
+      ...(messageIds.length ? [{ entityKind: 'message', entityId: { $in: messageIds } }] : []),
+    ],
+  })
+
+  // 6. Delete the conversation record
   await Conversation.findByIdAndDelete(conversationId)
 
-  // 3. Create Audit Log
+  // 7. Emit realtime socket notification to participants
+  const io = req.app.get('io')
+  if (io && Array.isArray(conversation.participantIds)) {
+    for (const pid of conversation.participantIds) {
+      io.to(`user:${pid}`).emit('conversation:deleted', { conversationId })
+    }
+  }
+
+  // 8. Create Audit Log
   await createAuditLog({
     actorId: req.user._id,
     action: 'admin.conversation.deleted',
     targetKind: 'system',
     targetId: conversationId,
-    summary: `Sohbet ve ${messageCount} adet mesaj kalici olarak silindi. Gerekce: ${reason || 'Belirtilmedi'}`,
+    summary: `Sohbet ve ${messages.length} adet mesaj kalici olarak silindi. Gerekce: ${reason || 'Belirtilmedi'}`,
     metadata: {
       participantIds: conversation.participantIds,
-      deletedMessagesCount: messageCount,
+      deletedMessagesCount: messages.length,
       reason,
     },
   })
 
   res.json({
     success: true,
-    message: 'Sohbet ve ilgili tum mesajlar kalici olarak silindi.',
+    message: 'Sohbet ve ilgili tum veriler kalici olarak silindi.',
     deletedConversationId: conversationId,
-    deletedMessagesCount: messageCount,
+    deletedMessagesCount: messages.length,
   })
 })
 
@@ -2675,6 +2714,104 @@ const getShadowChatMessages = asyncHandler(async (req, res) => {
   })
 })
 
+const deleteAdminShadowChat = asyncHandler(async (req, res) => {
+  const { chatKey } = req.params
+  const { reason = '' } = req.body || {}
+
+  if (!chatKey) {
+    throw new AppError('Gecersiz sohbet anahtari.', 400)
+  }
+
+  let deletedType = 'direct'
+  let deletedCount = 0
+  let directChat = null
+
+  const isObjectId = mongoose.Types.ObjectId.isValid(chatKey)
+  const room = isObjectId ? await AnonymousRoom.findById(chatKey) : null
+
+  if (room) {
+    deletedType = 'room'
+    const roomMessages = await AnonymousMessage.find({ roomId: room._id }).select('_id media').lean()
+    deletedCount = roomMessages.length
+
+    // Clean up local media files
+    for (const m of roomMessages) {
+      if (Array.isArray(m.media)) {
+        for (const item of m.media) {
+          if (item.url && typeof item.url === 'string' && item.url.startsWith('/uploads/')) {
+            const filePath = path.join(__dirname, '..', '..', item.url.replace(/^\//, ''))
+            fs.promises.unlink(filePath).catch(() => {})
+          }
+        }
+      }
+    }
+
+    // Delete messages, call logs, notifications, and room
+    await AnonymousMessage.deleteMany({ roomId: room._id })
+    await AnonymousCallLog.deleteMany({ sessionId: chatKey })
+    await Notification.deleteMany({ targetChatKey: chatKey })
+    await AnonymousRoom.findByIdAndDelete(room._id)
+  } else {
+    deletedType = 'direct'
+    directChat = await AnonymousDirectChat.findOne({ chatKey })
+    const directMessages = await AnonymousMessage.find({ conversationId: chatKey }).select('_id media').lean()
+    deletedCount = directMessages.length
+
+    // Clean up local media files
+    for (const m of directMessages) {
+      if (Array.isArray(m.media)) {
+        for (const item of m.media) {
+          if (item.url && typeof item.url === 'string' && item.url.startsWith('/uploads/')) {
+            const filePath = path.join(__dirname, '..', '..', item.url.replace(/^\//, ''))
+            fs.promises.unlink(filePath).catch(() => {})
+          }
+        }
+      }
+    }
+
+    // Delete messages, call logs, notifications, and direct chat
+    await AnonymousMessage.deleteMany({ conversationId: chatKey })
+    await AnonymousCallLog.deleteMany({ sessionId: chatKey })
+    await Notification.deleteMany({ targetChatKey: chatKey })
+    if (directChat) {
+      await AnonymousDirectChat.findByIdAndDelete(directChat._id)
+    }
+  }
+
+  // Realtime notification
+  const io = req.app.get('io')
+  if (io) {
+    io.emit('anon:chat_deleted', { chatKey })
+  }
+
+  // Audit Log
+  const validTargetId =
+    (room?._id && mongoose.isValidObjectId(room._id) ? room._id : null) ||
+    (directChat?._id && mongoose.isValidObjectId(directChat._id) ? directChat._id : null)
+
+  await createAuditLog({
+    actorId: req.user._id,
+    action: 'admin.shadow.chat.deleted',
+    targetKind: 'system',
+    targetId: validTargetId,
+    summary: `Gölge ${deletedType === 'room' ? 'odası' : 'sohbeti'} ve ${deletedCount} adet mesaj kalıcı olarak silindi. Gerekçe: ${reason || 'Belirtilmedi'}`,
+    metadata: {
+      chatKey,
+      type: deletedType,
+      deletedMessagesCount: deletedCount,
+      reason,
+    },
+  })
+
+  res.json({
+    success: true,
+    message: 'Gölge sohbeti ve ilgili tüm veriler kalıcı olarak silindi.',
+    deletedChatKey: chatKey,
+    deletedType,
+    deletedMessagesCount: deletedCount,
+  })
+})
+
 const listShadowCalls = asyncHandler(async (req, res) => {
   const page = clamp(parseInt(req.query.page, 10) || 1, 1, 1000)
   const limit = clamp(parseInt(req.query.limit, 10) || 20, 1, 100)
@@ -3195,6 +3332,7 @@ module.exports = {
   updateAdminCreatorWalletStatus,
   listShadowChats,
   getShadowChatMessages,
+  deleteAdminShadowChat,
   listShadowCalls,
   listShadowMedia,
   getUnmaskedShadowUser,

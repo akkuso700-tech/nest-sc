@@ -178,6 +178,13 @@ export function deleteAdminConversation(conversationId: string, reason = ''): Pr
   })
 }
 
+export function deleteAdminShadowChat(chatKey: string, reason = ''): Promise<ApiResponse> {
+  return apiRequest<ApiResponse>(`/admin/shadow/chats/${chatKey}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason }),
+  })
+}
+
 export function deleteAdminMessage(messageId: string, reason = ''): Promise<ApiResponse> {
   return apiRequest<ApiResponse>(`/admin/messages/${messageId}`, {
     method: 'DELETE',

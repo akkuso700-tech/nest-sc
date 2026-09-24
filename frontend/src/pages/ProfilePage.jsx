@@ -81,11 +81,20 @@ function CameraIcon({ className = 'size-4.5' }) {
   )
 }
 
-function EditIcon() {
+function EditIcon({ className = 'size-4.5' }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" className="size-5">
-      <path d="m4 20 3.5-.7L18 8.8 15.2 6 4.7 16.5 4 20Z" />
-      <path d="m13.8 7.4 2.8 2.8" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
     </svg>
   )
 }
@@ -1035,7 +1044,7 @@ function ProfilePage() {
         showDesktopPageHeader={false}
         initialSidebarOpen={false}
       >
-        <div className="space-y-4 md:space-y-5">
+        <div className="space-y-0 md:space-y-5">
           {profileState.error ? (
             <div className="rounded-[32px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-600 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
               {profileState.error}
@@ -1113,7 +1122,7 @@ function ProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="relative px-4 pb-3 pt-1 md:px-7 md:pb-4">
+                <div className="relative px-4 pb-0 pt-1 md:px-7 md:pb-4">
                   <div className="md:hidden">
                     <div className="flex items-start gap-2">
                       <div className="-mt-7 shrink-0">
@@ -1197,11 +1206,11 @@ function ProfilePage() {
                                 </button>
                                 <Link
                                   to={`/${lang}/profile/edit`}
-                                  className="inline-flex size-9 items-center justify-center rounded-lg bg-primary text-white transition hover:bg-primary-hover"
+                                  className="inline-flex size-9 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition hover:bg-primary-hover active:scale-95"
                                   aria-label={t('profile.editProfile')}
                                   title={t('profile.editProfile')}
                                 >
-                                  <EditIcon />
+                                  <EditIcon className="size-4.5" />
                                 </Link>
                               </div>
                             ) : (
@@ -1453,9 +1462,10 @@ function ProfilePage() {
                               </button>
                               <Link
                                 to={`/${lang}/profile/edit`}
-                                className="mt-2 cursor-pointer rounded-lg bg-primary px-3 py-1.5 text-sm font-medium !text-white transition hover:bg-primary-hover hover:!text-white"
+                                className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium !text-white shadow-sm transition hover:bg-primary-hover hover:!text-white"
                               >
-                                {t('profile.editProfile')}
+                                <EditIcon className="size-4" />
+                                <span>{t('profile.editProfile')}</span>
                               </Link>
                             </div>
                           ) : (
@@ -1558,7 +1568,7 @@ function ProfilePage() {
                   </div>
 
                   <div className="relative z-30 mt-1 pt-1">
-                    <div className="flex items-center gap-2 border-t border-border-soft pt-2">
+                    <div className="flex items-center gap-2 border-t border-border-soft pt-2 xl:pl-[237px]">
                       {/* Medya Pop-up Tab */}
                       <div ref={mediaMenuRef} className="relative">
                         <button
@@ -1678,7 +1688,7 @@ function ProfilePage() {
                 </div>
               </section>
 
-              <div className="relative z-10 grid items-start gap-4 xl:grid-cols-[250px_minmax(0,1fr)_310px]">
+              <div className="relative grid items-start gap-4 xl:grid-cols-[250px_minmax(0,1fr)_310px]">
                 <aside className="hidden space-y-4 xl:block">
                   <ProfilePanel title={t('profile.aboutTitle', { defaultValue: 'Hakkında' })}>
                     <p className="text-sm leading-6 text-muted">
@@ -1736,7 +1746,7 @@ function ProfilePage() {
                   </ProfilePanel>
                 </aside>
 
-                <div className="min-w-0 space-y-3">
+                <div className="min-w-0 space-y-0 md:space-y-3">
                   {isOwnProfile ? (
                     <PostComposer
                       user={user}

@@ -40,6 +40,7 @@ const {
   updateAdminCreatorWalletStatus,
   listShadowChats,
   getShadowChatMessages,
+  deleteAdminShadowChat,
   listShadowCalls,
   listShadowMedia,
   getUnmaskedShadowUser,
@@ -76,6 +77,7 @@ const {
   updateVerificationRequestStatusSchema,
   revokeUserVerificationSchema,
   deleteAdminConversationSchema,
+  deleteAdminShadowChatSchema,
   deleteAdminMessageSchema,
   adminCreatorSummarySchema,
   adminListCreatorApplicationsSchema,
@@ -231,6 +233,11 @@ adminRouter.patch(
 // Shadow (Gölge Modu) moderation endpoints
 adminRouter.get('/shadow/chats', listShadowChats)
 adminRouter.get('/shadow/chats/:chatKey/messages', getShadowChatMessages)
+adminRouter.delete(
+  '/shadow/chats/:chatKey',
+  validateRequest(deleteAdminShadowChatSchema),
+  deleteAdminShadowChat,
+)
 adminRouter.get('/shadow/calls', listShadowCalls)
 adminRouter.get('/shadow/media', listShadowMedia)
 adminRouter.get('/shadow/unmask/:anonymousId', getUnmaskedShadowUser)

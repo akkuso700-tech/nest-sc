@@ -480,7 +480,7 @@ function AdminLayout() {
   return (
     <>
       <Seo title={`Nest Yönetim · ${pageMeta.title}`} description={pageMeta.description} />
-      <div className={cx('admin-shell', isDataTableRoute ? 'is-users-shell' : '')}>
+      <div className={cx('admin-shell', isDataTableRoute ? 'is-users-shell' : '', isShadowRoute ? 'is-shadow-shell' : '')}>
         <Sidebar
           base={base}
           collapsed={collapsed}
@@ -505,14 +505,15 @@ function AdminLayout() {
           </div>
         ) : null}
 
-        <div className={cx('admin-workspace', isDataTableRoute ? 'is-users-workspace' : '')}>
-          <header className={cx('admin-topbar', isDataTableRoute ? 'is-users-page' : '')}>
-            <button type="button" className="admin-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Yönetim menüsünü aç">☰</button>
-            <div className="admin-topbar-context">
-              <strong className="admin-topbar-title">{pageMeta.title}</strong>
-              <div id="admin-topbar-portal" className="admin-topbar-portal-area" />
-            </div>
-            <div className="admin-topbar-actions">
+        <div className={cx('admin-workspace', isDataTableRoute ? 'is-users-workspace' : '', isShadowRoute ? 'is-shadow-workspace' : '')}>
+          {isShadowRoute ? null : (
+            <header className={cx('admin-topbar', isDataTableRoute ? 'is-users-page' : '')}>
+              <button type="button" className="admin-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Yönetim menüsünü aç">☰</button>
+              <div className="admin-topbar-context">
+                <strong className="admin-topbar-title">{pageMeta.title}</strong>
+                <div id="admin-topbar-portal" className="admin-topbar-portal-area" />
+              </div>
+              <div className="admin-topbar-actions">
               <Link className="admin-view-site" to={`/${lang}`}>Siteyi görüntüle ↗</Link>
               <div className="admin-notification-wrap" ref={notificationWrapRef}>
                 <button
@@ -747,6 +748,7 @@ function AdminLayout() {
               </div>
             </div>
           </header>
+        )}
 
           <main className={cx('admin-main', isShadowRoute ? 'is-shadow-layout' : '', isDataTableRoute ? 'is-users-layout' : '')}>
             {!pageMeta.hideHeading ? (

@@ -7,8 +7,6 @@ import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import { resolveMediaUrl } from '../utils/media.js'
 import { getFullName } from '../utils/social.js'
 import {
-  deleteAdminConversation,
-  deleteAdminMessage,
   getAdminUserDetail,
   revokeAdminUserVerification,
   updateAdminUserRole,
@@ -26,7 +24,6 @@ import {
   DetailRow,
 } from '../components/admin/AdminUserDetailCommon.jsx'
 import { AdminUserDetailOverviewTab } from '../components/admin/AdminUserDetailOverviewTab.jsx'
-import { AdminUserDetailConversationsTab } from '../components/admin/AdminUserDetailConversationsTab.jsx'
 
 function AdminUserDetailPage() {
   const { lang = 'tr', userId } = useParams()
@@ -150,57 +147,6 @@ function AdminUserDetailPage() {
     }
   }
 
-  async function handleDeleteConversation(conversationId, reason) {
-    try {
-      await deleteAdminConversation(conversationId, reason)
-      setState((prev) => {
-        if (!prev.data) return prev
-        const updatedConversations = (prev.data.conversations || []).filter(
-          (c) => String(c._id) !== String(conversationId)
-        )
-        const updatedMessages = (prev.data.messages || []).filter((m) => {
-          const convId = typeof m.conversation === 'object' ? m.conversation?._id : m.conversation
-          return String(convId) !== String(conversationId)
-        })
-        return {
-          ...prev,
-          data: {
-            ...prev.data,
-            conversations: updatedConversations,
-            messages: updatedMessages,
-          },
-        }
-      })
-      setToast({ message: 'Sohbet ve tüm mesajları veritabanından kalıcı olarak silindi.', tone: 'success' })
-    } catch (err) {
-      setToast({ message: err.message || 'Sohbet silinemedi.', tone: 'error' })
-      throw err
-    }
-  }
-
-  async function handleDeleteMessage(messageId, reason) {
-    try {
-      await deleteAdminMessage(messageId, reason)
-      setState((prev) => {
-        if (!prev.data) return prev
-        const updatedMessages = (prev.data.messages || []).filter(
-          (m) => String(m._id) !== String(messageId)
-        )
-        return {
-          ...prev,
-          data: {
-            ...prev.data,
-            messages: updatedMessages,
-          },
-        }
-      })
-      setToast({ message: 'Mesaj kalıcı olarak silindi.', tone: 'success' })
-    } catch (err) {
-      setToast({ message: err.message || 'Mesaj silinemedi.', tone: 'error' })
-      throw err
-    }
-  }
-
   if (state.isLoading) {
     return (
       <div className="space-y-6">
@@ -245,7 +191,7 @@ function AdminUserDetailPage() {
     )
   }
 
-  const { user, posts = [], conversations = [], messages = [], locationLogs = [], callLogs = [] } = state.data
+  const { user, posts = [], locationLogs = [] } = state.data
   const activity = user.activity || {}
   const discovery = user.discovery || {}
   const consent = user.signupConsent || {}
@@ -265,7 +211,6 @@ function AdminUserDetailPage() {
   const tabs = [
     { id: 'overview', label: 'Genel Bakış', count: null },
     { id: 'posts', label: 'Gönderiler & Medya', count: posts.length },
-    { id: 'messages', label: 'Sohbet & Mesajlar', count: messages.length },
     { id: 'location', label: 'Konum & Keşif', count: locationLogs.length },
     { id: 'security', label: 'Güvenlik & Moderasyon', count: null },
   ]
@@ -296,54 +241,6 @@ function AdminUserDetailPage() {
   return (
     <>
       <div className="space-y-6">
-        {/* Navigation & Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            to={`/${lang}/admin/users`}
-            className="inline-flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white px-4 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Kullanıcılar Listesine Dön
-          </Link>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to={`/${lang}/admin/audit-logs?userId=${user._id}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50"
-            >
-              <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span>Denetim Günlükleri</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={handleCopyUserDataJson}
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition-colors hover:border-zinc-300 hover:bg-zinc-50"
-            >
-              <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-              </svg>
-              <span>JSON Kopyala</span>
-            </button>
-
-            <a
-              href={`/${lang}/profile/${encodeURIComponent(user.username)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-950 bg-zinc-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-800"
-            >
-              <span>Ön Yüzde Profili Gör</span>
-              <svg className="h-3.5 w-3.5 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
-          </div>
-        </div>
-
         {/* Hero Identity Header Card */}
         <section className="relative overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-sm">
           {/* Cover Header */}
@@ -448,81 +345,12 @@ function AdminUserDetailPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Action Operations Toolbar */}
-              <div className="flex flex-wrap items-center gap-3 pt-4 md:pt-0">
-                {/* Role Changer Dropdown */}
-                <div className="flex items-center rounded-2xl border border-zinc-200 bg-zinc-50 p-1">
-                  <select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
-                    className="rounded-xl border-0 bg-transparent px-3 py-1.5 text-xs font-semibold text-zinc-800 outline-none"
-                  >
-                    <option value="user">Kullanıcı</option>
-                    <option value="moderator">Moderatör</option>
-                    <option value="admin">Yönetici (Admin)</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleRoleUpdate}
-                    disabled={isSavingRole || selectedRole === user.role}
-                    className="rounded-xl bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                  >
-                    {isSavingRole ? 'Kaydediliyor...' : 'Rolü Kaydet'}
-                  </button>
-                </div>
-
-                {/* Status Switcher Button */}
-                {user.accountStatus === 'active' ? (
-                  <button
-                    type="button"
-                    onClick={() => handleStatusUpdate('suspended')}
-                    disabled={isSavingStatus}
-                    className="inline-flex items-center gap-1.5 rounded-2xl bg-rose-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:opacity-50"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                    Hesabı Askıya Al
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleStatusUpdate('active')}
-                    disabled={isSavingStatus}
-                    className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Hesabı Aktifleştir
-                  </button>
-                )}
-
-                {/* Verification Action */}
-                {user.verification?.status === 'approved' ? (
-                  <button
-                    type="button"
-                    onClick={() => setVerificationDialogOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                  >
-                    Doğrulamayı Kaldır
-                  </button>
-                ) : (
-                  <Link
-                    to={`/${lang}/admin/verification-requests?q=${encodeURIComponent(user.username)}`}
-                    className="inline-flex items-center gap-1.5 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-xs font-semibold text-sky-700 hover:bg-sky-100"
-                  >
-                    Başvuruları İncele
-                  </Link>
-                )}
-              </div>
             </div>
           </div>
         </section>
 
         {/* Quick KPI Stat Ribbon */}
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             label="Gönderi & Medya"
             value={posts.length}
@@ -560,26 +388,6 @@ function AdminUserDetailPage() {
             icon={
               <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            }
-          />
-          <StatCard
-            label="Mesajlaşma Kaydı"
-            value={messages.length}
-            subtext={`${conversations.length} farklı sohbet`}
-            icon={
-              <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-            }
-          />
-          <StatCard
-            label="Görüşme Kayıtları"
-            value={callLogs.length}
-            subtext={`${callLogs.filter((c) => c.callType === 'video').length} Video · ${callLogs.filter((c) => c.callType === 'voice').length} Sesli`}
-            icon={
-              <svg className="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
             }
           />
@@ -722,18 +530,6 @@ function AdminUserDetailPage() {
           </SectionCard>
         )}
 
-        {/* Tab 3: Chat & Messages Inspector */}
-        {activeTab === 'messages' && (
-          <AdminUserDetailConversationsTab
-            user={user}
-            conversations={conversations}
-            messages={messages}
-            callLogs={callLogs}
-            lang={lang}
-            onDeleteConversation={handleDeleteConversation}
-            onDeleteMessage={handleDeleteMessage}
-          />
-        )}
 
         {/* Tab 4: Location & Discovery */}
         {activeTab === 'location' && (
@@ -913,64 +709,219 @@ function AdminUserDetailPage() {
           </div>
         )}
 
-        {/* Tab 5: Security & Moderation */}
+        {/* Tab: Security & Moderation */}
         {activeTab === 'security' && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Moderation History Card */}
+          <div className="space-y-6">
+            {/* Control Center & Actions */}
             <SectionCard
-              title="Moderasyon Durumu & İşlem Geçmişi"
-              eyebrow="Disiplin & Uyarılar"
-              subtitle="Kullanıcıya uygulanan kısıtlamalar ve notlar"
+              title="Yönetim & Moderasyon Aksiyonları"
+              eyebrow="Kontrol Merkezi"
+              subtitle="Kullanıcı rolünü güncelleyin, hesap durumunu yönetin, denetim kayıtlarını inceleyin veya verileri kopyalayın"
             >
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-zinc-50 p-4">
-                  <span className="text-xs font-semibold text-zinc-500">Mevcut Hesap Durumu</span>
-                  <div className="mt-2">
-                    <StatusBadge type="status" value={user.accountStatus} />
-                  </div>
-                  {user.moderation?.reason ? (
-                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 text-xs text-rose-800">
-                      <p className="font-bold">Uygulanan Moderatör Gerekçesi:</p>
-                      <p className="mt-1">{user.moderation.reason}</p>
-                      {user.moderation.actionedAt ? (
-                        <p className="mt-2 text-[10px] text-rose-600">
-                          İşlem Zamanı: {new Date(user.moderation.actionedAt).toLocaleString('tr-TR')}
-                        </p>
-                      ) : null}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {/* 1. Account Status */}
+                <div className="flex flex-col justify-between rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-4 transition-all hover:border-zinc-300 hover:bg-white">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Hesap Durumu</span>
+                      <StatusBadge type="status" value={user.accountStatus} />
                     </div>
-                  ) : (
-                    <p className="mt-3 text-xs text-zinc-500">Aktif bir moderatör cezası veya notu bulunmuyor.</p>
-                  )}
+                    <p className="mt-2.5 text-xs text-zinc-600">
+                      {user.accountStatus === 'active'
+                        ? 'Hesap aktif durumda. Askıya alarak erişimini dondurabilirsiniz.'
+                        : 'Hesap askıya alınmış durumda. Platform erişimi kapalıdır.'}
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-zinc-100">
+                    {user.accountStatus === 'active' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusUpdate('suspended')}
+                        disabled={isSavingStatus}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-rose-700 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        <span>Hesabı Askıya Al</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusUpdate('active')}
+                        disabled={isSavingStatus}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Hesabı Aktifleştir</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. User Role */}
+                <div className="flex flex-col justify-between rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-4 transition-all hover:border-zinc-300 hover:bg-white">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Kullanıcı Rolü</span>
+                      <StatusBadge type="role" value={user.role} />
+                    </div>
+                    <p className="mt-2.5 text-xs text-zinc-600">
+                      Kullanıcının platformdaki yönetim ve denetim yetki seviyesini belirleyin.
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-zinc-100">
+                    <div className="flex items-center rounded-xl border border-zinc-200 bg-white p-1">
+                      <select
+                        value={selectedRole}
+                        onChange={(e) => setSelectedRole(e.target.value)}
+                        className="w-full rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-xs font-semibold text-zinc-800 outline-none cursor-pointer"
+                      >
+                        <option value="user">Kullanıcı (Standart)</option>
+                        <option value="moderator">Moderatör</option>
+                        <option value="admin">Yönetici (Admin)</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleRoleUpdate}
+                        disabled={isSavingRole || selectedRole === user.role}
+                        className="shrink-0 rounded-lg bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 cursor-pointer"
+                      >
+                        {isSavingRole ? 'Kaydediliyor...' : 'Rolü Kaydet'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Audit Logs */}
+                <div className="flex flex-col justify-between rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-4 transition-all hover:border-zinc-300 hover:bg-white">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Denetim Günlükleri</span>
+                      <span className="rounded-full bg-zinc-200/60 px-2 py-0.5 text-[10px] font-bold text-zinc-600">Log</span>
+                    </div>
+                    <p className="mt-2.5 text-xs text-zinc-600">
+                      Bu kullanıcı ile ilgili tüm moderasyon, oturum ve sistem değişiklik loglarını filtreleyin.
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-zinc-100">
+                    <Link
+                      to={`/${lang}/admin/audit-logs?userId=${user._id}`}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 shadow-sm transition-all hover:border-zinc-300 hover:bg-zinc-50 active:scale-[0.98]"
+                    >
+                      <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Denetim Günlükleri</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* 4. JSON Export */}
+                <div className="flex flex-col justify-between rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-4 transition-all hover:border-zinc-300 hover:bg-white">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Veri Dışa Aktarma</span>
+                      <span className="rounded-full bg-zinc-200/60 px-2 py-0.5 text-[10px] font-bold text-zinc-600">JSON</span>
+                    </div>
+                    <p className="mt-2.5 text-xs text-zinc-600">
+                      Kullanıcının profil, durum ve teknik verilerini JSON formatında panoya kopyalayın.
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-zinc-100">
+                    <button
+                      type="button"
+                      onClick={handleCopyUserDataJson}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-700 shadow-sm transition-all hover:border-zinc-300 hover:bg-zinc-50 active:scale-[0.98] cursor-pointer"
+                    >
+                      <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                      <span>JSON Kopyala</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </SectionCard>
 
-            {/* Blocked Users & Privacy Card */}
-            <SectionCard
-              title="Engellemeler & Güvenlik Parametreleri"
-              eyebrow="Erişim Denetimi"
-              subtitle="Kullanıcının engellediği kişiler ve güvenlik ayarları"
-            >
-              <div className="grid gap-3 sm:grid-cols-2">
-                <DetailRow
-                  label="Engellenen Kullanıcılar"
-                  value={`${user.blockedUserIds?.length || 0} Kişi`}
-                />
-                <DetailRow
-                  label="E-posta Doğrulama"
-                  value={user.emailVerifiedAt ? 'Doğrulandı' : 'Doğrulanmadı'}
-                  isBadge
-                />
-                <DetailRow
-                  label="Hesap Tipi"
-                  value={user.isPrivate ? 'Gizli Profil' : 'Herkese Açık'}
-                />
-                <DetailRow
-                  label="Kimlik Doğrulama"
-                  value={user.authProvider === 'google' ? 'Google OAuth 2.0' : 'Bcrypt Şifre'}
-                />
-              </div>
-            </SectionCard>
+            {/* Moderation History & Security Parameters */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Moderation History Card */}
+              <SectionCard
+                title="Moderasyon Durumu & İşlem Geçmişi"
+                eyebrow="Disiplin & Uyarılar"
+                subtitle="Kullanıcıya uygulanan kısıtlamalar ve notlar"
+                action={
+                  user.verification?.status === 'approved' ? (
+                    <button
+                      type="button"
+                      onClick={() => setVerificationDialogOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 cursor-pointer"
+                    >
+                      Doğrulamayı Kaldır
+                    </button>
+                  ) : (
+                    <Link
+                      to={`/${lang}/admin/verification-requests?q=${encodeURIComponent(user.username)}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100"
+                    >
+                      Başvuruları İncele
+                    </Link>
+                  )
+                }
+              >
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-zinc-50 p-4">
+                    <span className="text-xs font-semibold text-zinc-500">Mevcut Hesap Durumu</span>
+                    <div className="mt-2">
+                      <StatusBadge type="status" value={user.accountStatus} />
+                    </div>
+                    {user.moderation?.reason ? (
+                      <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 text-xs text-rose-800">
+                        <p className="font-bold">Uygulanan Moderatör Gerekçesi:</p>
+                        <p className="mt-1">{user.moderation.reason}</p>
+                        {user.moderation.actionedAt ? (
+                          <p className="mt-2 text-[10px] text-rose-600">
+                            İşlem Zamanı: {new Date(user.moderation.actionedAt).toLocaleString('tr-TR')}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs text-zinc-500">Aktif bir moderatör cezası veya notu bulunmuyor.</p>
+                    )}
+                  </div>
+                </div>
+              </SectionCard>
+
+              {/* Blocked Users & Privacy Card */}
+              <SectionCard
+                title="Engellemeler & Güvenlik Parametreleri"
+                eyebrow="Erişim Denetimi"
+                subtitle="Kullanıcının engellediği kişiler ve güvenlik ayarları"
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailRow
+                    label="Engellenen Kullanıcılar"
+                    value={`${user.blockedUserIds?.length || 0} Kişi`}
+                  />
+                  <DetailRow
+                    label="E-posta Doğrulama"
+                    value={user.emailVerifiedAt ? 'Doğrulandı' : 'Doğrulanmadı'}
+                    isBadge
+                  />
+                  <DetailRow
+                    label="Hesap Tipi"
+                    value={user.isPrivate ? 'Gizli Profil' : 'Herkese Açık'}
+                  />
+                  <DetailRow
+                    label="Kimlik Doğrulama"
+                    value={user.authProvider === 'google' ? 'Google OAuth 2.0' : 'Bcrypt Şifre'}
+                  />
+                </div>
+              </SectionCard>
+            </div>
           </div>
         )}
       </div>

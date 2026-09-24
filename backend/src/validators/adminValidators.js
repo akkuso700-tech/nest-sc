@@ -296,6 +296,16 @@ const deleteAdminConversationSchema = z.object({
   query: z.object({}).default({}),
 })
 
+const deleteAdminShadowChatSchema = z.object({
+  body: z.object({
+    reason: z.string().trim().max(300).optional().default(''),
+  }).default({}),
+  params: z.object({
+    chatKey: z.string().trim().min(1),
+  }),
+  query: z.object({}).default({}),
+})
+
 const deleteAdminMessageSchema = z.object({
   body: z.object({
     reason: z.string().trim().max(300).optional().default(''),
@@ -444,6 +454,7 @@ module.exports = {
   adminSignupContractsSettingsSchema,
   updateAdminSignupContractsSettingsSchema,
   deleteAdminConversationSchema,
+  deleteAdminShadowChatSchema,
   deleteAdminMessageSchema,
   adminCreatorSummarySchema,
   adminListCreatorApplicationsSchema,

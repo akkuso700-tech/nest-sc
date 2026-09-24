@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   getAdminUserChats,
   getAdminUserChatMessages,
   getAdminUserCalls,
   getAdminUserMedia,
   deleteAdminMessage,
+  deleteAdminConversation,
 } from '../services/adminService.ts'
 import UserAvatar from '../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
@@ -55,6 +56,7 @@ function getDateDividerLabel(dateStr) {
 
 export default function AdminMessagesPage() {
   const { lang = 'tr' } = useParams()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const currentTabParam = searchParams.get('tab')
@@ -89,7 +91,9 @@ export default function AdminMessagesPage() {
   // Split-View Chat List States
   const [isChatListVisible, setIsChatListVisible] = useState(true)
   const [splitSearch, setSplitSearch] = useState('')
-  const [mobileSplitView, setMobileSplitView] = useState('chat') // 'chat' | 'list'
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const searchInputRef = useRef(null)
+  const [mobileSplitView, setMobileSplitView] = useState('list') // 'chat' | 'list' (mobilde önce sohbetler akışı)
 
   // Jump-to-Message & Deep-Linking States
   const [pendingScrollMessageId, setPendingScrollMessageId] = useState(null)
@@ -101,11 +105,35 @@ export default function AdminMessagesPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Delete chat conversation dialog state
+  const [deleteTargetChat, setDeleteTargetChat] = useState(null)
+  const [deleteChatReason, setDeleteChatReason] = useState('')
+  const [isDeletingChat, setIsDeletingChat] = useState(false)
+
+  const handleBack = (e) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1)
+    } else {
+      navigate(`/${lang}/admin`)
+    }
+  }
+
+  // URL'de seçili sohbet yoksa mobilde doğrudan sohbet listesi akışını göster
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setMobileSplitView('list')
+    }
+  }, [selectedConversationId])
+
   const handleTabChange = (tab, chatId = '') => {
     const params = new URLSearchParams()
     params.set('tab', tab)
     if (chatId) params.set('chat', chatId)
-    setSearchParams(params)
+    setSearchParams(params, { replace: true })
   }
 
   // Load chats list
@@ -115,8 +143,8 @@ export default function AdminMessagesPage() {
       .then((res) => {
         if (res?.chats) {
           setChats(res.chats)
-          // Select first chat if none selected on initial load
-          if (!selectedConversationId && res.chats.length > 0 && activeTab === 'direct') {
+          // Sadece masaüstünde (>= 1024px) ilk sohbeti varsayılan olarak seç
+          if (!selectedConversationId && res.chats.length > 0 && activeTab === 'direct' && window.innerWidth >= 1024) {
             handleTabChange('direct', res.chats[0].id)
           }
         }
@@ -266,6 +294,26 @@ export default function AdminMessagesPage() {
     }
   }
 
+  // Handle conversation delete
+  const handleConfirmDeleteChat = async () => {
+    if (!deleteTargetChat?.id) return
+    setIsDeletingChat(true)
+    try {
+      await deleteAdminConversation(deleteTargetChat.id, deleteChatReason)
+      setChats((prev) => prev.filter((c) => c.id !== deleteTargetChat.id))
+      if (selectedConversationId === deleteTargetChat.id) {
+        setMessages([])
+        handleTabChange('direct', '')
+      }
+      setDeleteTargetChat(null)
+      setDeleteChatReason('')
+    } catch (err) {
+      alert(err?.message || 'Sohbet silinirken hata oluştu.')
+    } finally {
+      setIsDeletingChat(false)
+    }
+  }
+
   const selectedChat = useMemo(() => {
     return chats.find((c) => c.id === selectedConversationId) || null
   }, [chats, selectedConversationId])
@@ -305,96 +353,141 @@ export default function AdminMessagesPage() {
   }, [filteredMessages])
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full flex flex-col min-h-0">
       {/* Tek Entegre Kart: Sol Sohbet Listesi + Sağ Panel (Akış / Aramalar / Medya) */}
-      <div className="rounded-none min-[681px]:rounded-md border-x-0 min-[681px]:border border-slate-200/90 bg-white shadow-sm min-[681px]:shadow-md h-[calc(100dvh-66px)] min-[681px]:h-[calc(100dvh-108px)] min-h-[450px] flex overflow-hidden w-full">
+      <div className="rounded-none min-[681px]:rounded-md border-x-0 min-[681px]:border border-slate-200/90 bg-white shadow-sm min-[681px]:shadow-md h-[100dvh] min-[681px]:h-[calc(100dvh-32px)] min-h-[450px] flex overflow-hidden w-full">
         {/* SOL BÖLÜM: SOHBET LİSTESİ (Sohbet Akışları) */}
         <aside
           className={`${
-            isChatListVisible ? 'flex' : 'hidden'
-          } ${
-            mobileSplitView === 'list' ? 'flex w-full' : 'hidden lg:flex w-80 xl:w-96'
+            mobileSplitView === 'list' ? 'flex w-full lg:w-80 xl:w-96' : 'hidden lg:flex lg:w-80 xl:w-96'
           } flex-col border-r border-slate-200/90 bg-white shrink-0 h-full overflow-hidden`}
         >
           {/* Sol Üst Bar (50px Yükseklikte Sağ Başlıkla Birebir Hizalı) */}
-          <div className="h-[50px] min-h-[50px] px-3.5 border-b border-slate-200/90 bg-slate-50/80 flex items-center justify-between shrink-0 select-none">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight">
-                Sohbet Akışları
-              </span>
-              <span className="rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 px-2 py-0.5 text-[10px] font-bold">
-                {chats.length}
-              </span>
-              <button
-                type="button"
-                onClick={loadChats}
-                title="Listeyi Yenile"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition active:scale-95 cursor-pointer"
-              >
-                <svg
-                  className={`size-3.5 ${chatsLoading ? 'animate-spin' : ''}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          <div className="h-[50px] min-h-[50px] px-3 border-b border-slate-200/90 bg-slate-50/80 flex items-center justify-between shrink-0 select-none">
+            {isSearchOpen ? (
+              <div className="flex items-center gap-1.5 w-full">
+                <div className="relative flex-1 min-w-0">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Kullanıcı adı veya mesaj ara..."
+                    value={splitSearch}
+                    onChange={(e) => setSplitSearch(e.target.value)}
+                    autoFocus
+                    className="w-full h-8 rounded-lg border border-blue-400 bg-white px-2.5 pl-7.5 pr-6 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition ring-2 ring-blue-500/10 shadow-2xs"
                   />
-                </svg>
-              </button>
-            </div>
+                  <svg
+                    className="absolute left-2.5 top-2.5 size-3.5 text-blue-500 pointer-events-none"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {splitSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSplitSearch('')}
+                      className="absolute right-2 top-1.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSearchOpen(false)
+                    setSplitSearch('')
+                  }}
+                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-200/60 transition cursor-pointer shrink-0"
+                >
+                  Kapat
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {/* Geri Dön İkonu (Sayfadan Çıkış - Sadece Mobilde) */}
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    title="Geri Dön"
+                    aria-label="Geri Dön"
+                    className="lg:hidden flex items-center justify-center size-9 -ml-1 rounded-xl text-slate-700 hover:text-slate-950 hover:bg-slate-200/70 active:bg-slate-200 active:scale-90 transition cursor-pointer shrink-0 touch-manipulation select-none"
+                  >
+                    <svg className="size-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
 
-            {/* Mobilde doğrudan aktif sohbete geçiş butonu */}
-            {selectedConversationId && (
-              <button
-                type="button"
-                onClick={() => setMobileSplitView('chat')}
-                className="lg:hidden text-xs font-bold text-blue-600 hover:underline cursor-pointer"
-              >
-                Sohbete Dön →
-              </button>
+                  <span className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight truncate">
+                    Sohbet Akışları
+                  </span>
+                  <span className="rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 px-2 py-0.5 text-[10px] font-bold shrink-0">
+                    {chats.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={loadChats}
+                    title="Listeyi Yenile"
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition active:scale-95 cursor-pointer shrink-0"
+                  >
+                    <svg
+                      className={`size-3.5 ${chatsLoading ? 'animate-spin' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                  </button>
+
+                  {/* Arama Aç Butonu */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSearchOpen(true)}
+                    title="Sohbetlerde Ara"
+                    aria-label="Sohbetlerde Ara"
+                    className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 transition active:scale-95 cursor-pointer shrink-0"
+                  >
+                    <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Mobilde doğrudan aktif sohbete geçiş butonu */}
+                {selectedConversationId && (
+                  <button
+                    type="button"
+                    onClick={() => setMobileSplitView('chat')}
+                    className="lg:hidden text-xs font-bold text-blue-600 hover:underline cursor-pointer shrink-0 ml-1"
+                  >
+                    Sohbete Dön →
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Arama & Filtre Kontrolleri */}
-          <div className="p-2.5 border-b border-slate-200/90 bg-slate-50/60 space-y-2 shrink-0">
-            {/* Arama Inputu */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Kullanıcı adı, isim veya mesaj ara..."
-                value={splitSearch}
-                onChange={(e) => setSplitSearch(e.target.value)}
-                className="w-full h-8 rounded-lg border border-slate-200 bg-white px-2.5 pl-7.5 pr-6 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 shadow-2xs"
-              />
-              <svg
-                className="absolute left-2.5 top-2.5 size-3.5 text-slate-400 pointer-events-none"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              {splitSearch && (
-                <button
-                  type="button"
-                  onClick={() => setSplitSearch('')}
-                  className="absolute right-2 top-1.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Buton Takımı: Sohbetler, Aramalar, Medya */}
+          {/* Filtre Kontrolleri: Buton Takımı (Sohbetler, Aramalar, Medya) */}
+          <div className="p-2 border-b border-slate-200/90 bg-slate-50/60 shrink-0">
             <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-[11px] font-semibold text-slate-600">
               {/* Sohbetler */}
               <button
@@ -498,15 +591,15 @@ export default function AdminMessagesPage() {
                       handleTabChange('direct', chat.id)
                       setMobileSplitView('chat')
                     }}
-                    className={`w-full text-left p-2.5 transition rounded-xl flex flex-col gap-1.5 cursor-pointer relative border ${
+                    className={`group w-full text-left p-2.5 transition rounded-xl flex flex-col gap-1.5 cursor-pointer relative border ${
                       isSelected
                         ? 'bg-blue-50/80 border-blue-400/90 shadow-xs ring-1 ring-blue-500/20'
                         : 'bg-white hover:bg-slate-50/90 border-slate-200/80 hover:border-slate-300 shadow-2xs'
                     }`}
                   >
-                    {/* Üst Satır: Tür Rozeti + Başlık + Tarih */}
-                    <div className="flex items-center justify-between gap-1.5 min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    {/* Üst Satır: Tür Rozeti + Başlık + (Sağda Üstte Silme İkonu, Altında Tarih) */}
+                    <div className="flex items-start justify-between gap-1.5 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 pt-0.5">
                         <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold shrink-0 bg-slate-100 text-slate-600 border border-slate-200">
                           1:1
                         </span>
@@ -518,9 +611,27 @@ export default function AdminMessagesPage() {
                           {chat.title}
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400 shrink-0 font-medium">
-                        {formatDate(chat.lastMessageAt)}
-                      </span>
+                      <div className="flex flex-col items-end shrink-0 -mt-1 -mr-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteTargetChat(chat)
+                          }}
+                          className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition cursor-pointer"
+                          title="Sohbeti Kalıcı Olarak Sil"
+                          aria-label="Sohbeti Sil"
+                        >
+                          <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap -mt-0.5">
+                          {formatDate(chat.lastMessageAt)}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Orta Satır: Katılımcılar */}
@@ -936,35 +1047,6 @@ export default function AdminMessagesPage() {
               <div className="h-[50px] min-h-[50px] flex items-center justify-between px-3 sm:px-4 border-b border-slate-200/90 bg-white/95 backdrop-blur-md select-none shadow-2xs shrink-0">
                 {/* Sol: Panel Toggle & Kullanıcı Bilgileri */}
                 <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                  {/* Masaüstü Sol Paneli Gizle / Göster Butonu */}
-                  <button
-                    type="button"
-                    onClick={() => setIsChatListVisible(!isChatListVisible)}
-                    className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition active:scale-95 cursor-pointer shrink-0 shadow-2xs"
-                    title={
-                      isChatListVisible
-                        ? 'Sol Sohbet Listesini Gizle (Tam Ekran)'
-                        : 'Sol Sohbet Listesini Göster'
-                    }
-                  >
-                    <svg
-                      className="size-3.5 text-slate-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M4 6h16M4 12h16M4 18h7"
-                      />
-                    </svg>
-                    <span className="text-[11px]">
-                      {isChatListVisible ? 'Listeyi Gizle' : 'Listeyi Göster'}
-                    </span>
-                  </button>
-
                   {/* Mobil Sohbet Listesini Aç Butonu */}
                   <button
                     type="button"
@@ -1446,6 +1528,82 @@ export default function AdminMessagesPage() {
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm shadow-rose-500/25 transition cursor-pointer disabled:opacity-50"
               >
                 {isDeleting ? 'Siliniyor...' : 'Evet, Mesajı Sil'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SOHBETİ KALICI SİLME ONAY MODALI */}
+      {deleteTargetChat && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+          onClick={() => {
+            if (!isDeletingChat) {
+              setDeleteTargetChat(null)
+              setDeleteChatReason('')
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 mb-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 text-lg">
+                🗑️
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Sohbeti Kalıcı Olarak Sil</h3>
+                <p className="text-xs text-slate-500">Bu işlem platformdan tüm verileri tamamen temizler</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-200/80 mb-4 text-xs text-rose-900 leading-relaxed">
+              <strong>Dikkat:</strong> Bu sohbeti sildiğinizde; sohbete ait <strong>tüm mesajlar ({deleteTargetChat.totalMessages || 0} mesaj)</strong>, paylaşılan medya dosyaları, arama kayıtları ve bildirimler veritabanından kalıcı olarak silinecektir. Bu işlem <u>kesinlikle geri alınamaz</u>.
+            </div>
+
+            <div className="mb-4 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+              <div className="font-bold text-slate-800 truncate mb-0.5">{deleteTargetChat.title}</div>
+              <div className="text-slate-500 text-[11px]">Toplam {deleteTargetChat.totalMessages || 0} mesaj · Son aktivite: {formatDate(deleteTargetChat.lastMessageAt)}</div>
+            </div>
+
+            <textarea
+              rows={2}
+              placeholder="Silme gerekçesi (opsiyonel)..."
+              value={deleteChatReason}
+              onChange={(e) => setDeleteChatReason(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 outline-none focus:border-rose-500 focus:bg-white transition mb-4"
+            />
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTargetChat(null)
+                  setDeleteChatReason('')
+                }}
+                disabled={isDeletingChat}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteChat}
+                disabled={isDeletingChat}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm shadow-rose-500/25 transition cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {isDeletingChat ? (
+                  <>
+                    <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Siliniyor...</span>
+                  </>
+                ) : (
+                  <span>Evet, Sohbeti Kalıcı Sil</span>
+                )}
               </button>
             </div>
           </div>

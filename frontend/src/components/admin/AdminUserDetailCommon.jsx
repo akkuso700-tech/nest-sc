@@ -144,12 +144,6 @@ export function formatBytes(bytes) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
-export function formatCallDuration(sec = 0) {
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
 export function CopyButton({ text, label = 'Kopyala' }) {
   const [copied, setCopied] = useState(false)
 
@@ -310,16 +304,4 @@ export function DetailRow({ label, value, copyValue, isBadge = false, isDate = f
       </div>
     </div>
   )
-}
-
-export function getOtherParticipant(conv, currentUserId) {
-  if (!conv || !conv.participantIds || !conv.participantIds.length) return null
-  const other = conv.participantIds.find((p) => {
-    const pId = typeof p === 'object' && p !== null ? p._id : p
-    return String(pId) !== String(currentUserId)
-  })
-  if (typeof other === 'object' && other !== null) {
-    return other
-  }
-  return { _id: other || 'unknown', firstName: 'Kullanıcı', lastName: '', username: 'user' }
 }

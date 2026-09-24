@@ -58,6 +58,7 @@ function PostComposer({
   onExpandedChange = null,
   groupName = '',
   groupCoverImageUrl = '',
+  className = '',
 }) {
   const { t } = useTranslation()
   const { enqueueUpload } = useUploadManager()
@@ -284,6 +285,10 @@ function PostComposer({
   }, [handleComposerOverlayClose, isDesktopModal])
 
   useEffect(() => {
+    if (!isExpanded) {
+      return undefined
+    }
+
     function handlePointerDown(event) {
       const clickedInsideComposer = composerRef.current?.contains(event.target)
       const clickedInsidePlanner = plannerRef.current?.contains(event.target)
@@ -314,7 +319,7 @@ function PostComposer({
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown)
     }
-  }, [draft, selectedFiles.length, title])
+  }, [draft, isExpanded, selectedFiles.length, title])
 
   useEffect(() => {
     if (!isExpanded || trendSuggestions.length) {
@@ -1078,26 +1083,16 @@ function PostComposer({
       : null
 
   return (
-    <form
-      ref={composerRef}
-      onSubmit={handleSubmit}
-      className={
-        isMobileFullscreen
-          ? 'fixed inset-0 z-[120] flex h-[100dvh] flex-col overflow-hidden bg-card text-text animate-[composer-sheet-in_0.24s_ease-out] md:static md:z-auto'
-          : isDesktopModal
-            ? 'relative z-[1] w-full'
-          : `overflow-visible rounded-lg border border-border bg-card text-text shadow-sm transition-all duration-300 ${
-              isExpanded ? 'p-5' : 'p-3'
-            }`
-      }
-    >
-      {!isExpanded ? (
-        hideCollapsed ? null : (
-          isMobileViewport ? (
+    <>
+      {!hideCollapsed ? (
+        <div
+          className={`overflow-visible rounded-none border-0 shadow-none md:rounded-lg md:border md:border-border md:shadow-sm bg-card text-text transition-all duration-300 p-3 ${className}`}
+        >
+          {isMobileViewport ? (
             <button
               type="button"
               onClick={handleExpand}
-              className="flex w-full items-center gap-3 rounded-[24px] text-left transition hover:bg-secondary"
+              className="flex w-full items-center gap-3 rounded-[24px] text-left transition hover:bg-secondary cursor-pointer"
             >
               <UserAvatar
                 user={user}
@@ -1156,10 +1151,18 @@ function PostComposer({
                 ) : null}
               </div>
             </div>
-          )
-        )
-      ) : isMobileFullscreen ? (
-        <>
+          )}
+        </div>
+      ) : null}
+
+      {isExpanded && typeof document !== 'undefined'
+        ? createPortal(
+            isMobileFullscreen ? (
+              <form
+                ref={composerRef}
+                onSubmit={handleSubmit}
+                className="fixed inset-0 z-[9999] flex h-[100dvh] flex-col overflow-hidden bg-card text-text animate-[composer-sheet-in_0.24s_ease-out]"
+              >
           <div className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-card px-3">
             <div className="flex min-w-0 items-center gap-2">
               <p className="truncate text-base font-semibold text-text">
@@ -1644,16 +1647,21 @@ function PostComposer({
               </button>
             </div>
           </div>
-        </>
+          {suggestionsDropdown}
+        </form>
       ) : (
-        <div className="fixed inset-0 z-[260] hidden items-center justify-center p-4 md:flex">
+        <div className="fixed inset-0 z-[9999] hidden items-center justify-center p-4 md:flex">
           <button
             type="button"
-            className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
+            className="fixed inset-0 bg-black/50 backdrop-blur-[2px]"
             onClick={handleComposerOverlayClose}
             aria-label={t('composer.closeOverlay', { defaultValue: 'Close composer popup' })}
           />
-          <div className="relative z-99 flex max-h-[82vh] w-full max-w-[720px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-[0_30px_90px_rgba(15,23,42,0.38)] animate-[dropdown-pop_0.24s_ease-out]">
+          <form
+            ref={composerRef}
+            onSubmit={handleSubmit}
+            className="relative z-10 flex max-h-[85vh] w-full max-w-[720px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_30px_90px_rgba(15,23,42,0.38)] animate-[dropdown-pop_0.24s_ease-out]"
+          >
             <div className="shrink-0 border-b border-border bg-card px-5 py-4">
               <div className="flex items-start gap-4">
                 <div className="min-w-0 flex-1">
@@ -2107,12 +2115,14 @@ function PostComposer({
                 </div>
               </div>
             </div>
-          </div>
+            {suggestionsDropdown}
+          </form>
         </div>
-      )}
-      {suggestionsDropdown}
-    </form>
-  )
+      ),
+      document.body,
+    ) : null}
+  </>
+)
 }
 
 export default PostComposer

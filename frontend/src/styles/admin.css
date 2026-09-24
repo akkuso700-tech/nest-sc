@@ -706,13 +706,15 @@
 }
 
 @media (min-width: 769px) {
-  .admin-shell.is-users-shell {
+  .admin-shell.is-users-shell,
+  .admin-shell.is-shadow-shell {
     height: 100vh;
     max-height: 100vh;
     overflow: hidden;
   }
 
-  .admin-workspace.is-users-workspace {
+  .admin-workspace.is-users-workspace,
+  .admin-workspace.is-shadow-workspace {
     height: 100vh;
     max-height: 100vh;
     display: flex;
@@ -720,11 +722,13 @@
     overflow: hidden;
   }
 
-  .admin-topbar.is-users-page {
+  .admin-topbar.is-users-page,
+  .admin-topbar.is-shadow-page {
     display: none !important;
   }
 
-  .admin-main.is-users-layout {
+  .admin-main.is-users-layout,
+  .admin-main.is-shadow-layout {
     flex: 1;
     min-height: 0;
     height: 100vh;
@@ -736,7 +740,8 @@
     overflow: hidden;
   }
 
-  .admin-main.is-users-layout > .admin-page-content {
+  .admin-main.is-users-layout > .admin-page-content,
+  .admin-main.is-shadow-layout > .admin-page-content {
     flex: 1;
     min-height: 0;
     display: flex;
@@ -804,6 +809,7 @@
     padding: 0;
   }
 }
+
 .admin-page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
 .admin-page-heading > div:first-child > span { color: #2563eb; font-size: 10px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
 .admin-page-heading h1 { margin: 7px 0 0; color: #0f172a; font-size: clamp(24px,2.3vw,34px); font-weight: 750; letter-spacing: -.035em; }
