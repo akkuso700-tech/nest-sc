@@ -11,6 +11,7 @@ import { useAuth } from '../store/AuthContext.jsx'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery.js'
 
 const StoryViewerModal = lazy(() => import('../features/stories/StoryViewerModal.jsx'))
+const GoogleAd = lazy(() => import('../components/ads/GoogleAd.jsx'))
 
 const LOOP_LIMIT = 10
 const LOOP_RENDER_RADIUS = 1
@@ -326,6 +327,17 @@ function LoopPage() {
 
   const visiblePosts = useMemo(() => state.posts, [state.posts])
 
+  const loopItems = useMemo(() => {
+    const items = []
+    ;(visiblePosts || []).forEach((post, index) => {
+      items.push({ type: 'post', post, key: getPostId(post) || `loop-post-${index}` })
+      if ((index + 1) % 4 === 0) {
+        items.push({ type: 'ad', key: `loop-ad-${index}` })
+      }
+    })
+    return items
+  }, [visiblePosts])
+
   const lastScrollTopRef = useRef(0)
 
   useEffect(() => {
@@ -336,11 +348,13 @@ function LoopPage() {
   }, [activeTab, isMobileViewport])
 
   useEffect(() => {
-    if (!focusedPostId || !visiblePosts.length) {
+    if (!focusedPostId || !loopItems.length) {
       return
     }
 
-    const targetIndex = visiblePosts.findIndex((post) => getPostId(post) === focusedPostId)
+    const targetIndex = loopItems.findIndex(
+      (item) => item.type === 'post' && getPostId(item.post) === focusedPostId,
+    )
 
     if (targetIndex < 0) {
       return
@@ -364,22 +378,22 @@ function LoopPage() {
       top: scrollTop,
       behavior: 'auto',
     })
-  }, [focusedPostId, isMobileViewport, visiblePosts])
+  }, [focusedPostId, isMobileViewport, loopItems])
 
   useEffect(() => {
-    if (!visiblePosts.length) {
+    if (!loopItems.length) {
       setActiveLoopIndex(0)
       return
     }
 
     setActiveLoopIndex((currentIndex) =>
-      Math.min(Math.max(currentIndex, 0), visiblePosts.length - 1),
+      Math.min(Math.max(currentIndex, 0), loopItems.length - 1),
     )
-  }, [visiblePosts.length])
+  }, [loopItems.length])
 
   useEffect(() => {
     const scroller = isMobileViewport ? mobileScrollerRef.current : desktopScrollerRef.current
-    if (!scroller || !visiblePosts.length) {
+    if (!scroller || !loopItems.length) {
       return undefined
     }
 
@@ -389,7 +403,7 @@ function LoopPage() {
       const viewportHeight = Math.max(1, scroller.clientHeight || 1)
       const currentScrollTop = scroller.scrollTop
       const nextIndex = Math.round(currentScrollTop / viewportHeight)
-      setActiveLoopIndex(Math.min(Math.max(nextIndex, 0), visiblePosts.length - 1))
+      setActiveLoopIndex(Math.min(Math.max(nextIndex, 0), loopItems.length - 1))
 
       const delta = currentScrollTop - lastScrollTopRef.current
       if (currentScrollTop <= 15 || nextIndex === 0) {
@@ -410,7 +424,7 @@ function LoopPage() {
       scroller.removeEventListener('scroll', syncActiveIndex)
       window.removeEventListener('resize', syncActiveIndex)
     }
-  }, [isMobileViewport, visiblePosts.length])
+  }, [isMobileViewport, loopItems.length])
 
   useEffect(() => {
     if (isMobileViewport) return undefined
@@ -421,13 +435,13 @@ function LoopPage() {
       }
 
       const scroller = desktopScrollerRef.current
-      if (!scroller || !visiblePosts.length) return
+      if (!scroller || !loopItems.length) return
 
       const viewportHeight = Math.max(1, scroller.clientHeight || 1)
 
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault()
-        const nextIndex = Math.min(activeLoopIndex + 1, visiblePosts.length - 1)
+        const nextIndex = Math.min(activeLoopIndex + 1, loopItems.length - 1)
         if (nextIndex > activeLoopIndex) {
           setIsMobileTopBarVisible(false)
         }
@@ -442,7 +456,7 @@ function LoopPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeLoopIndex, isMobileViewport, visiblePosts.length])
+  }, [activeLoopIndex, isMobileViewport, loopItems.length])
 
   const storyRailsByUsername = useMemo(() => {
     const map = new Map()
@@ -741,34 +755,51 @@ function LoopPage() {
                 ref={mobileScrollerRef}
                 className="no-scrollbar h-[calc(100dvh-56px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
-                {visiblePosts.map((post, index) => (
-                  <div
-                    key={post._id || post.id}
-                    className="snap-start min-h-[calc(100dvh-56px)]"
-                    style={{ scrollSnapStop: 'always' }}
-                  >
-                    {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
-                      <PostCard
-                        post={post}
-                        variant="loop"
-                        onPostHidden={handleHidePostFromLoop}
-                        loopPlaybackState={{
-                           isActive: index === activeLoopIndex,
-                          preloadMode:
-                            index === activeLoopIndex
-                              ? 'active'
-                              : index === activeLoopIndex + 1
-                                ? 'next'
-                                : 'other',
-                        }}
-                        hasAuthorStory={Boolean(`${post?.author?.username || ''}`.trim() && storyRailsByUsername.has(`${post?.author?.username || ''}`.trim().toLowerCase()))}
-                        onOpenAuthorStory={handleOpenAuthorStory}
-                      />
-                    ) : (
-                      <div className="h-[calc(100dvh-56px)] w-full bg-black" />
-                    )}
-                  </div>
-                ))}
+                {loopItems.map((item, index) => {
+                  if (item.type === 'ad') {
+                    return (
+                      <div
+                        key={item.key}
+                        className="snap-start min-h-[calc(100dvh-56px)] flex items-center justify-center p-4 bg-black"
+                        style={{ scrollSnapStop: 'always' }}
+                      >
+                        <Suspense fallback={<div className="h-72 w-full max-w-[440px] rounded-3xl bg-zinc-900/60 animate-pulse" />}>
+                          <GoogleAd variant="loop" slot="6236125845" />
+                        </Suspense>
+                      </div>
+                    )
+                  }
+
+                  const post = item.post
+                  return (
+                    <div
+                      key={item.key}
+                      className="snap-start min-h-[calc(100dvh-56px)]"
+                      style={{ scrollSnapStop: 'always' }}
+                    >
+                      {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
+                        <PostCard
+                          post={post}
+                          variant="loop"
+                          onPostHidden={handleHidePostFromLoop}
+                          loopPlaybackState={{
+                            isActive: index === activeLoopIndex,
+                            preloadMode:
+                              index === activeLoopIndex
+                                ? 'active'
+                                : index === activeLoopIndex + 1
+                                  ? 'next'
+                                  : 'other',
+                          }}
+                          hasAuthorStory={Boolean(`${post?.author?.username || ''}`.trim() && storyRailsByUsername.has(`${post?.author?.username || ''}`.trim().toLowerCase()))}
+                          onOpenAuthorStory={handleOpenAuthorStory}
+                        />
+                      ) : (
+                        <div className="h-[calc(100dvh-56px)] w-full bg-black" />
+                      )}
+                    </div>
+                  )
+                })}
                 {state.hasMore ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}
               </div>
             </div>
@@ -804,34 +835,51 @@ function LoopPage() {
                 ref={desktopScrollerRef}
                 className="no-scrollbar h-[calc(100vh-68px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
-                {visiblePosts.map((post, index) => (
-                  <div
-                    key={post._id || post.id}
-                    className="snap-start min-h-[calc(100vh-68px)] flex items-center justify-center py-1"
-                    style={{ scrollSnapStop: 'always' }}
-                  >
-                    {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
-                      <PostCard
-                        post={post}
-                        variant="loop"
-                        onPostHidden={handleHidePostFromLoop}
-                        loopPlaybackState={{
-                          isActive: index === activeLoopIndex,
-                          preloadMode:
-                            index === activeLoopIndex
-                              ? 'active'
-                              : index === activeLoopIndex + 1
-                                ? 'next'
-                                : 'other',
-                        }}
-                        hasAuthorStory={Boolean(`${post?.author?.username || ''}`.trim() && storyRailsByUsername.has(`${post?.author?.username || ''}`.trim().toLowerCase()))}
-                        onOpenAuthorStory={handleOpenAuthorStory}
-                      />
-                    ) : (
-                      <div className="h-[calc(100vh-68px)] w-full rounded-2xl bg-black" />
-                    )}
-                  </div>
-                ))}
+                {loopItems.map((item, index) => {
+                  if (item.type === 'ad') {
+                    return (
+                      <div
+                        key={item.key}
+                        className="snap-start min-h-[calc(100vh-68px)] flex items-center justify-center py-1"
+                        style={{ scrollSnapStop: 'always' }}
+                      >
+                        <Suspense fallback={<div className="h-72 w-full max-w-[440px] rounded-3xl bg-zinc-900/60 animate-pulse" />}>
+                          <GoogleAd variant="loop" slot="6236125845" />
+                        </Suspense>
+                      </div>
+                    )
+                  }
+
+                  const post = item.post
+                  return (
+                    <div
+                      key={item.key}
+                      className="snap-start min-h-[calc(100vh-68px)] flex items-center justify-center py-1"
+                      style={{ scrollSnapStop: 'always' }}
+                    >
+                      {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
+                        <PostCard
+                          post={post}
+                          variant="loop"
+                          onPostHidden={handleHidePostFromLoop}
+                          loopPlaybackState={{
+                            isActive: index === activeLoopIndex,
+                            preloadMode:
+                              index === activeLoopIndex
+                                ? 'active'
+                                : index === activeLoopIndex + 1
+                                  ? 'next'
+                                  : 'other',
+                          }}
+                          hasAuthorStory={Boolean(`${post?.author?.username || ''}`.trim() && storyRailsByUsername.has(`${post?.author?.username || ''}`.trim().toLowerCase()))}
+                          onOpenAuthorStory={handleOpenAuthorStory}
+                        />
+                      ) : (
+                        <div className="h-[calc(100vh-68px)] w-full rounded-2xl bg-black" />
+                      )}
+                    </div>
+                  )
+                })}
                 {state.hasMore ? <div ref={sentinelRef} className="h-8 w-full" aria-hidden="true" /> : null}
               </div>
             </div>

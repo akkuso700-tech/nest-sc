@@ -23,6 +23,7 @@ import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery.js'
 
 const PostComposer = lazy(() => import('../features/posts/PostComposer.jsx'))
 const StoryViewerModal = lazy(() => import('../features/stories/StoryViewerModal.jsx'))
+const GoogleAd = lazy(() => import('../components/ads/GoogleAd.jsx'))
 
 const FEED_LIMIT = 12
 const HOME_LOOP_PREVIEW_LIMIT = 4
@@ -1184,6 +1185,10 @@ function HomePage() {
       if (index === 5) {
         items.push({ type: 'friends' })
       }
+
+      if ((index + 1) % 4 === 0) {
+        items.push({ type: 'ad', slotKey: `home-ad-${index}` })
+      }
     })
 
     return items
@@ -1923,6 +1928,22 @@ function HomePage() {
                   nearbyAriaLabel={t('home.suggestionsNearbyAria')}
                   nearbyTitle={t('home.suggestionsNearbyTitle')}
                 />
+              )
+            }
+
+            if (item.type === 'ad') {
+              return (
+                <Suspense
+                  key={item.slotKey}
+                  fallback={
+                    <div className="min-h-[140px] w-full rounded-2xl border border-border bg-card p-4 animate-pulse" />
+                  }
+                >
+                  <GoogleAd
+                    variant="feed"
+                    slot="6236125845"
+                  />
+                </Suspense>
               )
             }
 
