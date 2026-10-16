@@ -2499,90 +2499,94 @@ function PostCard({
               />
             ) : null}
 
-            <QuickCommentsPanel
-              open={isCommentsOpen}
-              isMobile={isMobileCommentsPanel}
-              lang={lang}
-              t={t}
-              author={author}
-              postText={content}
-              mediaItems={mediaItems}
-              onTopicClick={handleTopicNavigate}
-              onMentionClick={handleMentionNavigate}
-              onMediaClick={handleOpenPostDetailFromComments}
-              commentSort={commentSort}
-              onSortChange={setCommentSort}
-              likeCount={likes}
-              commentCount={comments}
-              saveCount={saves}
-              shareCount={shares}
-              viewCount={views}
-              likedByViewer={Boolean(localPost.likedByViewer)}
-              savedByViewer={Boolean(localPost.savedByViewer)}
-              sharedByViewer={Boolean(localPost.sharedByViewer)}
-              onLikePost={() => runPostAction('like', togglePostLike)}
-              onLikeCountClick={() => setIsLikesModalOpen(true)}
-              onCommentAction={focusQuickCommentInput}
-              onSavePost={() => runPostAction('save', togglePostSave)}
-              onShareAction={handleShareButtonClick}
-              shareMenuOpen={isShareMenuOpen}
-              shareMenuRef={shareMenuRef}
-              shareProcessing={isShareProcessing}
-              onShareCopyLink={handleShareCopyLink}
-              onShareToPlatform={handleShareToPlatform}
-              sharePayload={sharePayload}
-              shareTargets={shareTargets}
-              onShareClose={() => setIsShareMenuOpen(false)}
-              onTrackShare={trackShareIfPossible}
-              onShowToast={setToast}
-              likeDisabled={!isAuthenticated || pendingAction === 'like'}
-              saveDisabled={!isAuthenticated || pendingAction === 'save'}
-              shareDisabled={pendingAction === 'share'}
-              comments={sortedPanelComments}
-              draft={commentDraft}
-              onDraftChange={setCommentDraft}
-              onSubmit={handleSubmitComment}
-              onReply={(targetComment) => {
-                setReplyTargetId(targetComment.id || targetComment._id)
-                setEditingCommentId(null)
-                setCommentSubmitError('')
-              }}
-              onEdit={(targetComment) => {
-                setEditingCommentId(targetComment.id || targetComment._id)
-                setReplyTargetId(null)
-                setCommentDraft(targetComment.text || '')
-                clearCommentMedia()
-                setCommentSubmitError('')
-              }}
-              onLike={handleCommentLike}
-              replyTarget={replyTarget}
-              editingCommentId={editingCommentId}
-              onCancelReply={() => {
-                setReplyTargetId(null)
-                setEditingCommentId(null)
-                setCommentSubmitError('')
-              }}
-              onOpenMediaPicker={() => commentMediaInputRef.current?.click()}
-              commentPreview={commentPreview}
-              onClearMedia={clearCommentMedia}
-              submitError={commentSubmitError}
-              activeCommentMenuId={activeCommentMenuId}
-              onToggleCommentMenu={setActiveCommentMenuId}
-              onRequestDelete={handleRequestDeleteComment}
-              onReportComment={handleOpenCommentReport}
-              isSubmitting={isCommentSubmitting}
-              canSubmit={canSubmitComment}
-              disabled={!isAuthenticated}
-              isLoading={isCommentsLoading}
-              commentInputRef={quickCommentTextareaRef}
-              onClose={() => {
-                setIsCommentsOpen(false)
-                setReplyTargetId(null)
-                setEditingCommentId(null)
-                setCommentSubmitError('')
-                setActiveCommentMenuId(null)
-              }}
-            />
+            {isCommentsOpen ? (
+              <Suspense fallback={null}>
+                <QuickCommentsPanel
+                  open={isCommentsOpen}
+                  isMobile={isMobileCommentsPanel}
+                  lang={lang}
+                  t={t}
+                  author={author}
+                  postText={content}
+                  mediaItems={mediaItems}
+                  onTopicClick={handleTopicNavigate}
+                  onMentionClick={handleMentionNavigate}
+                  onMediaClick={handleOpenPostDetailFromComments}
+                  commentSort={commentSort}
+                  onSortChange={setCommentSort}
+                  likeCount={likes}
+                  commentCount={comments}
+                  saveCount={saves}
+                  shareCount={shares}
+                  viewCount={views}
+                  likedByViewer={Boolean(localPost.likedByViewer)}
+                  savedByViewer={Boolean(localPost.savedByViewer)}
+                  sharedByViewer={Boolean(localPost.sharedByViewer)}
+                  onLikePost={() => runPostAction('like', togglePostLike)}
+                  onLikeCountClick={() => setIsLikesModalOpen(true)}
+                  onCommentAction={focusQuickCommentInput}
+                  onSavePost={() => runPostAction('save', togglePostSave)}
+                  onShareAction={handleShareButtonClick}
+                  shareMenuOpen={isShareMenuOpen}
+                  shareMenuRef={shareMenuRef}
+                  shareProcessing={isShareProcessing}
+                  onShareCopyLink={handleShareCopyLink}
+                  onShareToPlatform={handleShareToPlatform}
+                  sharePayload={sharePayload}
+                  shareTargets={shareTargets}
+                  onShareClose={() => setIsShareMenuOpen(false)}
+                  onTrackShare={trackShareIfPossible}
+                  onShowToast={setToast}
+                  likeDisabled={!isAuthenticated || pendingAction === 'like'}
+                  saveDisabled={!isAuthenticated || pendingAction === 'save'}
+                  shareDisabled={pendingAction === 'share'}
+                  comments={sortedPanelComments}
+                  draft={commentDraft}
+                  onDraftChange={setCommentDraft}
+                  onSubmit={handleSubmitComment}
+                  onReply={(targetComment) => {
+                    setReplyTargetId(targetComment.id || targetComment._id)
+                    setEditingCommentId(null)
+                    setCommentSubmitError('')
+                  }}
+                  onEdit={(targetComment) => {
+                    setEditingCommentId(targetComment.id || targetComment._id)
+                    setReplyTargetId(null)
+                    setCommentDraft(targetComment.text || '')
+                    clearCommentMedia()
+                    setCommentSubmitError('')
+                  }}
+                  onLike={handleCommentLike}
+                  replyTarget={replyTarget}
+                  editingCommentId={editingCommentId}
+                  onCancelReply={() => {
+                    setReplyTargetId(null)
+                    setEditingCommentId(null)
+                    setCommentSubmitError('')
+                  }}
+                  onOpenMediaPicker={() => commentMediaInputRef.current?.click()}
+                  commentPreview={commentPreview}
+                  onClearMedia={clearCommentMedia}
+                  submitError={commentSubmitError}
+                  activeCommentMenuId={activeCommentMenuId}
+                  onToggleCommentMenu={setActiveCommentMenuId}
+                  onRequestDelete={handleRequestDeleteComment}
+                  onReportComment={handleOpenCommentReport}
+                  isSubmitting={isCommentSubmitting}
+                  canSubmit={canSubmitComment}
+                  disabled={!isAuthenticated}
+                  isLoading={isCommentsLoading}
+                  commentInputRef={quickCommentTextareaRef}
+                  onClose={() => {
+                    setIsCommentsOpen(false)
+                    setReplyTargetId(null)
+                    setEditingCommentId(null)
+                    setCommentSubmitError('')
+                    setActiveCommentMenuId(null)
+                  }}
+                />
+              </Suspense>
+            ) : null}
           </div>
         </div>
       </article>

@@ -21,9 +21,10 @@ import { getFullName } from '../utils/social.js'
 import { buildTagLabelFromSlug, buildTagSlug } from '../utils/hashtag.js'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery.js'
 
+import GoogleAd from '../components/ads/GoogleAd.jsx'
+
 const PostComposer = lazy(() => import('../features/posts/PostComposer.jsx'))
 const StoryViewerModal = lazy(() => import('../features/stories/StoryViewerModal.jsx'))
-const GoogleAd = lazy(() => import('../components/ads/GoogleAd.jsx'))
 
 const FEED_LIMIT = 12
 const HOME_LOOP_PREVIEW_LIMIT = 4
@@ -706,6 +707,11 @@ function HomePage() {
   const shouldAutoExpandDesktopComposer =
     isAuthenticated && !isMobileViewport && isMobileComposeOpen
   const selectedTopicSlug = buildTagSlug(selectedTopic)
+
+  useEffect(() => {
+    import('../features/posts/MediaGallery.jsx').catch(() => {})
+    import('../features/posts/components/PostTranslateSection.jsx').catch(() => {})
+  }, [])
   const structuredData = useMemo(() => {
     if (!selectedTopic || !selectedTopicSlug) {
       return null

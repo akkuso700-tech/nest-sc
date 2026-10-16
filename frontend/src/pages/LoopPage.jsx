@@ -10,8 +10,9 @@ import { getStoryRails, registerStoryView } from '../services/storiesService.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery.js'
 
+import GoogleAd from '../components/ads/GoogleAd.jsx'
+
 const StoryViewerModal = lazy(() => import('../features/stories/StoryViewerModal.jsx'))
-const GoogleAd = lazy(() => import('../components/ads/GoogleAd.jsx'))
 
 const LOOP_LIMIT = 10
 const LOOP_RENDER_RADIUS = 1
