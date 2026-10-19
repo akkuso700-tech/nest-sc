@@ -15,7 +15,7 @@ import GoogleAd from '../components/ads/GoogleAd.jsx'
 const StoryViewerModal = lazy(() => import('../features/stories/StoryViewerModal.jsx'))
 
 const LOOP_LIMIT = 10
-const LOOP_RENDER_RADIUS = 1
+const LOOP_RENDER_RADIUS = 2
 
 function isLoopContent(post) {
   const normalizedType = `${post?.contentType || post?.type || post?.publication?.contentType || ''}`
@@ -339,6 +339,15 @@ function LoopPage() {
     return items
   }, [visiblePosts])
 
+  const nextPostLoopIndex = useMemo(() => {
+    for (let i = activeLoopIndex + 1; i < loopItems.length; i += 1) {
+      if (loopItems[i]?.type === 'post') {
+        return i
+      }
+    }
+    return -1
+  }, [activeLoopIndex, loopItems])
+
   const lastScrollTopRef = useRef(0)
 
   useEffect(() => {
@@ -368,8 +377,9 @@ function LoopPage() {
       return
     }
 
+    const targetSlide = scroller.querySelector(`[data-loop-slide-index="${targetIndex}"]`)
     const viewportHeight = Math.max(1, scroller.clientHeight || 1)
-    const scrollTop = targetIndex * viewportHeight
+    const scrollTop = targetSlide ? targetSlide.offsetTop : targetIndex * viewportHeight
 
     if (Math.abs(scroller.scrollTop - scrollTop) < 2) {
       return
@@ -401,15 +411,33 @@ function LoopPage() {
     lastScrollTopRef.current = scroller.scrollTop
 
     function syncActiveIndex() {
-      const viewportHeight = Math.max(1, scroller.clientHeight || 1)
       const currentScrollTop = scroller.scrollTop
-      const nextIndex = Math.round(currentScrollTop / viewportHeight)
-      setActiveLoopIndex(Math.min(Math.max(nextIndex, 0), loopItems.length - 1))
+      const viewportHeight = Math.max(1, scroller.clientHeight || 1)
+      const slides = scroller.querySelectorAll('[data-loop-slide-index]')
+      let nextIndex = Math.round(currentScrollTop / viewportHeight)
+
+      if (slides.length > 0) {
+        const scrollCenter = currentScrollTop + viewportHeight / 2
+        let bestDistance = Infinity
+        for (let i = 0; i < slides.length; i += 1) {
+          const slide = slides[i]
+          const slideCenter = slide.offsetTop + slide.offsetHeight / 2
+          const distance = Math.abs(slideCenter - scrollCenter)
+          if (distance < bestDistance) {
+            bestDistance = distance
+            const parsed = Number(slide.getAttribute('data-loop-slide-index'))
+            nextIndex = Number.isInteger(parsed) ? parsed : i
+          }
+        }
+      }
+
+      const clampedIndex = Math.min(Math.max(nextIndex, 0), loopItems.length - 1)
+      setActiveLoopIndex(clampedIndex)
 
       const delta = currentScrollTop - lastScrollTopRef.current
-      if (currentScrollTop <= 15 || nextIndex === 0) {
+      if (currentScrollTop <= 15 || clampedIndex === 0) {
         setIsMobileTopBarVisible(true)
-      } else if (delta > 20 && nextIndex >= 1) {
+      } else if (delta > 20 && clampedIndex >= 1) {
         setIsMobileTopBarVisible(false)
       } else if (delta < -20) {
         setIsMobileTopBarVisible(true)
@@ -446,12 +474,16 @@ function LoopPage() {
         if (nextIndex > activeLoopIndex) {
           setIsMobileTopBarVisible(false)
         }
-        scroller.scrollTo({ top: nextIndex * viewportHeight, behavior: 'smooth' })
+        const targetSlide = scroller.querySelector(`[data-loop-slide-index="${nextIndex}"]`)
+        const targetTop = targetSlide ? targetSlide.offsetTop : nextIndex * viewportHeight
+        scroller.scrollTo({ top: targetTop, behavior: 'smooth' })
       } else if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault()
         const prevIndex = Math.max(activeLoopIndex - 1, 0)
         setIsMobileTopBarVisible(true)
-        scroller.scrollTo({ top: prevIndex * viewportHeight, behavior: 'smooth' })
+        const targetSlide = scroller.querySelector(`[data-loop-slide-index="${prevIndex}"]`)
+        const targetTop = targetSlide ? targetSlide.offsetTop : prevIndex * viewportHeight
+        scroller.scrollTo({ top: targetTop, behavior: 'smooth' })
       }
     }
 
@@ -610,7 +642,9 @@ function LoopPage() {
     }
   }
 
-  const currentPost = state.posts?.[activeLoopIndex] || state.posts?.[0]
+  const currentPost =
+    (loopItems[activeLoopIndex]?.type === 'post' ? loopItems[activeLoopIndex].post : null) ||
+    state.posts?.[0]
   const currentVideoMedia = currentPost?.media?.find((m) => m?.type === 'video')
   const loopStructuredData =
     currentPost && currentVideoMedia
@@ -696,7 +730,7 @@ function LoopPage() {
           ) : null}
 
           {isMobileViewport ? (
-            <div className="relative h-[calc(100dvh-56px)] overflow-hidden bg-black">
+            <div className="relative h-[calc(100dvh-56px)] min-h-[calc(100dvh-56px)] max-h-[calc(100dvh-56px)] overflow-hidden bg-black">
               <div
                 className={`pointer-events-none absolute inset-x-0 top-0 z-20 h-20 bg-gradient-to-b from-black/55 to-transparent transition-opacity duration-300 ${
                   isMobileTopBarVisible ? 'opacity-100' : 'opacity-0'
@@ -754,17 +788,18 @@ function LoopPage() {
 
               <div
                 ref={mobileScrollerRef}
-                className="no-scrollbar h-[calc(100dvh-56px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
+                className="no-scrollbar h-[calc(100dvh-56px)] min-h-[calc(100dvh-56px)] max-h-[calc(100dvh-56px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
                 {loopItems.map((item, index) => {
                   if (item.type === 'ad') {
                     return (
                       <div
                         key={item.key}
-                        className="snap-start min-h-[calc(100dvh-56px)] flex items-center justify-center p-4 bg-black"
+                        data-loop-slide-index={index}
+                        className="snap-start h-[calc(100dvh-56px)] min-h-[calc(100dvh-56px)] max-h-[calc(100dvh-56px)] w-full shrink-0 overflow-hidden flex items-center justify-center bg-black"
                         style={{ scrollSnapStop: 'always' }}
                       >
-                        <Suspense fallback={<div className="h-72 w-full max-w-[440px] rounded-3xl bg-zinc-900/60 animate-pulse" />}>
+                        <Suspense fallback={<div className="h-full w-full bg-zinc-950 animate-pulse" />}>
                           <GoogleAd variant="loop" slot="6236125845" />
                         </Suspense>
                       </div>
@@ -775,7 +810,8 @@ function LoopPage() {
                   return (
                     <div
                       key={item.key}
-                      className="snap-start min-h-[calc(100dvh-56px)]"
+                      data-loop-slide-index={index}
+                      className="snap-start h-[calc(100dvh-56px)] min-h-[calc(100dvh-56px)] max-h-[calc(100dvh-56px)] w-full shrink-0 overflow-hidden bg-black"
                       style={{ scrollSnapStop: 'always' }}
                     >
                       {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
@@ -788,7 +824,7 @@ function LoopPage() {
                             preloadMode:
                               index === activeLoopIndex
                                 ? 'active'
-                                : index === activeLoopIndex + 1
+                                : index === nextPostLoopIndex
                                   ? 'next'
                                   : 'other',
                           }}
@@ -796,7 +832,7 @@ function LoopPage() {
                           onOpenAuthorStory={handleOpenAuthorStory}
                         />
                       ) : (
-                        <div className="h-[calc(100dvh-56px)] w-full bg-black" />
+                        <div className="h-full w-full bg-black" />
                       )}
                     </div>
                   )
@@ -805,7 +841,7 @@ function LoopPage() {
               </div>
             </div>
           ) : (
-            <div className="relative h-[calc(100vh-68px)] overflow-hidden">
+            <div className="relative h-[calc(100vh-68px)] min-h-[calc(100vh-68px)] max-h-[calc(100vh-68px)] overflow-hidden">
               {/* Floating Top Tabs Bar on Desktop (Over the Video) */}
               <div
                 className={`pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-center pt-3 transition-all duration-300 ease-out ${
@@ -834,17 +870,18 @@ function LoopPage() {
 
               <div
                 ref={desktopScrollerRef}
-                className="no-scrollbar h-[calc(100vh-68px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
+                className="no-scrollbar h-[calc(100vh-68px)] min-h-[calc(100vh-68px)] max-h-[calc(100vh-68px)] overflow-y-auto snap-y snap-mandatory overscroll-y-contain"
               >
                 {loopItems.map((item, index) => {
                   if (item.type === 'ad') {
                     return (
                       <div
                         key={item.key}
-                        className="snap-start min-h-[calc(100vh-68px)] flex items-center justify-center py-1"
+                        data-loop-slide-index={index}
+                        className="snap-start h-[calc(100vh-68px)] min-h-[calc(100vh-68px)] max-h-[calc(100vh-68px)] w-full shrink-0 overflow-hidden flex items-center justify-center py-1"
                         style={{ scrollSnapStop: 'always' }}
                       >
-                        <Suspense fallback={<div className="h-72 w-full max-w-[440px] rounded-3xl bg-zinc-900/60 animate-pulse" />}>
+                        <Suspense fallback={<div className="h-[min(760px,calc(100vh-84px))] aspect-[9/16] w-auto max-w-[440px] rounded-2xl bg-zinc-900/60 animate-pulse" />}>
                           <GoogleAd variant="loop" slot="6236125845" />
                         </Suspense>
                       </div>
@@ -855,7 +892,8 @@ function LoopPage() {
                   return (
                     <div
                       key={item.key}
-                      className="snap-start min-h-[calc(100vh-68px)] flex items-center justify-center py-1"
+                      data-loop-slide-index={index}
+                      className="snap-start h-[calc(100vh-68px)] min-h-[calc(100vh-68px)] max-h-[calc(100vh-68px)] w-full shrink-0 overflow-hidden flex items-center justify-center py-1"
                       style={{ scrollSnapStop: 'always' }}
                     >
                       {Math.abs(index - activeLoopIndex) <= LOOP_RENDER_RADIUS ? (
@@ -868,7 +906,7 @@ function LoopPage() {
                             preloadMode:
                               index === activeLoopIndex
                                 ? 'active'
-                                : index === activeLoopIndex + 1
+                                : index === nextPostLoopIndex
                                   ? 'next'
                                   : 'other',
                           }}
@@ -876,7 +914,7 @@ function LoopPage() {
                           onOpenAuthorStory={handleOpenAuthorStory}
                         />
                       ) : (
-                        <div className="h-[calc(100vh-68px)] w-full rounded-2xl bg-black" />
+                        <div className="h-[min(760px,calc(100vh-84px))] aspect-[9/16] w-auto max-w-[440px] rounded-2xl bg-black" />
                       )}
                     </div>
                   )

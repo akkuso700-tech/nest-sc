@@ -429,7 +429,13 @@ function PostCard({
   const mediaItems = localPost.media || []
   const isLoopFeedContent = isLoopContent(localPost)
   const isLoopVariant = variant === 'loop'
+  const hasExplicitLoopPlaybackState = Boolean(
+    loopPlaybackState && typeof loopPlaybackState.isActive === 'boolean',
+  )
   const isLoopCardActive = !isLoopVariant || loopPlaybackState?.isActive !== false
+  const isLoopEffectiveActive = hasExplicitLoopPlaybackState
+    ? Boolean(loopPlaybackState.isActive)
+    : isLoopInViewport && isLoopCardActive
   const loopPreloadMode = loopPlaybackState?.preloadMode || 'other'
   const isLoopMobileVariant = isLoopVariant && isMobileViewport
   const isLoopDesktopVariant = isLoopVariant && !isMobileViewport
@@ -445,7 +451,7 @@ function PostCard({
     enabled: Boolean(
       loopVideoItem &&
       !isLoopProcessing &&
-      (!isLoopVariant || isLoopInViewport || ['active', 'next'].includes(loopPreloadMode)),
+      (!isLoopVariant || isLoopEffectiveActive || isLoopInViewport || ['active', 'next'].includes(loopPreloadMode)),
     ),
   })
   const loopPosterUrl = resolveMediaUrl(loopVideoItem?.posterUrl || '')
@@ -771,13 +777,12 @@ function PostCard({
     // We only set a fallback timer (10s) if the playback completely freezes without any forward progress.
     if (
       !loopRecoveryTimerRef.current &&
-      isLoopInViewport &&
-      isLoopCardActive &&
+      isLoopEffectiveActive &&
       document.visibilityState === 'visible'
     ) {
       loopRecoveryTimerRef.current = window.setTimeout(() => {
         const currentVideo = loopVideoRef.current
-        if (currentVideo && currentVideo.paused && isLoopCardActive && isLoopInViewport) {
+        if (currentVideo && currentVideo.paused && isLoopEffectiveActive) {
           setLoopPlaybackError('Video baglantisi yavas. Tekrar dene.')
           void sendLoopTelemetry('recover-failed', {
             currentTimeSec: Number(currentVideo.currentTime || 0),
@@ -808,7 +813,7 @@ function PostCard({
       currentTimeSec: Number(video?.currentTime || 0),
     })
 
-    if (!video || !isLoopInViewport || !isLoopCardActive) {
+    if (!video || !isLoopEffectiveActive) {
       return
     }
 
@@ -828,7 +833,7 @@ function PostCard({
     loopRecoveryTimerRef.current = window.setTimeout(() => {
       try {
         video.load()
-        if (isLoopInViewport && isLoopCardActive && document.visibilityState === 'visible') {
+        if (isLoopEffectiveActive && document.visibilityState === 'visible') {
           video.play().catch(() => {})
         }
       } catch {
@@ -858,8 +863,7 @@ function PostCard({
       target.currentTime = 0
       if (
         !reducedDataMode &&
-        isLoopInViewport &&
-        isLoopCardActive &&
+        isLoopEffectiveActive &&
         document.visibilityState === 'visible'
       ) {
         target.play().catch(() => {})
@@ -891,6 +895,23 @@ function PostCard({
     }
   }
 
+  function handleLoopVideoCanPlay(event) {
+    if (!isLoopVariant) return
+    const video = event?.currentTarget || loopVideoRef.current
+    if (!video) return
+    if (
+      !reducedDataMode &&
+      isLoopEffectiveActive &&
+      document.visibilityState === 'visible' &&
+      !isLoopPressPaused &&
+      !isLoopManuallyPaused &&
+      video.paused
+    ) {
+      video.muted = isLoopMuted || !isLoopEffectiveActive
+      video.play().catch(() => {})
+    }
+  }
+
   function handleLoopVideoLoadedMetadata(event) {
     const video = event?.currentTarget || loopVideoRef.current
     if (!video) return
@@ -906,6 +927,7 @@ function PostCard({
         isSquare: ratio >= 0.85 && ratio <= 1.15,
       })
     }
+    handleLoopVideoCanPlay(event)
   }
 
   function triggerHeartBurst(x = null, y = null) {
@@ -999,7 +1021,7 @@ function PostCard({
 
     try {
       video.load()
-      if (isLoopCardActive && isLoopInViewport && document.visibilityState === 'visible') {
+      if (isLoopEffectiveActive && document.visibilityState === 'visible') {
         video.play().catch(() => {})
       }
     } catch {
@@ -1042,7 +1064,7 @@ function PostCard({
     loopHoldActiveRef.current = false
     setIsLoopPressPaused(false)
     const video = loopVideoRef.current
-    if (video && video.paused && isLoopCardActive && isLoopInViewport && document.visibilityState === 'visible') {
+    if (video && video.paused && isLoopEffectiveActive && document.visibilityState === 'visible') {
       video.play().catch(() => {})
     }
   }
@@ -1397,10 +1419,10 @@ function PostCard({
   }, [isLoopVariant, postId, post?._recommendation])
 
   useEffect(() => {
-    if (!isLoopInViewport || !isLoopCardActive) {
+    if (!isLoopEffectiveActive) {
       setIsLoopManuallyPaused(false)
     }
-  }, [isLoopInViewport, isLoopCardActive])
+  }, [isLoopEffectiveActive])
 
   useEffect(() => {
     if (!isLoopVariant) {
@@ -1414,12 +1436,11 @@ function PostCard({
 
     const shouldPlay =
       !reducedDataMode &&
-      isLoopInViewport &&
-      isLoopCardActive &&
+      isLoopEffectiveActive &&
       document.visibilityState === 'visible' &&
       !isLoopPressPaused &&
       !isLoopManuallyPaused
-    video.muted = isLoopMuted || !isLoopInViewport
+    video.muted = isLoopMuted || !isLoopEffectiveActive
 
     if (!shouldPlay) {
       if (!video.paused) {
@@ -1430,7 +1451,16 @@ function PostCard({
 
     video.play().catch(() => {})
     return undefined
-  }, [isLoopCardActive, isLoopInViewport, isLoopManuallyPaused, isLoopMuted, isLoopPressPaused, isLoopVariant, postId, reducedDataMode])
+  }, [
+    isLoopEffectiveActive,
+    isLoopManuallyPaused,
+    isLoopMuted,
+    isLoopPressPaused,
+    isLoopVariant,
+    loopVideoSourceUrl,
+    postId,
+    reducedDataMode,
+  ])
 
   useEffect(() => {
     if (!isLoopVariant || typeof document === 'undefined') {
@@ -1446,9 +1476,9 @@ function PostCard({
       if (
         document.visibilityState === 'visible' &&
         !reducedDataMode &&
-        isLoopInViewport &&
-        isLoopCardActive &&
-        !isLoopPressPaused
+        isLoopEffectiveActive &&
+        !isLoopPressPaused &&
+        !isLoopManuallyPaused
       ) {
         video.play().catch(() => {})
         return
@@ -1463,7 +1493,15 @@ function PostCard({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [isLoopCardActive, isLoopInViewport, isLoopPressPaused, isLoopVariant, postId, reducedDataMode])
+  }, [
+    isLoopEffectiveActive,
+    isLoopManuallyPaused,
+    isLoopPressPaused,
+    isLoopVariant,
+    loopVideoSourceUrl,
+    postId,
+    reducedDataMode,
+  ])
 
   async function runPostAction(actionName, action) {
     if (!isAuthenticated || pendingAction) {
@@ -2228,11 +2266,13 @@ function PostCard({
                             src={loopVideoSourceUrl || undefined}
                             poster={loopPosterUrl || undefined}
                             className={`relative size-full ${loopDimensions.isLandscape ? 'object-contain' : 'object-cover'}`}
-                            muted={isLoopMuted || !isLoopInViewport}
+                            muted={isLoopMuted || !isLoopEffectiveActive}
                             draggable={false}
                             onContextMenu={handleLoopVideoContextMenu}
                             onDragStart={handleLoopVideoContextMenu}
                             onLoadedMetadata={handleLoopVideoLoadedMetadata}
+                            onLoadedData={handleLoopVideoCanPlay}
+                            onCanPlay={handleLoopVideoCanPlay}
                             playsInline
                             style={{
                               WebkitTouchCallout: 'none',
@@ -2244,7 +2284,7 @@ function PostCard({
                             preload={
                               reducedDataMode
                                 ? 'none'
-                                : isLoopInViewport || loopPreloadMode === 'active' || loopPreloadMode === 'next'
+                                : isLoopEffectiveActive || isLoopInViewport || loopPreloadMode === 'active' || loopPreloadMode === 'next'
                                 ? 'auto'
                                 : 'none'
                             }
