@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
 import VerifiedBadge from '../../components/common/VerifiedBadge.jsx'
 import { useAuth } from '../../store/AuthContext.jsx'
+import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
+import { prefetchHlsVideo } from '../../utils/hlsPreload.js'
 import { resolveMediaUrl } from '../../utils/media.js'
 import { formatRelativeTime } from '../../utils/social.js'
 import {
@@ -133,6 +135,7 @@ function StoryViewerModal({
     return firstUnseen >= 0 ? firstUnseen : 0
   })
   const [imageProgress, setImageProgress] = useState(0)
+  const [isImageReady, setIsImageReady] = useState(false)
   const [isMuted, setIsMuted] = useState(true)
   const [isPaused, setIsPaused] = useState(false)
   const [detailState, setDetailState] = useState({
@@ -152,6 +155,7 @@ function StoryViewerModal({
   const imageProgressRef = useRef(0)
   const imageProgressStartRef = useRef(0)
   const imageProgressStartedAtRef = useRef(0)
+  const imageRef = useRef(null)
   const videoRef = useRef(null)
   const commentsScrollerRef = useRef(null)
   const holdActiveRef = useRef(false)
@@ -164,6 +168,17 @@ function StoryViewerModal({
   const activeStoryId = activeStory?._id || activeStory?.id || null
   const mediaItem = activeStory?.media?.[0] || null
   const isVideo = mediaItem?.type === 'video'
+  const resolvedStoryVideoUrl = isVideo && mediaItem?.url ? resolveMediaUrl(mediaItem.url) : ''
+  const resolvedStoryHlsUrl = isVideo && mediaItem?.hlsUrl ? resolveMediaUrl(mediaItem.hlsUrl) : ''
+  const resolvedStoryPosterUrl = isVideo
+    ? resolveMediaUrl(mediaItem?.posterUrl || mediaItem?.thumbnailUrl || '')
+    : ''
+  const { src: adaptiveStoryVideoSrc } = useAdaptiveVideoSource({
+    videoRef,
+    hlsUrl: resolvedStoryHlsUrl,
+    fallbackUrl: resolvedStoryVideoUrl,
+    enabled: Boolean(isVideo && activeStory && mediaItem),
+  })
   const activePost = detailState.post || activeStory
   const activeStoryMeta = useMemo(
     () => normalizeStoryMeta(activePost?.storyMeta || activeStory?.storyMeta),
@@ -289,6 +304,7 @@ function StoryViewerModal({
 
   useEffect(() => {
     setImageProgress(0)
+    setIsImageReady(false)
     imageProgressRef.current = 0
     imageProgressStartRef.current = 0
     imageProgressStartedAtRef.current = 0
@@ -297,6 +313,39 @@ function StoryViewerModal({
     setReplyDraft('')
     setIsReplyInputFocused(false)
   }, [activeStoryId])
+
+  useEffect(() => {
+    if (isVideo || !mediaItem) {
+      return
+    }
+    if (imageRef.current?.complete) {
+      setIsImageReady(true)
+    }
+  }, [activeStoryId, isVideo, mediaItem])
+
+  useEffect(() => {
+    const nextStory = stories[activeIndex + 1]
+    const nextMediaItem = nextStory?.media?.[0]
+    if (!nextMediaItem) {
+      return
+    }
+    if (nextMediaItem.type === 'video') {
+      const nextHlsUrl = nextMediaItem.hlsUrl ? resolveMediaUrl(nextMediaItem.hlsUrl) : ''
+      const nextFallbackUrl = nextMediaItem.url ? resolveMediaUrl(nextMediaItem.url) : ''
+      prefetchHlsVideo(nextHlsUrl, nextFallbackUrl)
+      return
+    }
+    const nextImageUrl = resolveMediaUrl(nextMediaItem.url || '')
+    if (!nextImageUrl || typeof Image === 'undefined') {
+      return
+    }
+    const preloadImage = new Image()
+    preloadImage.decoding = 'async'
+    if ('fetchPriority' in preloadImage) {
+      preloadImage.fetchPriority = 'low'
+    }
+    preloadImage.src = nextImageUrl
+  }, [activeIndex, stories])
 
   useEffect(() => {
     if (!activeStoryId) {
@@ -349,7 +398,7 @@ function StoryViewerModal({
   }, [activeStoryId, labels.loadFailed])
 
   useEffect(() => {
-    if (isVideo || isPaused || !activeStory) {
+    if (isVideo || isPaused || !activeStory || !isImageReady) {
       return undefined
     }
 
@@ -380,7 +429,7 @@ function StoryViewerModal({
         window.cancelAnimationFrame(imageAnimationFrameRef.current)
       }
     }
-  }, [activeStory, goNextStory, isPaused, isVideo])
+  }, [activeStory, goNextStory, isImageReady, isPaused, isVideo])
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -715,7 +764,11 @@ function StoryViewerModal({
           {isVideo ? (
             <video
               ref={videoRef}
-              src={resolveMediaUrl(mediaItem.url)}
+              src={adaptiveStoryVideoSrc || undefined}
+              poster={resolvedStoryPosterUrl || undefined}
+              width={1080}
+              height={1920}
+              preload="auto"
               className="h-full w-full object-cover"
               style={{
                 WebkitTouchCallout: 'none',
@@ -754,8 +807,15 @@ function StoryViewerModal({
             />
           ) : (
             <img
+              ref={imageRef}
               src={resolveMediaUrl(mediaItem.url)}
               alt={labels.mediaAlt}
+              width={1080}
+              height={1920}
+              decoding="async"
+              fetchPriority="high"
+              onLoad={() => setIsImageReady(true)}
+              onError={() => setIsImageReady(true)}
               className="h-full w-full object-cover"
               style={{
                 WebkitTouchCallout: 'none',

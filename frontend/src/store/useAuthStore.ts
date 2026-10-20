@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { apiRequest, onSessionExpired, refreshSession } from '../lib/apiClient.js'
 import { clearGroupsSidebarCache } from '../features/groups/sidebarCache.js'
-import { clearClientLoopFeedCache } from '../pages/LoopPage.jsx'
+import { clearClientLoopFeedCache } from '../features/loop/loopFeedCache.js'
 import { disconnectSocketClient } from '../services/socketClient.js'
 import type { User } from '../types'
 

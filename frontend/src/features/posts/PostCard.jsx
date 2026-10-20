@@ -27,7 +27,7 @@ import { resolveMediaUrl } from '../../utils/media.js'
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
-import { prefetchHlsVideo } from '../../utils/hlsPreload.js'
+import { cancelPrefetch, prefetchHlsVideo } from '../../utils/hlsPreload.js'
 import {
   buildPostSharePayload,
   buildShareTargets,
@@ -58,6 +58,7 @@ import PostCardLightbox from './components/PostCardLightbox.jsx'
 import PostCardHeader from './components/PostCardHeader.jsx'
 import PostCardBody from './components/PostCardBody.jsx'
 import PostCardActions from './components/PostCardActions.jsx'
+import MediaGallery from './MediaGallery.jsx'
 import {
   findCommentById,
   appendReplyToTree,
@@ -71,7 +72,6 @@ import {
 const ReportDialog = lazy(() => import('../../components/feedback/ReportDialog.jsx'))
 const ConfirmActionDialog = lazy(() => import('../../components/feedback/ConfirmActionDialog.jsx'))
 const ReplyComposer = lazy(() => import('./ReplyComposer.jsx'))
-const MediaGallery = lazy(() => import('./MediaGallery.jsx'))
 const PostEditModal = lazy(() => import('./PostEditModal.jsx'))
 const PostTranslateSection = lazy(() => import('./components/PostTranslateSection.jsx'))
 const PostAiSummaryCard = lazy(() => import('./components/PostAiSummaryCard.jsx'))
@@ -181,6 +181,7 @@ function PostCard({
   groupName = '',
   groupCoverImageUrl = '',
   prioritizeMedia = false,
+  deferRender = !prioritizeMedia,
 }) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -437,6 +438,9 @@ function PostCard({
     ? Boolean(loopPlaybackState.isActive)
     : isLoopInViewport && isLoopCardActive
   const loopPreloadMode = loopPlaybackState?.preloadMode || 'other'
+  const isLoopSourceActive = hasExplicitLoopPlaybackState
+    ? Boolean(loopPlaybackState.isActive || loopPreloadMode === 'active')
+    : isLoopEffectiveActive || isLoopInViewport
   const isLoopMobileVariant = isLoopVariant && isMobileViewport
   const isLoopDesktopVariant = isLoopVariant && !isMobileViewport
   const loopVideoItem = mediaItems.find((item) => item?.type === 'video') || null
@@ -451,7 +455,7 @@ function PostCard({
     enabled: Boolean(
       loopVideoItem &&
       !isLoopProcessing &&
-      (!isLoopVariant || isLoopEffectiveActive || isLoopInViewport || ['active', 'next'].includes(loopPreloadMode)),
+      (!isLoopVariant || isLoopSourceActive),
     ),
   })
   const loopPosterUrl = resolveMediaUrl(loopVideoItem?.posterUrl || '')
@@ -475,19 +479,34 @@ function PostCard({
   }, [isLoopProcessing, postId])
 
   useEffect(() => {
-    if (
-      !isLoopVariant ||
-      reducedDataMode ||
-      loopPreloadMode !== 'next' ||
-      isLoopProcessing
-    ) {
-      return
+    if (!isLoopVariant) {
+      return undefined
     }
 
-    if (loopHlsUrl || loopFallbackUrl) {
+    if (
+      !reducedDataMode &&
+      loopPreloadMode === 'next' &&
+      !isLoopProcessing &&
+      (loopHlsUrl || loopFallbackUrl)
+    ) {
       void prefetchHlsVideo(loopHlsUrl, loopFallbackUrl)
+      return undefined
     }
-  }, [isLoopProcessing, isLoopVariant, loopFallbackUrl, loopHlsUrl, loopPreloadMode, reducedDataMode])
+
+    if (!isLoopSourceActive && loopPreloadMode !== 'next') {
+      cancelPrefetch(loopHlsUrl, loopFallbackUrl)
+    }
+
+    return undefined
+  }, [
+    isLoopProcessing,
+    isLoopSourceActive,
+    isLoopVariant,
+    loopFallbackUrl,
+    loopHlsUrl,
+    loopPreloadMode,
+    reducedDataMode,
+  ])
 
   useEffect(() => {
     if (!isLoopVariant || !loopVideoRef.current) return
@@ -2098,7 +2117,7 @@ function PostCard({
             ? 'overflow-hidden border-0 bg-black shadow-none hover:shadow-none'
             : isLoopDesktopVariant
               ? 'overflow-visible border-0 bg-transparent shadow-none hover:shadow-none'
-              : 'feed-post-render-boundary md:rounded-lg'
+              : `${deferRender ? 'feed-post-render-boundary ' : ''}md:rounded-lg`
         }`}
       >
         <div className="flex-row items-start gap-3">
@@ -2236,8 +2255,8 @@ function PostCard({
                             : 'h-[calc(100dvh-56px)] w-full'
                         }`}
                       >
-                        {/* Ambient Blurred Background Glow */}
-                        {loopPosterUrl ? (
+                        {/* Ambient Blurred Background Glow (only needed for letterboxed landscape or processing states) */}
+                        {loopPosterUrl && (loopDimensions.isLandscape || isLoopProcessing) ? (
                           <div
                             className="pointer-events-none absolute inset-0 size-full overflow-hidden"
                             aria-hidden="true"
@@ -2245,6 +2264,8 @@ function PostCard({
                             <img
                               src={loopPosterUrl}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               className="size-full object-cover opacity-35 blur-2xl scale-125"
                             />
                           </div>
@@ -2265,6 +2286,8 @@ function PostCard({
                             ref={loopVideoRef}
                             src={loopVideoSourceUrl || undefined}
                             poster={loopPosterUrl || undefined}
+                            width={Math.round(Number(loopDimensions.width || loopVideoItem?.width || 720))}
+                            height={Math.round(Number(loopDimensions.height || loopVideoItem?.height || 1280))}
                             className={`relative size-full ${loopDimensions.isLandscape ? 'object-contain' : 'object-cover'}`}
                             muted={isLoopMuted || !isLoopEffectiveActive}
                             draggable={false}
@@ -2284,9 +2307,9 @@ function PostCard({
                             preload={
                               reducedDataMode
                                 ? 'none'
-                                : isLoopEffectiveActive || isLoopInViewport || loopPreloadMode === 'active' || loopPreloadMode === 'next'
-                                ? 'auto'
-                                : 'none'
+                                : isLoopSourceActive
+                                  ? 'auto'
+                                  : 'none'
                             }
                             onClick={handleLoopVideoClick}
                             onPointerDown={handleLoopPressStart}
@@ -2488,18 +2511,16 @@ function PostCard({
                     </div>
                   </div>
                 ) : (
-                  <Suspense fallback={null}>
-                    <MediaGallery
-                      items={mediaItems}
-                      interactive
-                      hoverPlayVideos
-                      autoplayOnVisible
-                      feedLayout
-                      priority={prioritizeMedia}
-                      className="w-full"
-                      onItemClick={(_, index) => openPostDetail(index)}
-                    />
-                  </Suspense>
+                  <MediaGallery
+                    items={mediaItems}
+                    interactive
+                    hoverPlayVideos
+                    autoplayOnVisible
+                    feedLayout
+                    priority={prioritizeMedia}
+                    className="w-full"
+                    onItemClick={(_, index) => openPostDetail(index)}
+                  />
                 )}
                
               </div>

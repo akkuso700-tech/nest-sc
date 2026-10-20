@@ -859,10 +859,21 @@ function ProfilePage() {
     }
   }
 
+  function renderProfilePostList(items) {
+    return items.map((post, index) => (
+      <PostCard
+        key={post._id || post.id}
+        post={post}
+        prioritizeMedia={index === 0}
+        deferRender={index >= 2}
+      />
+    ))
+  }
+
   function renderTabContent() {
     if (activeTab === 'posts') {
       return profilePosts.length ? (
-        profilePosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+        renderProfilePostList(profilePosts)
       ) : (
         <EmptyTabState message={t('profile.emptyPosts')} />
       )
@@ -870,7 +881,7 @@ function ProfilePage() {
 
     if (activeTab === 'loops') {
       return loopPosts.length ? (
-        loopPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+        renderProfilePostList(loopPosts)
       ) : (
         <EmptyTabState message={t('profile.emptyLoops')} />
       )
@@ -878,7 +889,7 @@ function ProfilePage() {
 
     if (activeTab === 'media') {
       return mediaPosts.length ? (
-        mediaPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+        renderProfilePostList(mediaPosts)
       ) : (
         <EmptyTabState message={t('profile.emptyMedia', { defaultValue: 'Bu profilde henüz medya paylaşımı yok.' })} />
       )
@@ -889,7 +900,7 @@ function ProfilePage() {
         return <EmptyTabState message={t('profile.emptyPosts')} />
       }
       return likedPosts.length ? (
-        likedPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+        renderProfilePostList(likedPosts)
       ) : (
         <EmptyTabState message={t('profile.emptyLikes', { defaultValue: 'Beğenilen içerikler burada listelenecek.' })} />
       )
@@ -897,7 +908,7 @@ function ProfilePage() {
 
     if (activeTab === 'replies') {
       return repliedPosts.length ? (
-        repliedPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+        renderProfilePostList(repliedPosts)
       ) : (
         <EmptyTabState message={t('profile.emptyReplies')} />
       )
@@ -908,7 +919,7 @@ function ProfilePage() {
     }
 
     return savedPosts.length ? (
-      savedPosts.map((post) => <PostCard key={post._id || post.id} post={post} />)
+      renderProfilePostList(savedPosts)
     ) : (
       <EmptyTabState message={t('profile.emptySaved')} />
     )
@@ -1086,6 +1097,10 @@ function ProfilePage() {
                       <img
                         src={resolvedCoverUrl}
                         alt={`${getFullName(profileUser)} cover`}
+                        width={1200}
+                        height={360}
+                        decoding="async"
+                        fetchPriority="high"
                         className="h-full w-full object-cover transition duration-300 hover:scale-[1.01]"
                       />
                     </button>
@@ -1143,6 +1158,9 @@ function ProfilePage() {
                                 <img
                                   src={resolvedAvatarUrl}
                                   alt={getFullName(profileUser)}
+                                  width={128}
+                                  height={128}
+                                  decoding="async"
                                   className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]"
                                 />
                               </button>
@@ -1368,6 +1386,9 @@ function ProfilePage() {
                               <img
                                 src={resolvedAvatarUrl}
                                 alt={getFullName(profileUser)}
+                                width={128}
+                                height={128}
+                                decoding="async"
                                 className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]"
                               />
                             </button>
@@ -1729,7 +1750,15 @@ function ProfilePage() {
                           <div key={item.id} className="min-w-0 text-center">
                             <div className="mx-auto grid aspect-square w-full place-items-center overflow-hidden rounded-full border-2 border-border bg-secondary">
                               {item.imageUrl ? (
-                                <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                                <img
+                                  src={item.imageUrl}
+                                  alt=""
+                                  width={64}
+                                  height={64}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-full w-full object-cover"
+                                />
                               ) : (
                                 <span className="text-xs font-bold text-primary">{item.label?.slice(0, 1)}</span>
                               )}

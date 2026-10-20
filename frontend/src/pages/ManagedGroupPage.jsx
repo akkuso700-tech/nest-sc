@@ -31,6 +31,7 @@ import {
   removeGroupMember,
 } from '../services/groupsService.js'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery.js'
+import { resolveMediaUrl } from '../utils/media.js'
 
 function mapGroupCard(group) {
   return { id: group.id, slug: group.slug, name: group.name, members: `${group?.stats?.memberCount || 0} uye`, avatar: `${group.name || 'G'}`.slice(0, 2).toUpperCase(), coverImageUrl: group.coverImageUrl || '' }
@@ -424,7 +425,7 @@ export default function ManagedGroupPage() {
             </div>
           </section>}
           <div className="md:rounded-lg border border-border bg-card p-2"><div className="flex items-center gap-2"><button type="button" onClick={() => setActiveTab('posts')} className={`rounded-sm px-2 py-2 text-sm font-medium transition ${activeTab === 'posts' ? 'border-b-3 border-primary text-primary hover:bg-secondary' : 'text-muted hover:bg-secondary'}`}>Gonderiler</button><button type="button" onClick={() => setActiveTab('members')} className={`rounded-sm px-2 py-2 text-sm font-medium transition ${activeTab === 'members' ? 'border-b-3 border-primary text-primary hover:bg-secondary' : 'text-muted hover:bg-secondary'}`}>Uyeler</button><button type="button" onClick={() => setActiveTab('pending')} className={`rounded-sm px-2 py-2 text-sm font-medium transition ${activeTab === 'pending' ? 'border-b-3 border-primary text-primary hover:bg-secondary' : 'text-muted hover:bg-secondary'}`}>Onay Bekleyenler</button></div></div>
-          {activeTab === 'posts' && group ? <>{(!isMobileViewport || forceComposerExpanded) ? <PostComposer key={`managed-group-composer-${composerOpenKey}`} user={user} onSubmit={handleCreateGroupPost} isSubmitting={isPublishing} allowStoryOption={false} allowLoopOption={false} groupName={group.name} groupCoverImageUrl={group.coverImageUrl || ''} hideCollapsed={isMobileViewport} defaultExpanded={forceComposerExpanded} onExpandedChange={(expanded) => { if (!expanded) setForceComposerExpanded(false) }} /> : null}{posts.map((post) => <PostCard key={post._id || post.id} post={post} followActionLabel="Katil" unfollowActionLabel="Ayril" groupName={group.name} groupCoverImageUrl={group.coverImageUrl || ''} />)}</> : null}
+          {activeTab === 'posts' && group ? <>{(!isMobileViewport || forceComposerExpanded) ? <PostComposer key={`managed-group-composer-${composerOpenKey}`} user={user} onSubmit={handleCreateGroupPost} isSubmitting={isPublishing} allowStoryOption={false} allowLoopOption={false} groupName={group.name} groupCoverImageUrl={group.coverImageUrl || ''} hideCollapsed={isMobileViewport} defaultExpanded={forceComposerExpanded} onExpandedChange={(expanded) => { if (!expanded) setForceComposerExpanded(false) }} /> : null}{posts.map((post, index) => <PostCard key={post._id || post.id} post={post} prioritizeMedia={index === 0} deferRender={index >= 2} followActionLabel="Katil" unfollowActionLabel="Ayril" groupName={group.name} groupCoverImageUrl={group.coverImageUrl || ''} />)}</> : null}
           {activeTab === 'members' && group ? <section className="md:rounded-lg border border-border bg-card p-4 shadow-sm"><div className="flex items-center gap-3"><h3 className="text-base font-semibold text-text">Uyeler</h3><input type="text" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Uye ara" className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-secondary px-3 text-sm text-text outline-none placeholder:text-soft focus:border-border-strong" /></div><div className="mt-3 space-y-3">{members.map((member) => <div key={member.userId} className="flex items-center justify-between gap-3 rounded-lg bg-secondary px-3 py-3"><div className="flex items-center gap-3"><UserAvatar user={member} className="size-10" textClassName="text-xs font-semibold" /><div><p className="text-sm font-semibold text-text">{`${member.firstName} ${member.lastName}`.trim()}</p></div></div><div className="flex items-center gap-2"><span className="rounded-full bg-card px-2.5 py-1 text-[11px] text-muted">{member.role}</span>{member.role !== 'owner' ? <button type="button" onClick={async () => { await removeGroupMember(group.id, member.userId); setMembers((current) => current.filter((item) => item.userId !== member.userId)); setGroup((current) => current ? ({ ...current, stats: { ...(current.stats || {}), memberCount: Math.max(0, (current?.stats?.memberCount || 1) - 1) } }) : current) }} className="text-xs font-semibold text-rose-600">Sil</button> : null}</div></div>)}</div></section> : null}
           {activeTab === 'pending' && group ? (
             <section className="md:rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -467,7 +468,17 @@ export default function ManagedGroupPage() {
                           onClick={() => navigate(`/${lang}/posts/${post._id || post.id}`)}
                           className="mt-2 w-full overflow-hidden rounded-lg border border-border bg-card text-left"
                         >
-                          {post.media?.[0]?.url ? <img src={post.media[0].url} alt="Gonderi kapagi" loading="lazy" decoding="async" className="h-36 w-full object-cover" /> : null}
+                          {post.media?.[0] && (post.media[0].posterUrl || post.media[0].thumbnailUrl || post.media[0].url) ? (
+                            <img
+                              src={resolveMediaUrl(post.media[0].posterUrl || post.media[0].thumbnailUrl || post.media[0].url)}
+                              alt="Gonderi kapagi"
+                              width={640}
+                              height={288}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-36 w-full object-cover"
+                            />
+                          ) : null}
                           <p className="px-3 py-2 text-sm text-text">{post.text}</p>
                         </button>
                         <div className="mt-3 flex items-center gap-2">

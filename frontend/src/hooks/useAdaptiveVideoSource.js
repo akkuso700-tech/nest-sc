@@ -13,18 +13,26 @@ export function supportsManagedHlsSource(hlsUrl) {
     /(?:^|[-/])master-remote\.m3u8(?:$|[?#])/.test(normalizedUrl)
 }
 
+let cachedHlsConstructor = null
+
 export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled = true }) {
   const nativeHls = useMemo(supportsNativeHls, [])
   const managedHls = useMemo(() => supportsManagedHlsSource(hlsUrl), [hlsUrl])
   const [directSource, setDirectSource] = useState(() => {
-    if (!enabled || !hlsUrl) return fallbackUrl
+    if (!enabled) return ''
+    if (!hlsUrl) return fallbackUrl
     if (!managedHls) return fallbackUrl
     return nativeHls ? hlsUrl : ''
   })
 
   useEffect(() => {
     const video = videoRef?.current
-    if (!video || !enabled || !hlsUrl) {
+    if (!enabled) {
+      setDirectSource('')
+      return undefined
+    }
+
+    if (!video || !hlsUrl) {
       setDirectSource(fallbackUrl)
       return undefined
     }
@@ -60,47 +68,56 @@ export function useAdaptiveVideoSource({ videoRef, hlsUrl, fallbackUrl, enabled 
       if (!cancelled) setDirectSource(fallbackUrl)
     }
 
-    import('hls.js/light')
-      .then(({ default: Hls }) => {
-        if (cancelled) return
-        if (!Hls.isSupported()) {
-          setDirectSource(fallbackUrl)
+    const attachHls = (Hls) => {
+      if (cancelled) return
+      if (!Hls?.isSupported?.()) {
+        setDirectSource(fallbackUrl)
+        return
+      }
+
+      hls = new Hls({
+        enableWorker: true,
+        startLevel: 0, // Start loading lowest rendition first (360p) for instant first frame
+        capLevelToPlayerSize: true,
+        backBufferLength: 20,
+        maxBufferLength: 25,
+        maxMaxBufferLength: 50,
+        lowLatencyMode: false,
+        manifestLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3,
+        fragLoadingMaxRetry: 4,
+        fragLoadingRetryDelay: 500,
+      })
+      hls.loadSource(hlsUrl)
+      hls.attachMedia(video)
+      fallbackTimer = window.setTimeout(() => {
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) activateFallback()
+      }, 8000)
+      video.addEventListener('loadeddata', clearFallbackTimer, { once: true })
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data?.fatal) return
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls?.startLoad()
           return
         }
-
-        hls = new Hls({
-          enableWorker: true,
-          startLevel: 0, // Start loading lowest rendition first (360p) for instant first frame
-          capLevelToPlayerSize: true,
-          backBufferLength: 20,
-          maxBufferLength: 25,
-          maxMaxBufferLength: 50,
-          lowLatencyMode: false,
-          manifestLoadingMaxRetry: 3,
-          levelLoadingMaxRetry: 3,
-          fragLoadingMaxRetry: 4,
-          fragLoadingRetryDelay: 500,
-        })
-        hls.loadSource(hlsUrl)
-        hls.attachMedia(video)
-        fallbackTimer = window.setTimeout(() => {
-          if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) activateFallback()
-        }, 8000)
-        video.addEventListener('loadeddata', clearFallbackTimer, { once: true })
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (!data?.fatal) return
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            hls?.startLoad()
-            return
-          }
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls?.recoverMediaError()
-            return
-          }
-          activateFallback()
-        })
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls?.recoverMediaError()
+          return
+        }
+        activateFallback()
       })
-      .catch(activateFallback)
+    }
+
+    if (cachedHlsConstructor) {
+      attachHls(cachedHlsConstructor)
+    } else {
+      import('hls.js/light')
+        .then(({ default: Hls }) => {
+          cachedHlsConstructor = Hls
+          attachHls(Hls)
+        })
+        .catch(activateFallback)
+    }
 
     return () => {
       cancelled = true

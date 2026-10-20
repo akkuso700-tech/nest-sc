@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import SocialLayout from '../layouts/SocialLayout.jsx'
@@ -394,8 +394,17 @@ export default function JoinedGroupPage() {
                 {(!isMobileViewport || forceComposerExpanded) ? (
                   <PostComposer key={`joined-group-composer-${composerOpenKey}`} user={user} onSubmit={handleCreateGroupPost} isSubmitting={isPublishing} allowStoryOption={false} allowLoopOption={false} groupName={group.name} groupCoverImageUrl={group.coverImageUrl || ''} hideCollapsed={isMobileViewport} defaultExpanded={forceComposerExpanded} onExpandedChange={(expanded) => { if (!expanded) setForceComposerExpanded(false) }} />
                 ) : null}
-                  {posts.map((post) => (
-                    <PostCard key={post._id || post.id} post={post} followActionLabel={t('groups.joinShort')} unfollowActionLabel={t('groups.leaveGroup')} groupName={group.name} groupCoverImageUrl={group.coverImageUrl || ''} />
+                  {posts.map((post, index) => (
+                    <PostCard
+                      key={post._id || post.id}
+                      post={post}
+                      prioritizeMedia={index === 0}
+                      deferRender={index >= 2}
+                      followActionLabel={t('groups.joinShort')}
+                      unfollowActionLabel={t('groups.leaveGroup')}
+                      groupName={group.name}
+                      groupCoverImageUrl={group.coverImageUrl || ''}
+                    />
                   ))}
                 </>
               )}

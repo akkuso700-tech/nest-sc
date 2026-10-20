@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import SocialLayout from '../layouts/SocialLayout.jsx'
@@ -107,7 +107,7 @@ function isLoopPost(post) {
   return Boolean((post?.media || []).some((item) => item?.type === 'video' || item?.kind === 'video'))
 }
 
-function PostGridCard({ post, lang, navigationState }) {
+function PostGridCard({ post, lang, navigationState, priority = false }) {
   const author = post?.author || {}
   const media = (post?.media || [])[0] || null
   const posterUrl = resolveMediaUrl(
@@ -133,11 +133,29 @@ function PostGridCard({ post, lang, navigationState }) {
       <p className="truncate px-2 pb-1 text-xs text-text">{post?.text || ''}</p>
       {isVideoMedia && posterUrl ? (
         <div className="aspect-[16/10] w-full bg-secondary">
-          <img src={posterUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <img
+            src={posterUrl}
+            alt=""
+            width={640}
+            height={400}
+            decoding="async"
+            loading={priority ? undefined : 'lazy'}
+            fetchPriority={priority ? 'high' : undefined}
+            className="h-full w-full object-cover"
+          />
         </div>
       ) : imageUrl ? (
         <div className="aspect-[16/10] w-full bg-secondary">
-          <img src={imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <img
+            src={imageUrl}
+            alt=""
+            width={640}
+            height={400}
+            decoding="async"
+            loading={priority ? undefined : 'lazy'}
+            fetchPriority={priority ? 'high' : undefined}
+            className="h-full w-full object-cover"
+          />
         </div>
       ) : isVideoMedia ? (
         <div className="relative grid aspect-[16/10] w-full place-items-center bg-zinc-950 text-white">
@@ -405,12 +423,13 @@ function SearchPage() {
               </div>
               {allPostsToRender.length ? (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {allPostsToRender.map((post) => (
+                  {allPostsToRender.map((post, index) => (
                     <PostGridCard
                       key={post._id || post.id}
                       post={post}
                       lang={lang}
                       navigationState={navigationState}
+                      priority={index < 2}
                     />
                   ))}
                 </div>
@@ -443,12 +462,13 @@ function SearchPage() {
               <h2 className="text-base font-bold text-text">Gönderiler</h2>
               {posts.length ? (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {posts.map((post) => (
+                  {posts.map((post, index) => (
                     <PostGridCard
                       key={post._id || post.id}
                       post={post}
                       lang={lang}
                       navigationState={navigationState}
+                      priority={index < 2}
                     />
                   ))}
                 </div>
@@ -461,12 +481,13 @@ function SearchPage() {
               <h2 className="text-base font-bold text-text">Loop</h2>
               {loopPosts.length ? (
                 <div className="grid grid-cols-2 gap-1.5">
-                  {loopPosts.map((post) => (
+                  {loopPosts.map((post, index) => (
                     <PostGridCard
                       key={post._id || post.id}
                       post={post}
                       lang={lang}
                       navigationState={navigationState}
+                      priority={index < 2}
                     />
                   ))}
                 </div>

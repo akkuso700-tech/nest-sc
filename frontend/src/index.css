@@ -234,7 +234,7 @@ a {
 
 .feed-post-render-boundary {
   content-visibility: auto;
-  contain-intrinsic-size: auto 640px;
+  contain-intrinsic-size: auto none auto 640px;
 }
 
 .dropdown-pop {

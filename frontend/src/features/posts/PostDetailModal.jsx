@@ -8,6 +8,8 @@ import HashtagText from '../../components/common/HashtagText.jsx'
 import ActionToast from '../../components/feedback/ActionToast.jsx'
 
 const PostTranslateSection = lazy(() => import('./components/PostTranslateSection.jsx'))
+import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
+import { prefetchHlsVideo } from '../../utils/hlsPreload.js'
 import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js'
 import {
   buildPostSharePayload,
@@ -390,7 +392,7 @@ function CommentComposerPreview({ preview, onRemove, removeLabel }) {
       {preview.type === 'video' ? (
         <video src={resolveMediaUrl(preview.url)} className="h-full w-full object-cover" muted playsInline />
       ) : (
-        <img src={resolveMediaUrl(preview.url)} alt={preview.name} className="h-full w-full object-cover" />
+        <img src={resolveMediaUrl(preview.url)} alt={preview.name} decoding="async" className="h-full w-full object-cover" />
       )}
       <button
         type="button"
@@ -452,6 +454,7 @@ function PostDetailModal() {
   const { isAuthenticated, user } = useAuth()
   const commentMediaInputRef = useRef(null)
   const commentTextareaRef = useRef(null)
+  const detailVideoRef = useRef(null)
   const touchStartXRef = useRef(null)
   const mobileShareMenuRef = useRef(null)
   const desktopShareMenuRef = useRef(null)
@@ -743,14 +746,69 @@ function PostDetailModal() {
   const sortedComments = useMemo(() => sortCommentsTree(detailState.comments, commentSort), [detailState.comments, commentSort])
   const replyTarget = useMemo(() => (replyTargetId ? findCommentById(detailState.comments, replyTargetId) : null), [detailState.comments, replyTargetId])
   const editingComment = useMemo(() => (editingCommentId ? findCommentById(detailState.comments, editingCommentId) : null), [detailState.comments, editingCommentId])
-  const mediaItems = post?.media || []
+  const mediaItems = useMemo(() => post?.media || [], [post?.media])
   const currentMedia = mediaItems[currentMediaIndex] || null
+  const isCurrentVideo = currentMedia?.type === 'video'
+  const currentFallbackCandidates = useMemo(() => {
+    const sourceUrl = currentMedia?.url || ''
+    return sourceUrl ? resolveMediaUrlCandidates(sourceUrl) : []
+  }, [currentMedia?.url])
+  const currentHlsCandidates = useMemo(() => {
+    const sourceUrl = currentMedia?.hlsUrl || ''
+    return sourceUrl ? resolveMediaUrlCandidates(sourceUrl) : []
+  }, [currentMedia?.hlsUrl])
   const currentMediaCandidates = useMemo(() => {
+    if (isCurrentVideo) {
+      return currentFallbackCandidates.length ? currentFallbackCandidates : currentHlsCandidates
+    }
     const sourceUrl = currentMedia?.url || currentMedia?.hlsUrl || ''
     return sourceUrl ? resolveMediaUrlCandidates(sourceUrl) : []
-  }, [currentMedia?.hlsUrl, currentMedia?.url])
+  }, [currentFallbackCandidates, currentHlsCandidates, currentMedia?.hlsUrl, currentMedia?.url, isCurrentVideo])
   const currentMediaUrl = currentMediaCandidates[currentMediaCandidateIndex] || ''
+  const currentFallbackVideoUrl = currentFallbackCandidates[currentMediaCandidateIndex] || currentFallbackCandidates[0] || ''
+  const currentHlsVideoUrl = currentHlsCandidates[0] || ''
+  const currentMediaPosterUrl = useMemo(
+    () => resolveMediaUrl(currentMedia?.posterUrl || currentMedia?.thumbnailUrl || ''),
+    [currentMedia?.posterUrl, currentMedia?.thumbnailUrl],
+  )
+  const { src: adaptiveDetailVideoSrc } = useAdaptiveVideoSource({
+    videoRef: detailVideoRef,
+    hlsUrl: isCurrentVideo ? currentHlsVideoUrl : '',
+    fallbackUrl: isCurrentVideo ? currentFallbackVideoUrl : '',
+    enabled: Boolean(
+      isCurrentVideo &&
+        !detailState.isLoading &&
+        !detailState.error &&
+        !isCurrentMediaUnavailable,
+    ),
+  })
   const hasMultipleMedia = mediaItems.length > 1
+
+  useEffect(() => {
+    if (!hasMultipleMedia || mediaItems.length <= 1) {
+      return
+    }
+    const nextMedia = mediaItems[(currentMediaIndex + 1) % mediaItems.length]
+    if (!nextMedia) {
+      return
+    }
+    if (nextMedia.type === 'video') {
+      const nextHlsUrl = nextMedia.hlsUrl ? resolveMediaUrl(nextMedia.hlsUrl) : ''
+      const nextFallbackUrl = nextMedia.url ? resolveMediaUrl(nextMedia.url) : ''
+      prefetchHlsVideo(nextHlsUrl, nextFallbackUrl)
+      return
+    }
+    const nextImageUrl = resolveMediaUrl(nextMedia.url || '')
+    if (!nextImageUrl || typeof Image === 'undefined') {
+      return
+    }
+    const preloadImage = new Image()
+    preloadImage.decoding = 'async'
+    if ('fetchPriority' in preloadImage) {
+      preloadImage.fetchPriority = 'low'
+    }
+    preloadImage.src = nextImageUrl
+  }, [currentMediaIndex, hasMultipleMedia, mediaItems])
   const canSubmitComment = editingCommentId ? Boolean(commentDraft.trim()) : Boolean(commentDraft.trim() || commentFile)
   const fullPostText = post?.text || ''
   const shouldClampMobileText = fullPostText.length > MOBILE_COLLAPSED_TEXT_LIMIT
@@ -1080,10 +1138,10 @@ function PostDetailModal() {
         <div className="flex h-full flex-col xl:flex-row">
           <section className="relative flex min-h-[44vh] flex-1 items-center justify-center overflow-hidden bg-zinc-950 xl:min-h-0">
             {currentMediaUrl && currentMedia?.type !== 'video' ? (
-              <>
-                <div className="absolute inset-0 scale-110 bg-cover bg-center opacity-25 blur-3xl" style={{ backgroundImage: `url(${currentMediaUrl})` }} />
-                <div className="absolute inset-0 scale-[1.25] bg-cover bg-center opacity-18 blur-[120px]" style={{ backgroundImage: `url(${currentMediaUrl})` }} />
-              </>
+              <div
+                className="pointer-events-none absolute inset-0 scale-110 bg-cover bg-center opacity-25 blur-3xl"
+                style={{ backgroundImage: `url(${currentMediaPosterUrl || currentMediaUrl})` }}
+              />
             ) : null}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.08),transparent_48%)]" />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.24),rgba(0,0,0,0.68))]" />
@@ -1173,8 +1231,12 @@ function PostDetailModal() {
               {!detailState.isLoading && !detailState.error && currentMedia && !isCurrentMediaUnavailable ? (
                 currentMedia.type === 'video' ? (
                   <video
-                    src={currentMediaUrl}
-                    poster={resolveMediaUrl(currentMedia?.posterUrl || '') || undefined}
+                    ref={detailVideoRef}
+                    src={adaptiveDetailVideoSrc || undefined}
+                    poster={currentMediaPosterUrl || undefined}
+                    width={Number(currentMedia?.width) > 0 ? Math.round(Number(currentMedia.width)) : 1280}
+                    height={Number(currentMedia?.height) > 0 ? Math.round(Number(currentMedia.height)) : 720}
+                    preload="auto"
                     controls
                     playsInline
                     onError={handleCurrentMediaLoadError}
@@ -1184,6 +1246,10 @@ function PostDetailModal() {
                   <img
                     src={currentMediaUrl}
                     alt="Icerik gorseli"
+                    width={Number(currentMedia?.width) > 0 ? Math.round(Number(currentMedia.width)) : 1200}
+                    height={Number(currentMedia?.height) > 0 ? Math.round(Number(currentMedia.height)) : 900}
+                    decoding="async"
+                    fetchPriority="high"
                     onError={handleCurrentMediaLoadError}
                     className="max-h-full max-w-full object-contain shadow-[0_30px_80px_rgba(0,0,0,0.35)] transition-transform duration-200 xl:rounded-[32px]"
                     style={{ transform: `scale(${zoomLevel})` }}

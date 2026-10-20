@@ -24,6 +24,8 @@ function ProfileImageLightbox({ open, imageUrl, title, onClose }) {
         <img
           src={resolvedImageUrl}
           alt={title}
+          decoding="async"
+          fetchPriority="high"
           className="max-h-[88vh] max-w-full rounded-[28px] object-contain shadow-2xl"
         />
       </div>

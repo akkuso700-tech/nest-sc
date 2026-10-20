@@ -175,6 +175,25 @@ export async function prefetchHlsVideo(hlsUrl, fallbackUrl = '') {
   }
 }
 
+export function cancelPrefetch(hlsUrl, fallbackUrl = '') {
+  const normalizedHlsUrl = String(hlsUrl || '').trim()
+  const normalizedFallbackUrl = String(fallbackUrl || '').trim()
+  const targetUrl = normalizedHlsUrl || normalizedFallbackUrl
+  if (!targetUrl) {
+    return
+  }
+
+  const controller = activeAbortControllers.get(targetUrl)
+  if (controller) {
+    try {
+      controller.abort()
+    } catch {
+      // Ignore
+    }
+    activeAbortControllers.delete(targetUrl)
+  }
+}
+
 export function cancelAllPrefetches() {
   activeAbortControllers.forEach((controller) => {
     try {

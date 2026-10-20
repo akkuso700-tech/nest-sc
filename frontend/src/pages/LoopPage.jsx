@@ -9,6 +9,7 @@ import { getFeed, getPostDetail } from '../services/postsService.js'
 import { getStoryRails, registerStoryView } from '../services/storiesService.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { MOBILE_VIEWPORT_QUERY, useMediaQuery } from '../hooks/useMediaQuery.js'
+import { cancelAllPrefetches } from '../utils/hlsPreload.js'
 
 import GoogleAd from '../components/ads/GoogleAd.jsx'
 
@@ -68,11 +69,12 @@ function PlusIcon() {
   )
 }
 
-const clientLoopFeedCache = new Map()
+import {
+  clearClientLoopFeedCache,
+  clientLoopFeedCache,
+} from '../features/loop/loopFeedCache.js'
 
-export function clearClientLoopFeedCache() {
-  clientLoopFeedCache.clear()
-}
+export { clearClientLoopFeedCache }
 
 function LoopPage() {
   const { lang = 'tr' } = useParams()
@@ -351,11 +353,14 @@ function LoopPage() {
   const lastScrollTopRef = useRef(0)
 
   useEffect(() => {
+    cancelAllPrefetches()
     setActiveLoopIndex(0)
     setIsMobileTopBarVisible(true)
     const scroller = isMobileViewport ? mobileScrollerRef.current : desktopScrollerRef.current
     scroller?.scrollTo?.({ top: 0, behavior: 'auto' })
   }, [activeTab, isMobileViewport])
+
+  useEffect(() => () => cancelAllPrefetches(), [])
 
   useEffect(() => {
     if (!focusedPostId || !loopItems.length) {
@@ -409,8 +414,10 @@ function LoopPage() {
     }
 
     lastScrollTopRef.current = scroller.scrollTop
+    let rafId = null
 
     function syncActiveIndex() {
+      rafId = null
       const currentScrollTop = scroller.scrollTop
       const viewportHeight = Math.max(1, scroller.clientHeight || 1)
       const slides = scroller.querySelectorAll('[data-loop-slide-index]')
@@ -445,13 +452,27 @@ function LoopPage() {
       lastScrollTopRef.current = currentScrollTop
     }
 
+    function scheduleSyncActiveIndex() {
+      if (rafId !== null) {
+        return
+      }
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        rafId = window.requestAnimationFrame(syncActiveIndex)
+      } else {
+        syncActiveIndex()
+      }
+    }
+
     syncActiveIndex()
-    scroller.addEventListener('scroll', syncActiveIndex, { passive: true })
-    window.addEventListener('resize', syncActiveIndex)
+    scroller.addEventListener('scroll', scheduleSyncActiveIndex, { passive: true })
+    window.addEventListener('resize', scheduleSyncActiveIndex)
 
     return () => {
-      scroller.removeEventListener('scroll', syncActiveIndex)
-      window.removeEventListener('resize', syncActiveIndex)
+      if (rafId !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(rafId)
+      }
+      scroller.removeEventListener('scroll', scheduleSyncActiveIndex)
+      window.removeEventListener('resize', scheduleSyncActiveIndex)
     }
   }, [isMobileViewport, loopItems.length])
 

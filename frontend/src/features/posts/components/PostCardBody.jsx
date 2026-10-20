@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react'
 import HashtagText from '../../../components/common/HashtagText.jsx'
+import MediaGallery from '../MediaGallery.jsx'
 
-const MediaGallery = lazy(() => import('../MediaGallery.jsx'))
 const PostTranslateSection = lazy(() => import('./PostTranslateSection.jsx'))
 
 export default function PostCardBody({
@@ -79,18 +79,16 @@ export default function PostCardBody({
 
       {mediaItems?.length > 0 && !isLoopVariant ? (
         <div className="mt-3">
-          <Suspense fallback={null}>
-            <MediaGallery
-              items={mediaItems}
-              interactive
-              hoverPlayVideos
-              autoplayOnVisible
-              feedLayout
-              priority={prioritizeMedia}
-              className="w-full"
-              onItemClick={(_, index) => onOpenPostDetail(index)}
-            />
-          </Suspense>
+          <MediaGallery
+            items={mediaItems}
+            interactive
+            hoverPlayVideos
+            autoplayOnVisible
+            feedLayout
+            priority={prioritizeMedia}
+            className="w-full"
+            onItemClick={(_, index) => onOpenPostDetail(index)}
+          />
         </div>
       ) : null}
     </>

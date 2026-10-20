@@ -1,9 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolveMediaUrl, resolveMediaUrlCandidates } from '../../utils/media.js'
 import { useReducedDataMode } from '../../hooks/useReducedDataMode.js'
+import { useMediaQuery } from '../../hooks/useMediaQuery.js'
 import { useAdaptiveVideoSource } from '../../hooks/useAdaptiveVideoSource.js'
 import { videoPlaybackManager } from '../../services/VideoPlaybackManager.js'
 import { VolumeOffIcon, VolumeOnIcon } from './PostCardIcons.jsx'
+
+const SUPPORTS_NATIVE_MEDIA_LAZY_LOADING =
+  typeof HTMLMediaElement !== 'undefined' &&
+  Object.hasOwn(HTMLMediaElement.prototype, 'loading')
+
+function resolveMediaDimensions(item, mediaType = 'image') {
+  const rawWidth = Number(item?.width)
+  const rawHeight = Number(item?.height)
+  if (Number.isFinite(rawWidth) && rawWidth > 0 && Number.isFinite(rawHeight) && rawHeight > 0) {
+    return {
+      width: Math.round(rawWidth),
+      height: Math.round(rawHeight),
+    }
+  }
+
+  if (mediaType === 'video') {
+    const ratio = Number(item?.aspectRatio)
+    if (Number.isFinite(ratio) && ratio > 0) {
+      return ratio < 1
+        ? { width: Math.max(1, Math.round(1280 * ratio)), height: 1280 }
+        : { width: 1280, height: Math.max(1, Math.round(1280 / ratio)) }
+    }
+    return item?.durationSeconds > 60
+      ? { width: 720, height: 1280 }
+      : { width: 1280, height: 720 }
+  }
+
+  return { width: undefined, height: undefined }
+}
 
 function PlayBadge() {
   return (
@@ -23,6 +53,8 @@ function ProcessingBadge({ progress = 0, posterUrl = '' }) {
           src={posterUrl}
           alt=""
           aria-hidden="true"
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 size-full object-cover opacity-40 blur-md scale-105"
         />
       ) : null}
@@ -102,8 +134,10 @@ function MediaGallery({
   const hasItems = limitedItems.length > 0
   const videoRefs = useRef(new Map())
   const reducedDataMode = useReducedDataMode()
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const effectiveAutoplayOnVisible = autoplayOnVisible && !prefersReducedMotion
   const previewEnabled =
-    interactive && !reducedDataMode && (hoverPlayVideos || autoplayOnVisible)
+    interactive && !reducedDataMode && (hoverPlayVideos || effectiveAutoplayOnVisible)
 
   const firstItem = limitedItems[0]
   const firstMediaType = firstItem?.type === 'video' ? 'video' : 'image'
@@ -149,7 +183,7 @@ function MediaGallery({
     }
   }, [firstMediaType])
 
-  const setVideoRef = useCallback((refKey, node) => {
+  const setVideoRef = useCallback((refKey, node, lifecycleCallbacks = null) => {
     if (!refKey) {
       return
     }
@@ -159,6 +193,7 @@ function MediaGallery({
       videoRefs.current.set(refKey, node)
       videoPlaybackManager.register(refKey, {
         play: () => {
+          lifecycleCallbacks?.onRequestPlay?.()
           node.muted = videoPlaybackManager.getMuted()
           node.playsInline = true
           const playPromise = node.play()
@@ -167,6 +202,7 @@ function MediaGallery({
           }
         },
         pause: () => {
+          lifecycleCallbacks?.onRequestPause?.()
           try {
             node.pause()
             node.currentTime = 0
@@ -222,7 +258,7 @@ function MediaGallery({
     if (
       !hasItems ||
       !interactive ||
-      !autoplayOnVisible ||
+      !effectiveAutoplayOnVisible ||
       typeof window === 'undefined' ||
       typeof IntersectionObserver === 'undefined'
     ) {
@@ -256,7 +292,7 @@ function MediaGallery({
 
     return () => observer.disconnect()
   }, [
-    autoplayOnVisible,
+    effectiveAutoplayOnVisible,
     handleVideoPreviewStart,
     handleVideoPreviewStop,
     hasItems,
@@ -272,16 +308,17 @@ function MediaGallery({
     // Single feed item: dynamic proportional width & height, preserving natural aspect ratio without horizontal stretching
     if (limitedItems.length === 1) {
       const item = limitedItems[0]
-      const mediaSource = item?.url || item?.hlsUrl || ''
+      const mediaType = item?.type === 'video' ? 'video' : 'image'
+      const mediaSource = mediaType === 'video' && item?.hlsUrl ? item?.url || '' : item?.url || item?.hlsUrl || ''
       const mediaCandidates = resolveMediaUrlCandidates(mediaSource)
       const posterCandidates = resolveMediaUrlCandidates(
         item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
       )
-      const mediaType = item?.type === 'video' ? 'video' : 'image'
       const mediaIsProcessing =
         mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
-      const refKey = `${mediaSource || item?.name || 'media'}-0`
+      const refKey = `${item?.url || item?.hlsUrl || item?.name || 'media'}-0`
       const isPortrait = singleAspectRatio < 1
+      const dimensions = resolveMediaDimensions(item, mediaType)
 
       return (
         <div
@@ -334,6 +371,9 @@ function MediaGallery({
                 feedLayout={feedLayout}
                 preserveNaturalRatio={false}
                 reducedDataMode={reducedDataMode}
+                priority={priority}
+                width={dimensions.width}
+                height={dimensions.height}
                 hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
                 onRatioMeasured={handleRatioMeasured}
               />
@@ -343,6 +383,9 @@ function MediaGallery({
                 index={0}
                 preserveNaturalRatio={false}
                 priority={priority}
+                eager={priority}
+                width={dimensions.width}
+                height={dimensions.height}
                 onRatioMeasured={handleRatioMeasured}
               />
             )}
@@ -362,16 +405,17 @@ function MediaGallery({
       >
         <div className={`grid size-full ${getFeedGridClass(limitedItems.length)} gap-[2px]`}>
           {limitedItems.map((item, index) => {
-            const mediaSource = item?.url || item?.hlsUrl || ''
+            const mediaType = item?.type === 'video' ? 'video' : 'image'
+            const mediaSource = mediaType === 'video' && item?.hlsUrl ? item?.url || '' : item?.url || item?.hlsUrl || ''
             const mediaCandidates = resolveMediaUrlCandidates(mediaSource)
             const posterCandidates = resolveMediaUrlCandidates(
               item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
             )
-            const mediaType = item?.type === 'video' ? 'video' : 'image'
             const mediaIsProcessing =
               mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
-            const refKey = `${mediaSource || item?.name || 'media'}-${index}`
+            const refKey = `${item?.url || item?.hlsUrl || item?.name || 'media'}-${index}`
             const feedItemClass = getFeedItemClass(limitedItems.length, index)
+            const dimensions = resolveMediaDimensions(item, mediaType)
 
             return (
               <div
@@ -409,6 +453,9 @@ function MediaGallery({
                     feedLayout={feedLayout}
                     preserveNaturalRatio={false}
                     reducedDataMode={reducedDataMode}
+                    priority={priority && index === 0}
+                    width={dimensions.width}
+                    height={dimensions.height}
                     hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
                   />
                 ) : (
@@ -417,6 +464,9 @@ function MediaGallery({
                     index={index}
                     preserveNaturalRatio={false}
                     priority={priority && index === 0}
+                    eager={priority}
+                    width={dimensions.width}
+                    height={dimensions.height}
                   />
                 )}
 
@@ -438,16 +488,17 @@ function MediaGallery({
     >
       <div className={`grid w-full ${getGridClass(limitedItems.length)} gap-2`}>
         {limitedItems.map((item, index) => {
-          const mediaSource = item?.url || item?.hlsUrl || ''
+          const mediaType = item.type === 'video' ? 'video' : 'image'
+          const mediaSource = mediaType === 'video' && item?.hlsUrl ? item?.url || '' : item?.url || item?.hlsUrl || ''
           const mediaCandidates = resolveMediaUrlCandidates(mediaSource)
           const posterCandidates = resolveMediaUrlCandidates(
             item?.posterUrl || item?.thumbnailUrl || item?.previewUrl || '',
           )
-          const mediaType = item.type === 'video' ? 'video' : 'image'
           const mediaIsProcessing =
             mediaType === 'video' && ['queued', 'processing'].includes(`${item?.processing || ''}`)
           const aspectClass = getAspectClass(item, limitedItems.length)
-          const refKey = `${mediaSource || item.name || 'media'}-${index}`
+          const refKey = `${item?.url || item?.hlsUrl || item.name || 'media'}-${index}`
+          const dimensions = resolveMediaDimensions(item, mediaType)
 
           return (
             <div
@@ -485,6 +536,9 @@ function MediaGallery({
                   feedLayout={false}
                   preserveNaturalRatio={false}
                   reducedDataMode={reducedDataMode}
+                  priority={priority && index === 0}
+                  width={dimensions.width}
+                  height={dimensions.height}
                   hlsUrl={resolveMediaUrl(item?.hlsUrl || '')}
                 />
               ) : (
@@ -493,6 +547,9 @@ function MediaGallery({
                   index={index}
                   preserveNaturalRatio={false}
                   priority={priority && index === 0}
+                  eager={priority}
+                  width={dimensions.width}
+                  height={dimensions.height}
                 />
               )}
 
@@ -512,6 +569,9 @@ function MediaImage({
   index,
   preserveNaturalRatio = false,
   priority = false,
+  eager = false,
+  width,
+  height,
   onRatioMeasured,
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
@@ -521,9 +581,11 @@ function MediaImage({
     <img
       src={src}
       alt={`Post media ${index + 1}`}
-      loading={priority ? 'eager' : 'lazy'}
+      width={width}
+      height={height}
+      loading={priority || eager ? undefined : 'lazy'}
       decoding="async"
-      fetchPriority={priority ? 'high' : 'low'}
+      fetchPriority={priority ? 'high' : undefined}
       onLoad={(e) => {
         if (onRatioMeasured) {
           const nw = e.currentTarget?.naturalWidth
@@ -558,18 +620,76 @@ function MediaVideo({
   feedLayout = false,
   preserveNaturalRatio = false,
   reducedDataMode = false,
+  priority = false,
+  width = 1280,
+  height = 720,
   hlsUrl = '',
   onRatioMeasured,
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [isMuted, setIsMuted] = useState(() => videoPlaybackManager.getMuted())
+  const [isNearViewport, setIsNearViewport] = useState(() => Boolean(priority))
+  const [isRequestedToPlay, setIsRequestedToPlay] = useState(false)
+  const wantsToPlayRef = useRef(false)
   const src = candidates[activeIndex] || ''
   const internalVideoRef = useRef(null)
+
+  useEffect(() => {
+    if (priority) {
+      setIsNearViewport(true)
+      return undefined
+    }
+
+    if (isNearViewport) {
+      return undefined
+    }
+
+    const videoNode = internalVideoRef.current
+    if (!videoNode || typeof window === 'undefined') {
+      return undefined
+    }
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsNearViewport(true)
+      return undefined
+    }
+
+    const observer = new IntersectionObserver(
+      (entries, obs) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return
+          }
+          setIsNearViewport(true)
+          obs.unobserve(entry.target)
+        })
+      },
+      { rootMargin: '200px 0px' },
+    )
+
+    observer.observe(videoNode)
+    return () => observer.disconnect()
+  }, [isNearViewport, priority])
+
+  const shouldEnableVideoSource = Boolean(
+    hlsUrl
+      ? (priority && !reducedDataMode) || (isNearViewport && !reducedDataMode) || isRequestedToPlay
+      : priority ||
+          (SUPPORTS_NATIVE_MEDIA_LAZY_LOADING && !reducedDataMode) ||
+          (isNearViewport && !reducedDataMode) ||
+          isRequestedToPlay,
+  )
+
+  const shouldEnablePoster = Boolean(
+    posterUrl &&
+      (priority || SUPPORTS_NATIVE_MEDIA_LAZY_LOADING || isNearViewport || isRequestedToPlay),
+  )
+
   const adaptiveSource = useAdaptiveVideoSource({
     videoRef: internalVideoRef,
     hlsUrl,
     fallbackUrl: src,
-    enabled: Boolean(hlsUrl),
+    enabled: shouldEnableVideoSource,
   })
 
   useEffect(() => {
@@ -589,6 +709,9 @@ function MediaVideo({
     if (video) {
       video.muted = nextMuted
       if (!nextMuted) {
+        wantsToPlayRef.current = true
+        setIsNearViewport(true)
+        setIsRequestedToPlay(true)
         video.playsInline = true
         const playPromise = video.play()
         if (playPromise && typeof playPromise.catch === 'function') {
@@ -598,26 +721,53 @@ function MediaVideo({
     }
   }, [])
 
+  const attachRef = useCallback(
+    (node) => {
+      internalVideoRef.current = node
+      setVideoRef(refKey, node, {
+        onRequestPlay: () => {
+          wantsToPlayRef.current = true
+          setIsNearViewport(true)
+          setIsRequestedToPlay(true)
+        },
+        onRequestPause: () => {
+          wantsToPlayRef.current = false
+        },
+      })
+    },
+    [refKey, setVideoRef],
+  )
+
   return (
     <>
       <video
-        ref={(node) => {
-          internalVideoRef.current = node
-          setVideoRef(refKey, node)
-        }}
+        ref={attachRef}
         src={adaptiveSource || undefined}
-        poster={posterUrl || undefined}
+        poster={shouldEnablePoster ? posterUrl : undefined}
+        width={width}
+        height={height}
+        loading={priority ? undefined : 'lazy'}
         controls={!interactive && !feedLayout}
         playsInline
         muted={isMuted}
         loop={previewEnabled}
-        preload={interactive || reducedDataMode ? 'none' : 'metadata'}
+        preload={priority && !interactive && !reducedDataMode ? 'metadata' : 'none'}
         onLoadedMetadata={(e) => {
           if (onRatioMeasured) {
             const vw = e.currentTarget?.videoWidth
             const vh = e.currentTarget?.videoHeight
             if (vw && vh && vh > 0) {
               onRatioMeasured(vw / vh)
+            }
+          }
+        }}
+        onCanPlay={(e) => {
+          if (wantsToPlayRef.current && e.currentTarget?.paused) {
+            e.currentTarget.muted = videoPlaybackManager.getMuted()
+            e.currentTarget.playsInline = true
+            const playPromise = e.currentTarget.play()
+            if (playPromise && typeof playPromise.catch === 'function') {
+              playPromise.catch(() => undefined)
             }
           }
         }}

@@ -8,6 +8,7 @@ function UserAvatar({
   imageClassName = '',
   loading = 'lazy',
   decoding = 'async',
+  fetchPriority,
 }) {
   if (user?.username === 'nestai' || user?.isAi) {
     return (
@@ -31,7 +32,7 @@ function UserAvatar({
           alt={user?.username || 'User avatar'}
           loading={loading}
           decoding={decoding}
-          fetchPriority="low"
+          fetchPriority={fetchPriority}
           className={`h-full w-full object-cover ${imageClassName}`.trim()}
         />
       ) : (

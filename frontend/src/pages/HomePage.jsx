@@ -709,7 +709,6 @@ function HomePage() {
   const selectedTopicSlug = buildTagSlug(selectedTopic)
 
   useEffect(() => {
-    import('../features/posts/MediaGallery.jsx').catch(() => {})
     import('../features/posts/components/PostTranslateSection.jsx').catch(() => {})
   }, [])
   const structuredData = useMemo(() => {
@@ -897,7 +896,7 @@ function HomePage() {
             getFeed({
               limit: HOME_LOOP_PREVIEW_LIMIT,
               view: 'loop',
-            }),
+            }).catch(() => ({ posts: [] })),
           ])
 
           payload = {
@@ -1182,11 +1181,11 @@ function HomePage() {
     const items = []
 
     feedState.posts.forEach((post, index) => {
-      items.push({ type: 'post', value: post })
+      items.push({ type: 'post', value: post, postIndex: index })
 
-              if (index === 2) {
-                items.push({ type: 'trends' })
-              }
+      if (index === 2) {
+        items.push({ type: 'trends' })
+      }
 
       if (index === 5) {
         items.push({ type: 'friends' })
@@ -1954,11 +1953,14 @@ function HomePage() {
             }
 
             const authorUsername = `${item.value?.author?.username || ''}`.trim().toLowerCase()
+            const isFirstPost = getPostIdentifier(item.value) === firstFeedPostId
+            const isAboveFoldPost = typeof item.postIndex === 'number' ? item.postIndex < 2 : isFirstPost
             return (
               <PostCard
                 key={item.value._id || item.value.id}
                 post={item.value}
-                prioritizeMedia={getPostIdentifier(item.value) === firstFeedPostId}
+                prioritizeMedia={isFirstPost}
+                deferRender={!isAboveFoldPost}
                 onPostHidden={handleHidePostFromFeed}
                 hasAuthorStory={Boolean(authorUsername && storyRailsByUsername.has(authorUsername))}
                 onOpenAuthorStory={handleOpenAuthorStory}
