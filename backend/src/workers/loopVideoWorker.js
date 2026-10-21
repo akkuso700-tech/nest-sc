@@ -1,10 +1,16 @@
 const fs = require('fs')
+const path = require('path')
 const { env } = require('../config/env')
 const { connectDatabase, disconnectDatabase } = require('../config/database')
 const { buildAdaptiveLoopVariants } = require('../services/videoProcessingService')
 const {
   publishAdaptiveLoopOutputs,
+  buildLocalMediaUrl,
 } = require('../services/loopVideoPublishingService')
+const {
+  isRemoteStorageEnabled,
+  uploadLocalFileToRemoteStorage,
+} = require('../services/mediaStorageService')
 const { materializeLoopJobSource } = require('../services/loopVideoSourceService')
 const {
   buildWorkerId,
@@ -71,13 +77,54 @@ async function processJob(job) {
     await updateJobProgress(job._id, currentProgress)
     currentStage = 'encode'
     stageStartedAt = Date.now()
-    adaptiveResult = await buildAdaptiveLoopVariants(sourcePath, {
-      timeoutMs: env.loopWorkerJobTimeoutMs,
-      onProgress: (progress) => {
-        currentProgress = progress
-        return updateJobProgress(job._id, progress)
-      },
-    })
+    try {
+      adaptiveResult = await buildAdaptiveLoopVariants(sourcePath, {
+        timeoutMs: env.loopWorkerJobTimeoutMs,
+        onProgress: (progress) => {
+          currentProgress = progress
+          return updateJobProgress(job._id, progress)
+        },
+      })
+    } catch (encodeError) {
+      if (encodeError?.code === 'MEDIA_BINARIES_UNAVAILABLE') {
+        console.warn(JSON.stringify({
+          tag: 'loop_worker_ffmpeg_missing_fallback',
+          jobId: job.id,
+          postId: job.post,
+          message: 'FFmpeg is unavailable on this host. Falling back to direct raw video playback.',
+        }))
+        let rawUrl = job.sourceUrl
+        if (!rawUrl) {
+          if (isRemoteStorageEnabled()) {
+            const uploaded = await uploadLocalFileToRemoteStorage(
+              {
+                path: sourcePath,
+                mimetype: job.mimeType || 'video/mp4',
+                originalname: job.originalName || path.basename(sourcePath),
+              },
+              { folder: 'loops', uploadClass: 'loop-video' },
+            )
+            rawUrl = uploaded.url
+          } else {
+            rawUrl = buildLocalMediaUrl(sourcePath)
+          }
+        }
+        await completeJob(job, {
+          url: rawUrl,
+          hlsUrl: '',
+          posterUrl: '',
+          durationSeconds: 0,
+          width: 0,
+          height: 0,
+          renditions: [],
+        })
+        if (sourceMaterial?.temporary) {
+          await removePath(sourcePath)
+        }
+        return
+      }
+      throw encodeError
+    }
     timings.encodeMs = Date.now() - stageStartedAt
     currentStage = 'publish'
     stageStartedAt = Date.now()

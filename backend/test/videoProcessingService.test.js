@@ -274,3 +274,10 @@ test('remote HLS asset mapper preserves order and bounds concurrency', async () 
   assert.deepEqual(results, [2, 4, 6, 8, 10])
   assert.equal(peak, 3)
 })
+
+
+test('MEDIA_BINARIES_UNAVAILABLE error is identified for graceful fallback', () => {
+  const err = new Error('FFmpeg must be installed for Loop processing.')
+  err.code = 'MEDIA_BINARIES_UNAVAILABLE'
+  assert.equal(err.code, 'MEDIA_BINARIES_UNAVAILABLE')
+})

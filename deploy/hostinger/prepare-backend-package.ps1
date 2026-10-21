@@ -21,7 +21,7 @@ if (Test-Path $stagingDir) {
 
 New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
 
-Copy-Item -Path (Join-Path $backendDir "*") -Destination $stagingDir -Recurse -Force
+Get-ChildItem -Path $backendDir -Exclude "node_modules", "uploads", ".env" | Copy-Item -Destination $stagingDir -Recurse -Force
 
 $frontendSourceDir = $null
 $frontendDistIndex = Join-Path $frontendDistDir "index.html"

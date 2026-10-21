@@ -658,16 +658,19 @@ async function parsePostInput(req) {
   const directLoopUpload = hasDirectLoopUpload
     ? verifyLoopUploadSubmission(result.data.loopUpload, req.user?._id)
     : null
+  const isAsyncLoopWorkerEnabled =
+    env.loopAsyncProcessingEnabled && env.loopWorkerMode !== 'disabled'
+
   const builtMedia = await buildMediaItems(req.files || [], {
     contentType: result.data.contentType,
     trace: req.uploadPerfTrace || null,
     deferLoopProcessing:
-      result.data.contentType === 'loop' && env.loopAsyncProcessingEnabled,
+      result.data.contentType === 'loop' && isAsyncLoopWorkerEnabled,
   })
   const processingJobs = []
   const media = builtMedia.map((item, mediaIndex) => {
     const { _processingSource, ...publicMedia } = item
-    if (_processingSource) {
+    if (_processingSource && isAsyncLoopWorkerEnabled) {
       processingJobs.push({ mediaIndex, ..._processingSource })
     }
     return publicMedia
@@ -680,17 +683,19 @@ async function parsePostInput(req) {
       posterUrl: '',
       type: 'video',
       durationSeconds: 0,
-      processing: 'queued',
-      processingProgress: 0,
+      processing: isAsyncLoopWorkerEnabled ? 'queued' : 'ready',
+      processingProgress: isAsyncLoopWorkerEnabled ? 0 : 100,
       processingError: '',
     })
-    processingJobs.push({
-      mediaIndex: media.length - 1,
-      path: '',
-      sourceUrl: directLoopUpload.sourceUrl,
-      originalName: directLoopUpload.fileName,
-      mimeType: directLoopUpload.mimeType,
-    })
+    if (isAsyncLoopWorkerEnabled) {
+      processingJobs.push({
+        mediaIndex: media.length - 1,
+        path: '',
+        sourceUrl: directLoopUpload.sourceUrl,
+        originalName: directLoopUpload.fileName,
+        mimeType: directLoopUpload.mimeType,
+      })
+    }
   }
 
   if (!result.data.text.trim() && !media.length) {

@@ -126,6 +126,28 @@ function MessagesPage() {
   const recordingTimerRef = useRef(null)
   const recordingStartTimeRef = useRef(0)
 
+  const cleanupRecordingStreams = useCallback(() => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current)
+      recordingTimerRef.current = null
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop())
+      audioStreamRef.current = null
+    }
+  }, [])
+
+  const cancelVoiceRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = null
+      mediaRecorderRef.current.stop()
+    }
+    cleanupRecordingStreams()
+    audioChunksRef.current = []
+    setIsRecordingVoice(false)
+    setRecordingDuration(0)
+  }, [cleanupRecordingStreams])
+
   useEffect(() => {
     const timer = setInterval(() => {
       setPresenceTick((prev) => prev + 1)
@@ -1287,17 +1309,6 @@ function MessagesPage() {
     return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`
   }
 
-  function cleanupRecordingStreams() {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current)
-      recordingTimerRef.current = null
-    }
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach((track) => track.stop())
-      audioStreamRef.current = null
-    }
-  }
-
   async function startVoiceRecording() {
     if (isRecordingVoice || isSending || isOptimizingMedia || !activePeer) {
       return
@@ -1363,17 +1374,6 @@ function MessagesPage() {
       })
     }
   }
-
-  const cancelVoiceRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.onstop = null
-      mediaRecorderRef.current.stop()
-    }
-    cleanupRecordingStreams()
-    audioChunksRef.current = []
-    setIsRecordingVoice(false)
-    setRecordingDuration(0)
-  }, [])
 
   async function stopVoiceRecording(shouldSend = true) {
     const recorder = mediaRecorderRef.current

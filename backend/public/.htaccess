@@ -12,10 +12,21 @@
 
   # HTML, sitemap ve robots dosyalari asla onbellekte kilitlenmemeli; her zaman guncel olmali
   <FilesMatch "^(index\.html|robots\.txt|sitemap\.xml)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+
+  # JSON ve API yanitlari asla onbellekte tutulmamali
+  <FilesMatch "\.(json)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
     Header set Expires "0"
   </FilesMatch>
+
+  <If "%{REQUEST_URI} =~ m#^/api/#">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </If>
 </IfModule>
 
 # 2. mod_expires Destegi (Apache & LiteSpeed Numarali Zaman Asimi)
@@ -23,8 +34,9 @@
   ExpiresActive On
   ExpiresDefault "access plus 1 month"
 
-  # HTML: aninda dogrulama
+  # HTML ve JSON API: aninda dogrulama / sifir onbellek
   ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/json "access plus 0 seconds"
 
   # CSS ve JavaScript: 1 yil
   ExpiresByType text/css "access plus 1 year"
@@ -60,9 +72,6 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
-
-# Never rewrite missing static assets or API paths to index.html
-RewriteRule ^(assets|uploads|api)/ - [R=404,L]
 
 # SPA fallback for React Router
 RewriteRule ^ index.html [L]
