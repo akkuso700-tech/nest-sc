@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ActionToast from '../components/feedback/ActionToast.jsx'
@@ -22,7 +22,6 @@ import {
 import { connectSocketClient, disconnectSocketClient } from '../services/socketClient.js'
 import { useAuth } from '../store/AuthContext.jsx'
 import { formatClockTime, getFullName } from '../utils/social.js'
-import { resolveMediaUrl } from '../utils/media.js'
 import { compressImageToFile, formatBytes } from '../utils/imageUpload.js'
 import { playMessageNotificationSound } from '../utils/notificationSound.js'
 import { useCall } from '../store/CallContext.jsx'
@@ -363,7 +362,7 @@ function MessagesPage() {
     if (!isMobileViewport && conversationsState.items.length && !activeConversationId) {
       setActiveConversationId(conversationsState.items[0].id)
     }
-  }, [conversationsState.items, composeTarget, isMobileViewport])
+  }, [conversationsState.items, composeTarget, isMobileViewport, activeConversationId])
 
   useEffect(() => {
     if (!isMobileViewport) {
@@ -772,7 +771,7 @@ function MessagesPage() {
     cancelVoiceRecording()
     if (peerTypingTimeoutRef.current) clearTimeout(peerTypingTimeoutRef.current)
     if (myTypingTimeoutRef.current) clearTimeout(myTypingTimeoutRef.current)
-  }, [activeConversationId])
+  }, [activeConversationId, cancelVoiceRecording])
 
   useEffect(() => {
     if (!activeConversationId || !isAuthenticated) {
@@ -870,11 +869,12 @@ function MessagesPage() {
   const activePeerLastLoginAt =
     (activePeerId && lastLoginAtMap[activePeerId]) || activePeer?.lastLoginAt || null
   const activePresenceLabel = useMemo(() => {
+    void presenceTick
     if (isActivePeerOnline) {
       return t('messages.presence.online', { defaultValue: 'Çevrimiçi' })
     }
     return formatPresence(activePeerLastLoginAt, t, lang)
-  }, [isActivePeerOnline, activePeerLastLoginAt, t, lang, presenceTick])
+  }, [isActivePeerOnline, activePeerLastLoginAt, presenceTick, t, lang])
   const filteredMessages = useMemo(() => {
     const query = messageSearchValue.trim().toLowerCase()
 
@@ -1364,7 +1364,7 @@ function MessagesPage() {
     }
   }
 
-  function cancelVoiceRecording() {
+  const cancelVoiceRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.onstop = null
       mediaRecorderRef.current.stop()
@@ -1373,7 +1373,7 @@ function MessagesPage() {
     audioChunksRef.current = []
     setIsRecordingVoice(false)
     setRecordingDuration(0)
-  }
+  }, [])
 
   async function stopVoiceRecording(shouldSend = true) {
     const recorder = mediaRecorderRef.current

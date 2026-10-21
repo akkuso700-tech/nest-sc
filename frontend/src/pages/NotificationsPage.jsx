@@ -77,6 +77,10 @@ function NotificationsPage() {
   }, [openMenuId])
 
   useEffect(() => {
+    if (status === 'loading') {
+      return undefined
+    }
+
     if (!isAuthenticated) {
       setNotificationsState({
         items: [],
@@ -84,7 +88,7 @@ function NotificationsPage() {
         error: '',
         unreadOnly: false,
       })
-      return
+      return undefined
     }
 
     let cancelled = false
@@ -134,7 +138,7 @@ function NotificationsPage() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, notificationsState.unreadOnly, t])
+  }, [isAuthenticated, notificationsState.unreadOnly, status, t])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -198,7 +202,11 @@ function NotificationsPage() {
   }, [isAuthenticated])
 
   if (status === 'loading') {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg text-text">
+        <span className="size-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+      </div>
+    )
   }
 
   if (!isAuthenticated) {
@@ -277,7 +285,11 @@ function NotificationsPage() {
   }
 
   if (status === 'loading') {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg text-text">
+        <span className="size-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+      </div>
+    )
   }
 
   if (!isAuthenticated) {

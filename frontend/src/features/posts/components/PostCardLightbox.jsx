@@ -21,7 +21,7 @@ export default function PostCardLightbox({ items, activeIndex, onClose, onChange
   const resolvedPosterUrl = isVideo
     ? resolveMediaUrl(item?.posterUrl || item?.thumbnailUrl || '')
     : ''
-  const { src: adaptiveVideoSrc } = useAdaptiveVideoSource({
+  const adaptiveVideoSrc = useAdaptiveVideoSource({
     videoRef,
     hlsUrl: resolvedHlsUrl,
     fallbackUrl: resolvedVideoUrl,

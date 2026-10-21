@@ -498,6 +498,10 @@ function EditProfilePage() {
   }, [showCommSavedState])
 
   useEffect(() => {
+    if (status === 'loading') {
+      return undefined
+    }
+
     if (!isAuthenticated) {
       setProfileState({
         isLoading: false,
@@ -505,7 +509,7 @@ function EditProfilePage() {
       })
       setFormState(buildInitialForm(null))
       setLocationInput('')
-      return
+      return undefined
     }
 
     let cancelled = false
@@ -560,7 +564,7 @@ function EditProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [authUserId, isAuthenticated, t])
+  }, [authUserId, isAuthenticated, status, t])
 
   useEffect(() => {
     function handlePointerDown(event) {
@@ -771,7 +775,11 @@ function EditProfilePage() {
   }, [hasUnsavedChanges])
 
   if (status === 'loading') {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg text-text">
+        <span className="size-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+      </div>
+    )
   }
 
   if (!isAuthenticated) {
@@ -1070,7 +1078,11 @@ function EditProfilePage() {
   ]
 
   if (status === 'loading') {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg text-text">
+        <span className="size-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+      </div>
+    )
   }
 
   if (!isAuthenticated) {

@@ -3,7 +3,6 @@ import AudioMessagePlayer from '../../../components/media/AudioMessagePlayer.jsx
 import { LinkPreviewCard } from '../../../components/media/LinkPreviewCard.jsx'
 import MediaGallery from '../../posts/MediaGallery.jsx'
 import { formatClockTime, getFullName } from '../../../utils/social.js'
-import { resolveMediaUrl } from '../../../utils/media.js'
 import {
   CheckIcon,
   CopyIcon,

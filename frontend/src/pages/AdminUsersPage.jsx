@@ -10,7 +10,7 @@ import {
   bulkUpdateAdminUserStatus,
   getAdminUsers,
 } from '../services/adminService.js'
-import { formatLocation, formatRelativeTime, getFullName } from '../utils/social.js'
+import { formatRelativeTime, getFullName } from '../utils/social.js'
 
 const initialFilters = {
   q: '',
@@ -141,7 +141,6 @@ function renderAcquisitionTooltip(acquisition) {
 function AdminUsersPage() {
   const { lang = 'tr' } = useParams()
   const [filters, setFilters] = useState(initialFilters)
-  const [draftFilters, setDraftFilters] = useState(initialFilters)
   const [searchInput, setSearchInput] = useState(initialFilters.q)
   const [portalTarget, setPortalTarget] = useState(null)
   const [customDateOpen, setCustomDateOpen] = useState(false)
@@ -260,12 +259,6 @@ function AdminUsersPage() {
     const isSameKey = filters.sortBy === key
     const nextDirection = isSameKey && filters.sortDirection === 'desc' ? 'asc' : 'desc'
 
-    setDraftFilters((current) => ({
-      ...current,
-      sortBy: key,
-      sortDirection: nextDirection,
-      page: 1,
-    }))
     setFilters((current) => ({
       ...current,
       sortBy: key,
@@ -339,7 +332,6 @@ function AdminUsersPage() {
     setSearchInput('')
     setCustomDateOpen(false)
     setCustomDateRange({ dateFrom: '', dateTo: '' })
-    setDraftFilters(initialFilters)
     setFilters(initialFilters)
   }
 

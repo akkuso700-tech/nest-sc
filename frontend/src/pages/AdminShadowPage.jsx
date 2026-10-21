@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   getAdminShadowChats,
@@ -36,7 +36,7 @@ export default function AdminShadowPage() {
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [messageSearch, setMessageSearch] = useState('')
-  const [messageFilterDeleted, setMessageFilterDeleted] = useState(false)
+  const [messageFilterDeleted] = useState(false)
 
   const [calls, setCalls] = useState([])
   const [callsLoading, setCallsLoading] = useState(false)
@@ -56,7 +56,6 @@ export default function AdminShadowPage() {
   const [unmaskError, setUnmaskError] = useState('')
 
   // Split-View Chat List States
-  const [isChatListVisible, setIsChatListVisible] = useState(true)
   const [splitSearch, setSplitSearch] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchInputRef = useRef(null)
@@ -93,12 +92,12 @@ export default function AdminShadowPage() {
     }
   }, [selectedChatKey])
 
-  const handleTabChange = (tab, chatKey = '') => {
+  const handleTabChange = useCallback((tab, chatKey = '') => {
     const params = new URLSearchParams()
     params.set('tab', tab)
     if (chatKey) params.set('chat', chatKey)
     setSearchParams(params, { replace: true })
-  }
+  }, [setSearchParams])
 
   // Medya tıklandığında ilgili sohbete ve mesaja odaklanma
   const handleJumpToMediaMessage = (item) => {
@@ -186,6 +185,7 @@ export default function AdminShadowPage() {
         if (res?.media) setMediaItems(res.media)
       })
       .catch((err) => console.error('Initial media fetch error:', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Load Messages for selected chat
@@ -252,7 +252,7 @@ export default function AdminShadowPage() {
         handleTabChange(activeTab, filtered[0].chatKey)
       }
     }
-  }, [activeTab, chats, selectedChatKey])
+  }, [activeTab, chats, selectedChatKey, handleTabChange])
 
   // Load Calls
   useEffect(() => {

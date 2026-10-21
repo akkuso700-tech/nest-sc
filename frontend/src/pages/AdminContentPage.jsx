@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useParams } from 'react-router-dom'
 import BulkActionBar from '../components/admin/BulkActionBar.jsx'
@@ -997,7 +997,6 @@ function AdminContentPage() {
                   state.items.map((post) => {
                     const visibility = post?.moderation?.visibility || 'visible'
                     const contentType = post?.contentType || 'post'
-                    const mediaCount = (post?.media || []).length
                     const contentPreview = (post?.text || '').trim() || 'Sadece medya içeren gönderi'
                     const createdAtDate = post?.createdAt ? new Date(post.createdAt) : null
                     const viewsCount = Number(post?.stats?.views || 0)

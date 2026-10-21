@@ -4,23 +4,47 @@ const accessTokenCookieName = 'accessToken'
 const refreshTokenCookieName = 'refreshToken'
 const sessionMarkerCookieName = 'nest_session'
 
+function resolveCookieDomain() {
+  if (env.cookieDomain) {
+    return env.cookieDomain
+  }
+
+  if (!env.isProduction) {
+    return undefined
+  }
+
+  try {
+    const parsed = new URL(env.clientUrl)
+    const host = parsed.hostname.toLowerCase()
+    if (host === 'nest-sc.com' || host.endsWith('.nest-sc.com')) {
+      return '.nest-sc.com'
+    }
+  } catch {
+    // Ignore URL parse error
+  }
+
+  return undefined
+}
+
 function buildBaseCookieOptions() {
+  const domain = resolveCookieDomain()
   return {
     httpOnly: true,
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
-    ...(env.cookieDomain ? { domain: env.cookieDomain } : {}),
+    ...(domain ? { domain } : {}),
   }
 }
 
 function buildMarkerCookieOptions() {
+  const domain = resolveCookieDomain()
   return {
     httpOnly: false,
     secure: env.isProduction,
     sameSite: env.isProduction ? 'none' : 'lax',
     path: '/',
-    ...(env.cookieDomain ? { domain: env.cookieDomain } : {}),
+    ...(domain ? { domain } : {}),
   }
 }
 
@@ -77,6 +101,15 @@ function clearAuthCookies(res) {
   res.clearCookie(accessTokenCookieName, baseOptions)
   res.clearCookie(refreshTokenCookieName, baseOptions)
   res.clearCookie(sessionMarkerCookieName, markerOptions)
+
+  // Also clear legacy host-only cookies if a domain is configured
+  if (baseOptions.domain) {
+    const { domain: _d1, ...hostOnlyBase } = baseOptions
+    const { domain: _d2, ...hostOnlyMarker } = markerOptions
+    res.clearCookie(accessTokenCookieName, hostOnlyBase)
+    res.clearCookie(refreshTokenCookieName, hostOnlyBase)
+    res.clearCookie(sessionMarkerCookieName, hostOnlyMarker)
+  }
 }
 
 function parseCookieHeader(cookieHeader = '') {

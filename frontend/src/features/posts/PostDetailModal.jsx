@@ -771,7 +771,7 @@ function PostDetailModal() {
     () => resolveMediaUrl(currentMedia?.posterUrl || currentMedia?.thumbnailUrl || ''),
     [currentMedia?.posterUrl, currentMedia?.thumbnailUrl],
   )
-  const { src: adaptiveDetailVideoSrc } = useAdaptiveVideoSource({
+  const adaptiveDetailVideoSrc = useAdaptiveVideoSource({
     videoRef: detailVideoRef,
     hlsUrl: isCurrentVideo ? currentHlsVideoUrl : '',
     fallbackUrl: isCurrentVideo ? currentFallbackVideoUrl : '',

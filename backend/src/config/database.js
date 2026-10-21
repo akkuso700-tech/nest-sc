@@ -15,38 +15,86 @@ const { Notification } = require('../models/Notification')
 
 mongoose.set('strictQuery', true)
 
+let listenersAttached = false
+let indexSyncTimer = null
+
+function attachConnectionListeners() {
+  if (listenersAttached) return
+  listenersAttached = true
+
+  mongoose.connection.on('error', (error) => {
+    console.error('MongoDB connection error:', error?.message || error)
+  })
+
+  mongoose.connection.on('disconnected', () => {
+    console.warn('MongoDB disconnected. Waiting for automatic driver reconnection...')
+  })
+
+  mongoose.connection.on('reconnected', () => {
+    console.log('MongoDB reconnected successfully.')
+  })
+}
+
+async function syncIndexesSequentially() {
+  const models = [
+    User,
+    Post,
+    Comment,
+    RefreshToken,
+    Notification,
+    WebVital,
+    PostView,
+    RecommendationEvent,
+    FeedSession,
+    TelemetryReceipt,
+    VideoProcessingJob,
+  ]
+
+  for (const model of models) {
+    if (mongoose.connection.readyState !== 1) {
+      return
+    }
+    try {
+      await model.createIndexes()
+    } catch (error) {
+      console.error(`Failed to synchronize indexes for ${model.modelName}:`, error?.message || error)
+    }
+  }
+}
+
 async function connectDatabase() {
+  attachConnectionListeners()
+
   await mongoose.connect(env.mongoUri, {
     autoIndex: env.isDevelopment,
-    maxPoolSize: 50,
-    minPoolSize: 5,
+    maxPoolSize: 20,
+    minPoolSize: 2,
     maxIdleTimeMS: 30000,
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    heartbeatFrequencyMS: 10000,
   })
 
   console.log(`MongoDB connected: ${mongoose.connection.name}`)
 
-  // Index synchronization must not block the web process from becoming ready.
-  // On constrained hosts, an index build can outlive the startup grace period
-  // and cause Passenger to repeatedly restart an otherwise healthy process.
-  void Promise.all([
-    User.createIndexes(),
-    Post.createIndexes(),
-    Comment.createIndexes(),
-    RefreshToken.createIndexes(),
-    Notification.createIndexes(),
-    WebVital.createIndexes(),
-    PostView.createIndexes(),
-    RecommendationEvent.createIndexes(),
-    FeedSession.createIndexes(),
-    TelemetryReceipt.createIndexes(),
-    VideoProcessingJob.createIndexes(),
-  ]).catch((error) => {
-    console.error('Failed to synchronize database indexes:', error)
-  })
+  // Defer and serialize index synchronization so startup traffic is never starved.
+  if (indexSyncTimer) {
+    clearTimeout(indexSyncTimer)
+  }
+  indexSyncTimer = setTimeout(() => {
+    indexSyncTimer = null
+    void syncIndexesSequentially()
+  }, 5000)
+  if (typeof indexSyncTimer.unref === 'function') {
+    indexSyncTimer.unref()
+  }
 }
 
 async function disconnectDatabase() {
+  if (indexSyncTimer) {
+    clearTimeout(indexSyncTimer)
+    indexSyncTimer = null
+  }
   await mongoose.disconnect()
 }
 

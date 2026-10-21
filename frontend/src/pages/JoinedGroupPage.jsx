@@ -54,7 +54,11 @@ export default function JoinedGroupPage() {
   const shareMenuRef = useRef(null)
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (status === 'loading') return undefined
+    if (!isAuthenticated) {
+      setIsPageLoading(false)
+      return undefined
+    }
     let cancelled = false
     ;(async () => {
       setIsPageLoading(true)
@@ -77,7 +81,7 @@ export default function JoinedGroupPage() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, groupSlug])
+  }, [isAuthenticated, groupSlug, status])
 
   useEffect(() => {
     if (!group?.id) return

@@ -51,6 +51,10 @@ export default function GroupsPage() {
   const navigate = useNavigate()
   const { isAuthenticated, status, user } = useAuth()
   const [sidebarState, setSidebarState] = useState(getGroupsSidebarCache())
+  const [isSidebarReady, setIsSidebarReady] = useState(() => {
+    const cached = getGroupsSidebarCache()
+    return Boolean(cached.managed?.length || cached.joined?.length || cached.suggested?.length)
+  })
   const [feedState, setFeedState] = useState({ posts: [], isLoading: true, error: '' })
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
   const [mobileTab, setMobileTab] = useState('0')
@@ -66,12 +70,19 @@ export default function GroupsPage() {
   const mobileGroupList = isMobileManagedTab ? sidebarState.managed : sidebarState.joined
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (status === 'loading') return undefined
+    if (!isAuthenticated) {
+      setIsSidebarReady(true)
+      setFeedState({ posts: [], isLoading: false, error: '' })
+      setIsLoadingMore(false)
+      setHasMore(false)
+      return undefined
+    }
     if (showMobileGroupList) {
       setFeedState((current) => ({ ...current, isLoading: false, error: '' }))
       setIsLoadingMore(false)
       setHasMore(false)
-      return
+      return undefined
     }
     let cancelled = false
     ;(async () => {
@@ -89,22 +100,31 @@ export default function GroupsPage() {
         setSidebarState(nextSidebarState)
       } catch {
         if (!cancelled) setSidebarState(getGroupsSidebarCache())
+      } finally {
+        if (!cancelled) setIsSidebarReady(true)
       }
     })()
     return () => { cancelled = true }
-  }, [isAuthenticated, showMobileGroupList])
+  }, [isAuthenticated, showMobileGroupList, status])
 
   useEffect(() => {
     setPage(1)
   }, [activeListMode, sidebarState.joined, sidebarState.managed, sidebarState.suggested])
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (status === 'loading') return undefined
+    if (!isAuthenticated) {
+      setFeedState({ posts: [], isLoading: false, error: '' })
+      setIsLoadingMore(false)
+      setHasMore(false)
+      return undefined
+    }
+    if (!isSidebarReady) return undefined
     if (showMobileGroupList) {
       setFeedState((current) => ({ ...current, isLoading: false, error: '' }))
       setIsLoadingMore(false)
       setHasMore(false)
-      return
+      return undefined
     }
     let cancelled = false
     ;(async () => {
@@ -178,7 +198,7 @@ export default function GroupsPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [isAuthenticated, sidebarState.joined, sidebarState.managed, sidebarState.suggested, activeListMode, page, mobileTab, showMobileGroupList, t])
+  }, [isAuthenticated, isSidebarReady, sidebarState.joined, sidebarState.managed, sidebarState.suggested, activeListMode, page, mobileTab, showMobileGroupList, status, t])
 
   if (status !== 'loading' && !isAuthenticated) {
     return <Navigate to={`/${lang}/login`} replace />

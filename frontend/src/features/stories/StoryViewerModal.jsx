@@ -173,7 +173,7 @@ function StoryViewerModal({
   const resolvedStoryPosterUrl = isVideo
     ? resolveMediaUrl(mediaItem?.posterUrl || mediaItem?.thumbnailUrl || '')
     : ''
-  const { src: adaptiveStoryVideoSrc } = useAdaptiveVideoSource({
+  const adaptiveStoryVideoSrc = useAdaptiveVideoSource({
     videoRef,
     hlsUrl: resolvedStoryHlsUrl,
     fallbackUrl: resolvedStoryVideoUrl,

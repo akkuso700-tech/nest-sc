@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../store/AuthContext.jsx'
@@ -7,7 +7,6 @@ import {
   getAnonymousProfile,
   getAnonymousRooms,
   getRoomMessages,
-  getLoungeSummary,
   randomizeAlias,
   getAvatarByKey,
   deleteAnonymousRoom,
@@ -17,7 +16,6 @@ import {
   getAnonymousDirectChats,
   getDirectChatMessages,
   deleteAnonymousDirectChat,
-  markAnonymousDirectChatRead,
   joinPrivateAnonymousRoom,
   requestRoomJoin,
   approveRoomJoin,
@@ -74,14 +72,12 @@ export default function AnonymousLoungePage() {
   const [joinPrivateModalOpen, setJoinPrivateModalOpen] = useState(false)
   const [approvalModalOpen, setApprovalModalOpen] = useState(false)
   const [isRequestingJoin, setIsRequestingJoin] = useState(false)
-  const [codeCopiedToast, setCodeCopiedToast] = useState(false)
   const [gateModalOpen, setGateModalOpen] = useState(false)
   const [gateActionLabel, setGateActionLabel] = useState('')
   const [showExitConfirmModal, setShowExitConfirmModal] = useState(false)
   const [activeMenuId, setActiveMenuId] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [sentRequestModal, setSentRequestModal] = useState(null)
-  const [chatAcceptedModal, setChatAcceptedModal] = useState(null)
   const [revealConfirmModal, setRevealConfirmModal] = useState(null)
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false)
   const [dontShowAgainDisclaimer, setDontShowAgainDisclaimer] = useState(false)
@@ -103,7 +99,6 @@ export default function AnonymousLoungePage() {
 
   // State: Rooms & Online
   const [rooms, setRooms] = useState([])
-  const [summary, setSummary] = useState({ totalRooms: 4, activeParticipants: 1 })
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [roomMessages, setRoomMessages] = useState([])
   const [onlineRadarUsers, setOnlineRadarUsers] = useState([])
@@ -296,26 +291,12 @@ export default function AnonymousLoungePage() {
 
   // Input states
   const [messageInput, setMessageInput] = useState('')
-  const [isLoadingRooms, setIsLoadingRooms] = useState(true)
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
   const chatInputRef = useRef(null)
 
   // Socket instance ref
   const socketRef = useRef(null)
-
-  // Responsive viewport
-  const [isMobileViewport, setIsMobileViewport] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
-  )
-
-  useEffect(() => {
-    function handleResize() {
-      setIsMobileViewport(window.innerWidth < 768)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
 
   // Media (Image) upload states
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
@@ -356,13 +337,9 @@ export default function AnonymousLoungePage() {
 
     async function initLounge() {
       try {
-        const [roomsData, summaryData] = await Promise.all([
-          getAnonymousRooms(),
-          getLoungeSummary().catch(() => ({ totalRooms: 0, activeParticipants: 1 })),
-        ])
+        const roomsData = await getAnonymousRooms()
         if (!isMounted) return
         setRooms(roomsData || [])
-        setSummary(summaryData)
         if (roomsData && roomsData.length > 0) {
           setSelectedRoom(roomsData[0])
         }
@@ -421,8 +398,6 @@ export default function AnonymousLoungePage() {
         }
       } catch (err) {
         console.error('Failed to init anonymous lounge:', err)
-      } finally {
-        if (isMounted) setIsLoadingRooms(false)
       }
     }
 
@@ -431,7 +406,7 @@ export default function AnonymousLoungePage() {
     return () => {
       isMounted = false
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, user?._id, user?.id])
 
   // 2. Connect to Socket if authenticated
   useEffect(() => {
@@ -513,7 +488,7 @@ export default function AnonymousLoungePage() {
       }
     })
 
-    socket.on('anon:room_mention', ({ roomId, roomName, senderAlias, text }) => {
+    socket.on('anon:room_mention', ({ roomId }) => {
       playMentionSound()
       setRoomUnreadMap((prev) => {
         const current = prev[roomId] || { count: 0, hasMention: false }
@@ -556,7 +531,7 @@ export default function AnonymousLoungePage() {
     })
 
     // Private Room Join Requests Listeners
-    socket.on('anon:room_join_requested', ({ roomId, roomName, requester }) => {
+    socket.on('anon:room_join_requested', ({ roomId, requester }) => {
       setRooms((prev) =>
         prev.map((r) => {
           if (r.id === roomId) {
@@ -677,7 +652,6 @@ export default function AnonymousLoungePage() {
       setMyRequestedReveal(false)
       setPartnerRequestedReveal(false)
       setRevealedUsers(null)
-      setChatAcceptedModal(null)
 
       socket.emit('anon:join_direct', { chatKey: key, sessionId: key })
       getDirectChatMessages(key)
@@ -954,7 +928,7 @@ export default function AnonymousLoungePage() {
       typingSessionTimeoutsRef.current = {}
       disconnectSocketClient()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, t])
 
   // Global Outside-Click Listener for 3-dot dropdown menus
   useEffect(() => {
@@ -990,7 +964,7 @@ export default function AnonymousLoungePage() {
         socketRef.current.emit('anon:leave_room', { roomId: selectedRoom.id })
       }
     }
-  }, [selectedRoom?.id, selectedRoom?.isMember])
+  }, [selectedRoom?.id, selectedRoom?.isMember, selectedRoom?.isPrivate])
 
   // Window Scroll Lock: Ensure the browser window/body is strictly locked at 0 on mobile
   useEffect(() => {
@@ -1475,7 +1449,7 @@ export default function AnonymousLoungePage() {
   }
 
   // Open Chat Helper (Persistent MongoDB chat)
-  async function openSelectedChat(chat) {
+  const openSelectedChat = useCallback(async (chat) => {
     const key = chat.chatKey || chat.sessionId
     const isOnline = onlineRadarUsers.some(
       (u) => u.anonymousId === chat.partner?.anonymousId
@@ -1508,7 +1482,7 @@ export default function AnonymousLoungePage() {
       console.error('Failed to load messages for direct chat:', err)
       setDirectMessages([])
     }
-  }
+  }, [onlineRadarUsers])
 
   // Handle URL query parameters (?chat=... or ?room=...) for deep-linking from notifications
   useEffect(() => {
@@ -1561,7 +1535,7 @@ export default function AnonymousLoungePage() {
         }
       }
     }
-  }, [location.search, directChats, rooms, isAuthenticated])
+  }, [location.search, directChats, rooms, isAuthenticated, openSelectedChat, selectedRoom?.id])
 
   // Select Chat from Sohbet List
   function handleSelectChatFromList(chat) {
@@ -1652,61 +1626,6 @@ export default function AnonymousLoungePage() {
         )
       }
     })
-  }
-
-  function handleDirectStarted({ sessionId, partner }) {
-    setActiveDirectSession({ sessionId, chatKey: sessionId, partner, isOffline: false })
-    setDirectMessages([])
-    setMobileTab('chat')
-    setSideTab('chats')
-    setMyRequestedReveal(false)
-    setPartnerRequestedReveal(false)
-    setRevealedUsers(null)
-    setChatAcceptedModal(null)
-    socketRef.current?.emit('anon:join_direct', { chatKey: sessionId, sessionId })
-
-    setDirectChats((prev) => {
-      const existing = prev.filter(
-        (c) =>
-          c.sessionId !== sessionId &&
-          c.chatKey !== sessionId &&
-          c.partner?.anonymousId !== partner?.anonymousId,
-      )
-      const updated = [
-        {
-          id: sessionId,
-          sessionId,
-          chatKey: sessionId,
-          partner,
-          lastMessage: t('lounge.chats.chatStarted', { defaultValue: 'Sohbet başlatıldı' }),
-          lastMessageAt: new Date().toISOString(),
-        },
-        ...existing,
-      ]
-      try {
-        localStorage.setItem('nest_anon_direct_chats', JSON.stringify(updated))
-      } catch (_) {}
-      return updated
-    })
-  }
-
-  async function handleEnterAcceptedChat() {
-    if (!chatAcceptedModal) return
-    const { sessionId, partner } = chatAcceptedModal
-    setActiveDirectSession({ sessionId, chatKey: sessionId, partner, isOffline: false })
-    setDirectMessages([])
-    setMobileTab('chat')
-    setSideTab('chats')
-    setMyRequestedReveal(false)
-    setPartnerRequestedReveal(false)
-    setRevealedUsers(null)
-    setChatAcceptedModal(null)
-
-    socketRef.current?.emit('anon:join_direct', { chatKey: sessionId, sessionId })
-    try {
-      const msgs = await getDirectChatMessages(sessionId)
-      if (Array.isArray(msgs)) setDirectMessages(msgs)
-    } catch (_) {}
   }
 
   function handleAcceptDirectRequest() {
@@ -1891,24 +1810,6 @@ export default function AnonymousLoungePage() {
       sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
     })
     setMyRequestedReveal(true)
-  }
-
-  // Close Direct Chat (Returns to room/radar without wiping messages or deleting chat)
-  function handleCloseDirectChat() {
-    setRevealConfirmModal(null)
-    if (!activeDirectSession) return
-
-    if (socketRef.current) {
-      socketRef.current.emit('anon:leave_direct', {
-        sessionId: activeDirectSession.chatKey || activeDirectSession.sessionId,
-      })
-    }
-    setActiveDirectSession(null)
-    setMobileTab('rooms')
-  }
-
-  function handleLeaveDirectChat() {
-    handleCloseDirectChat()
   }
 
   // Delete Room Message (Pop-up Onaylı)
@@ -2620,7 +2521,7 @@ export default function AnonymousLoungePage() {
                             setGateModalOpen(true)
                             return
                           }
-                          setCreateModalOpen(true)
+                          setCreateRoomModalOpen(true)
                         }}
                         className="mt-3.5 rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold !text-white shadow hover:bg-primary-hover transition-colors inline-block"
                       >
@@ -3450,7 +3351,7 @@ export default function AnonymousLoungePage() {
                       setGateModalOpen(true)
                       return
                     }
-                    setCreateModalOpen(true)
+                    setCreateRoomModalOpen(true)
                   }}
                   className="mt-2 rounded-md bg-primary px-4 py-2 text-xs font-semibold !text-white shadow hover:bg-primary-hover transition-colors inline-flex items-center gap-1.5"
                 >

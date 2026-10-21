@@ -11,20 +11,20 @@ export function RequestPayoutModal({
   isSubmitting,
 }) {
   const { t } = useTranslation()
-  const defaultAccount = wallet?.defaultPayoutAccount || {}
+  const defaultAccount = wallet?.defaultPayoutAccount
 
   const [amount, setAmount] = useState('')
-  const [fullName, setFullName] = useState(defaultAccount.fullName || '')
-  const [iban, setIban] = useState(defaultAccount.iban || '')
-  const [bankName, setBankName] = useState(defaultAccount.bankName || '')
-  const [taxOrIdNumber, setTaxOrIdNumber] = useState(defaultAccount.taxOrIdNumber || '')
+  const [fullName, setFullName] = useState(defaultAccount?.fullName || '')
+  const [iban, setIban] = useState(defaultAccount?.iban || '')
+  const [bankName, setBankName] = useState(defaultAccount?.bankName || '')
+  const [taxOrIdNumber, setTaxOrIdNumber] = useState(defaultAccount?.taxOrIdNumber || '')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (defaultAccount.fullName) setFullName(defaultAccount.fullName)
-    if (defaultAccount.iban) setIban(defaultAccount.iban)
-    if (defaultAccount.bankName) setBankName(defaultAccount.bankName)
-    if (defaultAccount.taxOrIdNumber) setTaxOrIdNumber(defaultAccount.taxOrIdNumber)
+    if (defaultAccount?.fullName) setFullName(defaultAccount.fullName)
+    if (defaultAccount?.iban) setIban(defaultAccount.iban)
+    if (defaultAccount?.bankName) setBankName(defaultAccount.bankName)
+    if (defaultAccount?.taxOrIdNumber) setTaxOrIdNumber(defaultAccount.taxOrIdNumber)
   }, [defaultAccount])
 
   if (!isOpen) return null

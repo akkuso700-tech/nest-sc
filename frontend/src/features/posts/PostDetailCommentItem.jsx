@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import HashtagText from '../../components/common/HashtagText.jsx'
 import UserAvatar from '../../components/common/UserAvatar.jsx'
@@ -98,9 +98,6 @@ function PostDetailCommentItem({
   const isInlineComposerOpen = isReplying || isEditing
   const isMenuOpen = activeCommentMenuId === commentId
   const isRepliesVisible = Boolean(openRepliesById[commentId])
-  const avatarAnchorRef = useRef(null)
-  const repliesRailRef = useRef(null)
-  const [threadGeometry, setThreadGeometry] = useState({ x: 18, start: -54, indent: 46 })
   const replyCount = comment.replies?.length || 0
   const normalizedViewerUserId = viewerUserId?.toString?.() || ''
   const normalizedPostAuthorId = postAuthorId?.toString?.() || ''

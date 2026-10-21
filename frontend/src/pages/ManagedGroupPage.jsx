@@ -109,7 +109,11 @@ export default function ManagedGroupPage() {
   }
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (status === 'loading') return undefined
+    if (!isAuthenticated) {
+      setIsPageLoading(false)
+      return undefined
+    }
     let cancelled = false
     ;(async () => {
       setIsPageLoading(true)
@@ -131,7 +135,7 @@ export default function ManagedGroupPage() {
       if (!cancelled) setIsPageLoading(false)
     })
     return () => { cancelled = true }
-  }, [isAuthenticated, groupSlug])
+  }, [isAuthenticated, groupSlug, status])
 
   useEffect(() => {
     if (!group?.id) return

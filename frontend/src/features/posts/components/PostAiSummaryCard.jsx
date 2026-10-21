@@ -127,9 +127,9 @@ export default function PostAiSummaryCard({
         <div className="space-y-2">
           {lines.map((line, idx) => {
             const cleanText = line
-              .replace(/^[•\-\*]\s*/, '')
-              .replace(/^\d+[\.\)]\s*/, '')
-              .replace(/^(İçerik|Medya|Profil)\s*[:\-]\s*/i, '')
+              .replace(/^[•\-*]\s*/, '')
+              .replace(/^\d+[.)]\s*/, '')
+              .replace(/^(İçerik|Medya|Profil)\s*[:-]\s*/i, '')
             return (
               <div key={idx} className="flex items-start gap-2.5 text-[13px] leading-relaxed text-text/90">
                 <span className="mt-1 text-xs text-primary/80 font-bold select-none">•</span>

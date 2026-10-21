@@ -735,6 +735,7 @@ function sendAuthResponse(res, user, tokens, statusCode = 200, options = {}) {
   res.status(statusCode).json({
     message: 'Authentication successful.',
     accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
     expiresInMs: env.jwt.accessExpiresMs,
     user: serializeUser(user),
   })
@@ -1030,7 +1031,10 @@ const getSignupContracts = asyncHandler(async (req, res) => {
 })
 
 const refreshSession = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[refreshTokenCookieName]
+  const refreshToken =
+    req.cookies?.[refreshTokenCookieName] ||
+    (typeof req.body?.refreshToken === 'string' ? req.body.refreshToken.trim() : '') ||
+    String(req.headers['x-refresh-token'] || '').trim()
 
   if (!refreshToken) {
     throw new AppError('Refresh token is missing.', 401)
@@ -1109,7 +1113,10 @@ const refreshSession = asyncHandler(async (req, res) => {
 })
 
 const logout = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[refreshTokenCookieName]
+  const refreshToken =
+    req.cookies?.[refreshTokenCookieName] ||
+    (typeof req.body?.refreshToken === 'string' ? req.body.refreshToken.trim() : '') ||
+    String(req.headers['x-refresh-token'] || '').trim()
 
   if (refreshToken) {
     try {

@@ -67,11 +67,161 @@ const requestApiBaseCandidates = resolveApiBaseCandidates(apiBaseUrl, {
 const configuredRequestTimeoutMs = Number(import.meta.env?.VITE_API_TIMEOUT_MS)
 const API_REQUEST_TIMEOUT_MS = Number.isFinite(configuredRequestTimeoutMs)
   ? Math.min(Math.max(configuredRequestTimeoutMs, 3000), 60000)
-  : 20000
+  : 10000
 const API_RETRY_DELAY_MS = 350
 
+const ACCESS_TOKEN_STORAGE_KEY = 'nest_access_token'
+const ACCESS_TOKEN_EXP_STORAGE_KEY = 'nest_access_token_exp'
+const REFRESH_TOKEN_STORAGE_KEY = 'nest_refresh_token'
+
+let memoryAccessToken = null
+let memoryAccessTokenExp = 0
+let memoryRefreshToken = null
 let refreshPromise = null
 const sessionExpiredListeners = new Set()
+
+function parseJwtExpMs(token) {
+  if (!token || typeof token !== 'string') return 0
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return 0
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
+    const jsonPayload =
+      typeof window !== 'undefined' && typeof window.atob === 'function'
+        ? window.atob(padded)
+        : typeof globalThis.Buffer !== 'undefined'
+          ? globalThis.Buffer.from(padded, 'base64').toString('utf8')
+          : ''
+    if (!jsonPayload) return 0
+    const parsed = JSON.parse(jsonPayload)
+    return typeof parsed?.exp === 'number' ? parsed.exp * 1000 : 0
+  } catch {
+    return 0
+  }
+}
+
+export function getAccessToken() {
+  if (memoryAccessToken) {
+    return memoryAccessToken
+  }
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    const stored = window.localStorage?.getItem(ACCESS_TOKEN_STORAGE_KEY)
+    const storedExp = Number(window.localStorage?.getItem(ACCESS_TOKEN_EXP_STORAGE_KEY) || 0)
+    if (stored) {
+      memoryAccessToken = stored
+      memoryAccessTokenExp = storedExp || parseJwtExpMs(stored)
+      return stored
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return null
+}
+
+export function isAccessTokenExpired(skewMs = 10000) {
+  const token = getAccessToken()
+  if (!token) return true
+  const expMs = memoryAccessTokenExp || parseJwtExpMs(token)
+  if (!expMs) return false
+  return Date.now() + skewMs >= expMs
+}
+
+export function setAccessToken(token, expiresInMs = 0) {
+  const normalized = typeof token === 'string' ? token.trim() : ''
+  if (!normalized) {
+    clearAccessToken()
+    return
+  }
+  const expMs =
+    Number(expiresInMs) > 0
+      ? Date.now() + Number(expiresInMs)
+      : parseJwtExpMs(normalized)
+  memoryAccessToken = normalized
+  memoryAccessTokenExp = expMs
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.setItem(ACCESS_TOKEN_STORAGE_KEY, normalized)
+      if (expMs > 0) {
+        window.localStorage?.setItem(ACCESS_TOKEN_EXP_STORAGE_KEY, String(expMs))
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
+}
+
+export function clearAccessToken() {
+  memoryAccessToken = null
+  memoryAccessTokenExp = 0
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.removeItem(ACCESS_TOKEN_STORAGE_KEY)
+      window.localStorage?.removeItem(ACCESS_TOKEN_EXP_STORAGE_KEY)
+    } catch {
+      // Ignore storage errors
+    }
+  }
+}
+
+export function getRefreshToken() {
+  if (memoryRefreshToken) {
+    return memoryRefreshToken
+  }
+  if (typeof window === 'undefined') {
+    return null
+  }
+  try {
+    const stored = window.localStorage?.getItem(REFRESH_TOKEN_STORAGE_KEY)
+    if (stored) {
+      memoryRefreshToken = stored
+      return stored
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return null
+}
+
+export function setRefreshToken(token) {
+  const normalized = typeof token === 'string' ? token.trim() : ''
+  if (!normalized) {
+    return
+  }
+  memoryRefreshToken = normalized
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.setItem(REFRESH_TOKEN_STORAGE_KEY, normalized)
+    } catch {
+      // Ignore storage errors
+    }
+  }
+}
+
+export function clearAuthTokens() {
+  clearAccessToken()
+  memoryRefreshToken = null
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage?.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+    } catch {
+      // Ignore storage errors
+    }
+  }
+}
+
+function captureAuthTokensFromPayload(payload) {
+  if (!payload || typeof payload !== 'object') return
+  if (typeof payload.accessToken === 'string' && payload.accessToken.trim()) {
+    setAccessToken(payload.accessToken, payload.expiresInMs)
+  }
+  if (typeof payload.refreshToken === 'string' && payload.refreshToken.trim()) {
+    setRefreshToken(payload.refreshToken)
+  }
+}
 
 export function onSessionExpired(callback) {
   sessionExpiredListeners.add(callback)
@@ -79,6 +229,7 @@ export function onSessionExpired(callback) {
 }
 
 function notifySessionExpired() {
+  clearAuthTokens()
   sessionExpiredListeners.forEach((listener) => {
     try {
       listener()
@@ -139,7 +290,7 @@ function isIdempotentMethod(method = 'GET') {
 }
 
 function isRetryableStatus(status) {
-  return status === 408 || status === 425 || status === 429 || status >= 500
+  return status === 408 || status === 425 || status >= 500
 }
 
 function wait(ms) {
@@ -247,6 +398,7 @@ async function parseResponse(response) {
 
 async function refreshSession() {
   if (!refreshPromise) {
+    const storedRefreshToken = getRefreshToken()
     refreshPromise = fetchWithApiFallback(
       '/auth/refresh',
       {
@@ -257,9 +409,11 @@ async function refreshSession() {
           Accept: 'application/json',
           'Cache-Control': 'no-cache',
           Pragma: 'no-cache',
+          ...(storedRefreshToken ? { 'Content-Type': 'application/json' } : {}),
         },
+        ...(storedRefreshToken ? { body: JSON.stringify({ refreshToken: storedRefreshToken }) } : {}),
       },
-      { retry: true },
+      { retry: false, timeoutMs: 8000 },
     ).then(async (response) => {
       const payload = await parseResponse(response)
 
@@ -274,6 +428,7 @@ async function refreshSession() {
         )
       }
 
+      captureAuthTokensFromPayload(payload)
       return payload
     }).catch((error) => {
       if (error?.status === 401 || error?.status === 403) {
@@ -292,22 +447,45 @@ export async function apiRequest(path, options = {}, config = {}) {
   const { skipRefreshRetry = false, timeoutMs, retry } = config
   const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
   const method = String(options.method || 'GET').toUpperCase()
-  const isSafeRead = (method === 'GET' || method === 'HEAD') && !path.startsWith('/auth/')
+  const isAuthPath = path.startsWith('/auth/')
+  const isSafeRead = (method === 'GET' || method === 'HEAD') && !isAuthPath
   const defaultCache = isSafeRead ? 'default' : 'no-store'
+
+  // If a session refresh is actively in-flight and our local access token is missing or expired,
+  // wait for the refresh to complete so this request immediately uses the fresh token.
+  if (!isAuthPath && refreshPromise && isAccessTokenExpired()) {
+    try {
+      await refreshPromise
+    } catch {
+      // Proceed; the request itself will handle guest or 401 state.
+    }
+  }
+
+  const accessToken = getAccessToken()
+  let requestBody = options.body
+  if (path === '/auth/logout' && !requestBody) {
+    const storedRefreshToken = getRefreshToken()
+    if (storedRefreshToken) {
+      requestBody = JSON.stringify({ refreshToken: storedRefreshToken })
+    }
+  }
+
   let response
   try {
     response = await fetchWithApiFallback(
       path,
       {
+        ...options,
+        ...(requestBody !== undefined ? { body: requestBody } : {}),
         cache: options.cache || defaultCache,
         credentials: 'include',
         headers: {
           Accept: 'application/json',
           ...(!isSafeRead ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } : {}),
-          ...(!isFormDataBody && options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(!isFormDataBody && requestBody ? { 'Content-Type': 'application/json' } : {}),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           ...options.headers,
         },
-        ...options,
       },
       { timeoutMs, retry },
     )
@@ -328,12 +506,22 @@ export async function apiRequest(path, options = {}, config = {}) {
 
   const payload = await parseResponse(response)
 
-  if (response.status === 401 && !skipRefreshRetry && !path.startsWith('/auth/')) {
+  if (payload) {
+    captureAuthTokensFromPayload(payload)
+  }
+
+  if (path === '/auth/logout') {
+    clearAuthTokens()
+  }
+
+  if (response.status === 401 && !skipRefreshRetry && !isAuthPath) {
     try {
       await refreshSession()
-      return apiRequest(path, options, { skipRefreshRetry: true })
+      return apiRequest(path, options, { ...config, skipRefreshRetry: true })
     } catch (refreshErr) {
-      notifySessionExpired()
+      if (refreshErr?.status === 401 || refreshErr?.status === 403) {
+        notifySessionExpired()
+      }
       throw refreshErr
     }
   }

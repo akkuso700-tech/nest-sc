@@ -37,7 +37,6 @@ import ShareMenuPopover from './ShareMenuPopover.jsx'
 import PostLikesModal from './PostLikesModal.jsx'
 import PostInsightsModal from './PostInsightsModal.jsx'
 import {
-  formatRelativeTime,
   getFullName,
 } from '../../utils/social.js'
 import {
@@ -64,8 +63,6 @@ import {
   appendReplyToTree,
   updateCommentInTree,
   removeCommentFromTree,
-  getCommentLikeCount,
-  getCommentCreatedAt,
   sortCommentsByMode,
 } from './utils/commentTree.js'
 

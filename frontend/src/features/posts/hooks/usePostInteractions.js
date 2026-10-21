@@ -1,12 +1,5 @@
 import { useState } from 'react'
-import {
-  togglePostLike,
-  togglePostSave,
-  togglePostShare,
-  deletePost,
-  togglePostArchive,
-  markPostNotInterested,
-} from '../../../services/postsService.js'
+import { togglePostShare } from '../../../services/postsService.js'
 import { copyTextToClipboard } from '../../../utils/postShare.js'
 
 export function usePostInteractions({
@@ -17,7 +10,6 @@ export function usePostInteractions({
   isAuthenticated,
   sharePayload,
   shareTargets,
-  onPostHidden,
   t,
 }) {
   const [pendingAction, setPendingAction] = useState('')

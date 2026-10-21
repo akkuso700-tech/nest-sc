@@ -10,8 +10,6 @@ import {
 } from './MonetizationIcons.jsx'
 
 export function ApplicationPendingView({
-  user,
-  application,
   onSwitchToDemo,
 }) {
   const { t } = useTranslation()

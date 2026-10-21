@@ -846,6 +846,10 @@ function HomePage() {
   }, [t])
 
   useEffect(() => {
+    if (status === 'loading') {
+      return undefined
+    }
+
     let cancelled = false
 
     async function loadFeed() {
@@ -948,7 +952,7 @@ function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [activeFeedTab, isAuthenticated, selectedTopic])
+  }, [activeFeedTab, isAuthenticated, selectedTopic, status])
 
   useEffect(() => {
     let cancelled = false
@@ -1334,6 +1338,7 @@ function HomePage() {
     feedState.nextCursor,
     feedState.nextOffset,
     selectedTopic,
+    t,
   ])
 
   useEffect(() => {

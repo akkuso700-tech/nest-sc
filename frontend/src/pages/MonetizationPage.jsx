@@ -51,7 +51,7 @@ export function MonetizationPage() {
         const dashRes = await getCreatorDashboard()
         setDashboardData(dashRes?.data || null)
       }
-    } catch (err) {
+    } catch {
       // Offline / fallback demo data if backend is starting or offline
       setStatusData({
         status: 'not_enrolled',
@@ -121,7 +121,7 @@ export function MonetizationPage() {
       showToast('₺150 Loop video izlenme ödülü cüzdanınıza eklendi!')
       const dashRes = await getCreatorDashboard()
       setDashboardData(dashRes?.data || null)
-    } catch (err) {
+    } catch {
       // Fallback local update for preview
       setDashboardData((prev) => {
         const oldWallet = prev?.wallet || { balance: 0, lifetimeEarnings: 0 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import VerifiedBadge from '../components/common/VerifiedBadge.jsx'
 import UserAvatar from '../components/common/UserAvatar.jsx'
@@ -28,7 +28,6 @@ const PAYOUT_STATUS_LABELS = {
 }
 
 export default function AdminCreatorsPage() {
-  const { lang = 'tr' } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'applications'
 

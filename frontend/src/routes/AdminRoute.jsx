@@ -7,7 +7,11 @@ function AdminRoute({ children }) {
   const { status, isAuthenticated, user } = useAuth()
 
   if (status === 'loading') {
-    return null
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg text-text">
+        <span className="size-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+      </div>
+    )
   }
 
   if (!isAuthenticated) {

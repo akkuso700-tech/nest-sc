@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   getAdminUserChats,
@@ -89,7 +89,6 @@ export default function AdminMessagesPage() {
   const [previewMedia, setPreviewMedia] = useState(null)
 
   // Split-View Chat List States
-  const [isChatListVisible, setIsChatListVisible] = useState(true)
   const [splitSearch, setSplitSearch] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchInputRef = useRef(null)
@@ -129,12 +128,12 @@ export default function AdminMessagesPage() {
     }
   }, [selectedConversationId])
 
-  const handleTabChange = (tab, chatId = '') => {
+  const handleTabChange = useCallback((tab, chatId = '') => {
     const params = new URLSearchParams()
     params.set('tab', tab)
     if (chatId) params.set('chat', chatId)
     setSearchParams(params, { replace: true })
-  }
+  }, [setSearchParams])
 
   // Load chats list
   const loadChats = () => {
@@ -155,6 +154,7 @@ export default function AdminMessagesPage() {
 
   useEffect(() => {
     loadChats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Debounced search for split chat list
@@ -189,7 +189,7 @@ export default function AdminMessagesPage() {
   }, [selectedConversationId])
 
   // Load calls
-  const loadCalls = () => {
+  const loadCalls = useCallback(() => {
     setCallsLoading(true)
     getAdminUserCalls({ status: callStatusFilter })
       .then((res) => {
@@ -197,16 +197,16 @@ export default function AdminMessagesPage() {
       })
       .catch((err) => console.error('Admin calls load error:', err))
       .finally(() => setCallsLoading(false))
-  }
+  }, [callStatusFilter])
 
   useEffect(() => {
     if (activeTab === 'calls') {
       loadCalls()
     }
-  }, [activeTab, callStatusFilter])
+  }, [activeTab, loadCalls])
 
   // Load media
-  const loadMedia = () => {
+  const loadMedia = useCallback(() => {
     setMediaLoading(true)
     getAdminUserMedia({ type: mediaTypeFilter })
       .then((res) => {
@@ -214,13 +214,13 @@ export default function AdminMessagesPage() {
       })
       .catch((err) => console.error('Admin media load error:', err))
       .finally(() => setMediaLoading(false))
-  }
+  }, [mediaTypeFilter])
 
   useEffect(() => {
     if (activeTab === 'media') {
       loadMedia()
     }
-  }, [activeTab, mediaTypeFilter])
+  }, [activeTab, loadMedia])
 
   // Deep linking scroll effect
   useEffect(() => {

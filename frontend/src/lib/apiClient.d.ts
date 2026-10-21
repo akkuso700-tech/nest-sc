@@ -18,6 +18,13 @@ export declare function apiRequest<T = any>(
 
 export declare function refreshSession(): Promise<any>
 export declare function onSessionExpired(callback: () => void): () => void
+export declare function getAccessToken(): string | null
+export declare function isAccessTokenExpired(skewMs?: number): boolean
+export declare function setAccessToken(token: string | null | undefined, expiresInMs?: number): void
+export declare function clearAccessToken(): void
+export declare function getRefreshToken(): string | null
+export declare function setRefreshToken(token: string | null | undefined): void
+export declare function clearAuthTokens(): void
 
 export declare const apiBaseUrl: string
 export declare const apiOrigin: string

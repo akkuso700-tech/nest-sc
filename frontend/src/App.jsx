@@ -7,47 +7,93 @@ import { isDemoEnvironment } from './lib/appEnvironment.js'
 import { CallProvider } from './store/CallContext.jsx'
 import { initAcquisitionTracking } from './utils/acquisitionTracker.js'
 
-const HomePage = lazy(() => import('./pages/HomePage.jsx'))
-const LoopPage = lazy(() => import('./pages/LoopPage.jsx'))
-const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
-const SignUpPage = lazy(() => import('./pages/SignUpPage.jsx'))
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'))
-const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
-const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage.jsx'))
-const EditProfilePage = lazy(() => import('./pages/EditProfilePage.jsx'))
-const MessagesPage = lazy(() => import('./pages/MessagesPage.jsx'))
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage.jsx'))
-const SearchPage = lazy(() => import('./pages/SearchPage.jsx'))
-const GroupsPage = lazy(() => import('./pages/GroupsPage.jsx'))
-const ManagedGroupPage = lazy(() => import('./pages/ManagedGroupPage.jsx'))
-const JoinedGroupPage = lazy(() => import('./pages/JoinedGroupPage.jsx'))
-const MyReportsPage = lazy(() => import('./pages/MyReportsPage.jsx'))
-const AdminOverviewPage = lazy(() => import('./pages/AdminOverviewPage.jsx'))
-const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.jsx'))
-const AdminUserDetailPage = lazy(() => import('./pages/AdminUserDetailPage.jsx'))
-const AdminContentPage = lazy(() => import('./pages/AdminContentPage.jsx'))
-const AdminCommentsPage = lazy(() => import('./pages/AdminCommentsPage.jsx'))
-const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx'))
-const AdminAuditLogsPage = lazy(() => import('./pages/AdminAuditLogsPage.jsx'))
-const AdminMessagesPage = lazy(() => import('./pages/AdminMessagesPage.jsx'))
-const AdminShadowPage = lazy(() => import('./pages/AdminShadowPage.jsx'))
-const AdminContractsSettingsPage = lazy(() => import('./pages/AdminContractsSettingsPage.jsx'))
-const AdminNotificationsSettingsPage = lazy(
+const CHUNK_RELOAD_STORAGE_KEY = 'nest_chunk_reload_ts'
+const CHUNK_RELOAD_COOLDOWN_MS = 15000
+
+function shouldReloadForChunkError() {
+  if (typeof window === 'undefined') return false
+  try {
+    const lastReloadAt = Number(window.sessionStorage?.getItem(CHUNK_RELOAD_STORAGE_KEY) || 0)
+    const now = Date.now()
+    if (now - lastReloadAt < CHUNK_RELOAD_COOLDOWN_MS) {
+      return false
+    }
+    window.sessionStorage?.setItem(CHUNK_RELOAD_STORAGE_KEY, String(now))
+    return true
+  } catch {
+    return false
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    if (shouldReloadForChunkError()) {
+      event.preventDefault()
+      window.location.reload()
+    }
+  })
+}
+
+function lazyWithRetry(importer) {
+  return lazy(async () => {
+    try {
+      return await importer()
+    } catch {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 350))
+        return await importer()
+      } catch (retryError) {
+        if (shouldReloadForChunkError()) {
+          window.location.reload()
+          return new Promise(() => {})
+        }
+        throw retryError
+      }
+    }
+  })
+}
+
+const HomePage = lazyWithRetry(() => import('./pages/HomePage.jsx'))
+const LoopPage = lazyWithRetry(() => import('./pages/LoopPage.jsx'))
+const LoginPage = lazyWithRetry(() => import('./pages/LoginPage.jsx'))
+const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage.jsx'))
+const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage.jsx'))
+const ProfilePage = lazyWithRetry(() => import('./pages/ProfilePage.jsx'))
+const ConnectionsPage = lazyWithRetry(() => import('./pages/ConnectionsPage.jsx'))
+const EditProfilePage = lazyWithRetry(() => import('./pages/EditProfilePage.jsx'))
+const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage.jsx'))
+const NotificationsPage = lazyWithRetry(() => import('./pages/NotificationsPage.jsx'))
+const SearchPage = lazyWithRetry(() => import('./pages/SearchPage.jsx'))
+const GroupsPage = lazyWithRetry(() => import('./pages/GroupsPage.jsx'))
+const ManagedGroupPage = lazyWithRetry(() => import('./pages/ManagedGroupPage.jsx'))
+const JoinedGroupPage = lazyWithRetry(() => import('./pages/JoinedGroupPage.jsx'))
+const MyReportsPage = lazyWithRetry(() => import('./pages/MyReportsPage.jsx'))
+const AdminOverviewPage = lazyWithRetry(() => import('./pages/AdminOverviewPage.jsx'))
+const AdminUsersPage = lazyWithRetry(() => import('./pages/AdminUsersPage.jsx'))
+const AdminUserDetailPage = lazyWithRetry(() => import('./pages/AdminUserDetailPage.jsx'))
+const AdminContentPage = lazyWithRetry(() => import('./pages/AdminContentPage.jsx'))
+const AdminCommentsPage = lazyWithRetry(() => import('./pages/AdminCommentsPage.jsx'))
+const AdminReportsPage = lazyWithRetry(() => import('./pages/AdminReportsPage.jsx'))
+const AdminAuditLogsPage = lazyWithRetry(() => import('./pages/AdminAuditLogsPage.jsx'))
+const AdminMessagesPage = lazyWithRetry(() => import('./pages/AdminMessagesPage.jsx'))
+const AdminShadowPage = lazyWithRetry(() => import('./pages/AdminShadowPage.jsx'))
+const AdminContractsSettingsPage = lazyWithRetry(() => import('./pages/AdminContractsSettingsPage.jsx'))
+const AdminNotificationsSettingsPage = lazyWithRetry(
   () => import('./pages/AdminNotificationsSettingsPage.jsx'),
 )
-const AdminVerificationRequestsPage = lazy(
+const AdminVerificationRequestsPage = lazyWithRetry(
   () => import('./pages/AdminVerificationRequestsPage.jsx'),
 )
-const AdminCreatorsPage = lazy(() => import('./pages/AdminCreatorsPage.jsx'))
-const SimpleInfoPage = lazy(() => import('./pages/SimpleInfoPage.jsx'))
-const MonetizationPage = lazy(() => import('./pages/MonetizationPage.jsx'))
-const AnonymousLoungePage = lazy(() => import('./pages/AnonymousLoungePage.jsx'))
-const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
-const ContactPage = lazy(() => import('./pages/ContactPage.jsx'))
-const AdsPage = lazy(() => import('./pages/AdsPage.jsx'))
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'))
-const PostDetailModal = lazy(() => import('./features/posts/PostDetailModal.jsx'))
-const AdminLayout = lazy(() => import('./layouts/AdminLayout.jsx'))
+const AdminCreatorsPage = lazyWithRetry(() => import('./pages/AdminCreatorsPage.jsx'))
+const SimpleInfoPage = lazyWithRetry(() => import('./pages/SimpleInfoPage.jsx'))
+const MonetizationPage = lazyWithRetry(() => import('./pages/MonetizationPage.jsx'))
+const AnonymousLoungePage = lazyWithRetry(() => import('./pages/AnonymousLoungePage.jsx'))
+const AboutPage = lazyWithRetry(() => import('./pages/AboutPage.jsx'))
+const ContactPage = lazyWithRetry(() => import('./pages/ContactPage.jsx'))
+const AdsPage = lazyWithRetry(() => import('./pages/AdsPage.jsx'))
+const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage.jsx'))
+const PostDetailModal = lazyWithRetry(() => import('./features/posts/PostDetailModal.jsx'))
+const AdminLayout = lazyWithRetry(() => import('./layouts/AdminLayout.jsx'))
 
 function LegacyVerificationRedirect() {
   const { lang = 'tr' } = useParams()

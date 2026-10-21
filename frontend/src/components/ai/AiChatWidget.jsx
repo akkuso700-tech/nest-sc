@@ -19,6 +19,16 @@ const INITIAL_MESSAGE = {
   timestamp: Date.now(),
 }
 
+function createChatEntry(prefix, role, content) {
+  const now = Date.now()
+  return {
+    id: `${prefix}-${now}`,
+    role,
+    content,
+    timestamp: now,
+  }
+}
+
 function renderFormattedMessage(text) {
   if (!text) return null
 
@@ -132,13 +142,11 @@ export default function AiChatWidget({ isOpen, onToggle, onClose }) {
       handleStop()
     }
     const fresh = [
-      {
-        id: `welcome-${Date.now()}`,
-        role: 'assistant',
-        content:
-          'Sohbet temizlendi! Size nasıl yardımcı olabilirim? ✨',
-        timestamp: Date.now(),
-      },
+      createChatEntry(
+        'welcome',
+        'assistant',
+        'Sohbet temizlendi! Size nasıl yardımcı olabilirim? ✨',
+      ),
     ]
     setMessages(fresh)
     setErrorNotice(null)
@@ -160,20 +168,9 @@ export default function AiChatWidget({ isOpen, onToggle, onClose }) {
     setInput('')
     setErrorNotice(null)
 
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      timestamp: Date.now(),
-    }
-
-    const assistantPlaceholderId = `assistant-${Date.now()}`
-    const assistantMessage = {
-      id: assistantPlaceholderId,
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-    }
+    const userMessage = createChatEntry('user', 'user', text)
+    const assistantMessage = createChatEntry('assistant', 'assistant', '')
+    const assistantPlaceholderId = assistantMessage.id
 
     const nextMessages = [...messages, userMessage]
     setMessages([...nextMessages, assistantMessage])

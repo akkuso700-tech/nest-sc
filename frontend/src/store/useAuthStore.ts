@@ -1,11 +1,12 @@
 import { create } from 'zustand'
-import { apiRequest, onSessionExpired, refreshSession } from '../lib/apiClient.js'
+import { apiRequest, clearAuthTokens, onSessionExpired, refreshSession } from '../lib/apiClient.js'
 import { clearGroupsSidebarCache } from '../features/groups/sidebarCache.js'
 import { clearClientLoopFeedCache } from '../features/loop/loopFeedCache.js'
 import { disconnectSocketClient } from '../services/socketClient.js'
 import type { User } from '../types'
 
 const SESSION_STORAGE_KEY = 'nest_has_session'
+const USER_CACHE_STORAGE_KEY = 'nest_user_cache'
 
 export function hasLikelySession(): boolean {
   if (typeof window === 'undefined') return false
@@ -25,6 +26,34 @@ export function hasLikelySession(): boolean {
   return false
 }
 
+function readCachedUser(): User | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage?.getItem(USER_CACHE_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && (parsed.id || parsed._id)) {
+      return parsed as User
+    }
+  } catch {
+    // Ignore storage / parse errors
+  }
+  return null
+}
+
+function writeCachedUser(user: User | null): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (user && (user.id || (user as any)._id)) {
+      window.localStorage?.setItem(USER_CACHE_STORAGE_KEY, JSON.stringify(user))
+    } else {
+      window.localStorage?.removeItem(USER_CACHE_STORAGE_KEY)
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function markSessionActive(): void {
   try {
     window.localStorage?.setItem(SESSION_STORAGE_KEY, '1')
@@ -36,9 +65,11 @@ export function markSessionActive(): void {
 export function markSessionInactive(): void {
   try {
     window.localStorage?.removeItem(SESSION_STORAGE_KEY)
+    window.localStorage?.removeItem(USER_CACHE_STORAGE_KEY)
   } catch {
     // Ignore storage errors
   }
+  clearAuthTokens()
 }
 
 export type AuthStatus = 'loading' | 'authenticated' | 'guest'
@@ -57,11 +88,14 @@ export interface AuthState {
   setUser: (user: User | null) => void
 }
 
+const initialLikelySession = hasLikelySession()
+const initialCachedUser = initialLikelySession ? readCachedUser() : null
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  status: hasLikelySession() ? 'loading' : 'guest',
-  isAuthenticated: false,
-  isInitialized: false,
+  user: initialCachedUser,
+  status: initialLikelySession ? (initialCachedUser ? 'authenticated' : 'loading') : 'guest',
+  isAuthenticated: Boolean(initialCachedUser),
+  isInitialized: !initialLikelySession,
 
   init: () => {
     const unsubscribeSession = onSessionExpired(() => {
@@ -70,17 +104,25 @@ export const useAuthStore = create<AuthState>((set) => ({
         status: 'guest',
         user: null,
         isAuthenticated: false,
+        isInitialized: true,
       })
     })
 
     if (!hasLikelySession()) {
-      set({ isInitialized: true, status: 'guest' })
+      markSessionInactive()
+      set({
+        isInitialized: true,
+        status: 'guest',
+        user: null,
+        isAuthenticated: false,
+      })
       return unsubscribeSession
     }
 
     refreshSession()
       .then((payload) => {
         markSessionActive()
+        writeCachedUser(payload.user)
         set({
           status: 'authenticated',
           user: payload.user,
@@ -88,12 +130,26 @@ export const useAuthStore = create<AuthState>((set) => ({
           isInitialized: true,
         })
       })
-      .catch(() => {
-        markSessionInactive()
+      .catch((error: any) => {
+        const isAuthRejection = error?.status === 401 || error?.status === 403
+        const cachedUser = readCachedUser()
+
+        if (isAuthRejection || !cachedUser) {
+          markSessionInactive()
+          set({
+            status: 'guest',
+            user: null,
+            isAuthenticated: false,
+            isInitialized: true,
+          })
+          return
+        }
+
+        // Keep cached user active during transient network hiccups on page reload
         set({
-          status: 'guest',
-          user: null,
-          isAuthenticated: false,
+          status: 'authenticated',
+          user: cachedUser,
+          isAuthenticated: true,
           isInitialized: true,
         })
       })
@@ -112,10 +168,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     )
 
     markSessionActive()
+    writeCachedUser(payload.user)
     set({
       status: 'authenticated',
       user: payload.user,
       isAuthenticated: true,
+      isInitialized: true,
     })
 
     return payload
@@ -132,17 +190,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     )
 
     markSessionActive()
+    writeCachedUser(response.user)
     set({
       status: 'authenticated',
       user: response.user,
       isAuthenticated: true,
+      isInitialized: true,
     })
 
     return response
   },
 
   logout: async () => {
-    markSessionInactive()
     try {
       clearGroupsSidebarCache()
     } catch {}
@@ -150,7 +209,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       clearClientLoopFeedCache()
     } catch {}
     try {
-      disconnectSocketClient()
+      disconnectSocketClient(true)
     } catch {}
     try {
       await apiRequest(
@@ -159,10 +218,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         { skipRefreshRetry: true }
       )
     } finally {
+      markSessionInactive()
       set({
         status: 'guest',
         user: null,
         isAuthenticated: false,
+        isInitialized: true,
       })
     }
   },
@@ -170,10 +231,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   refreshUser: async () => {
     const payload = await apiRequest('/auth/me')
     markSessionActive()
+    writeCachedUser(payload.user)
     set({
       status: 'authenticated',
       user: payload.user,
       isAuthenticated: true,
+      isInitialized: true,
     })
     return payload.user
   },
@@ -181,6 +244,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => {
     if (user) {
       markSessionActive()
+      writeCachedUser(user)
     } else {
       markSessionInactive()
     }
@@ -188,6 +252,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       status: user ? 'authenticated' : 'guest',
       user: user || null,
       isAuthenticated: Boolean(user),
+      isInitialized: true,
     })
   },
 }))

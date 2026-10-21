@@ -1,4 +1,4 @@
-import { apiBaseUrl } from '../lib/apiClient.js'
+import { apiBaseUrl, apiRequest, getAccessToken } from '../lib/apiClient.js'
 
 export interface AiChatMessage {
   id: string
@@ -23,13 +23,15 @@ export async function streamAiChat({
   signal,
 }: StreamAiChatOptions): Promise<void> {
   const url = `${apiBaseUrl}/ai/stream`
+  const accessToken = getAccessToken()
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
+        Accept: 'text/event-stream',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       credentials: 'include',
       body: JSON.stringify({ messages }),
@@ -111,27 +113,13 @@ export async function getPostSummary(
   refresh: boolean = false,
   signal?: AbortSignal
 ): Promise<PostSummaryResult> {
-  const url = `${apiBaseUrl}/ai/summarize-post/${postId}${refresh ? '?refresh=true' : ''}`
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    signal,
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    const errorMsg =
-      errorData.message ||
-      errorData.error ||
-      `Özet alınamadı (${response.status})`
-    throw new Error(errorMsg)
-  }
-
-  return response.json()
+  return apiRequest<PostSummaryResult>(
+    `/ai/summarize-post/${postId}${refresh ? '?refresh=true' : ''}`,
+    {
+      method: 'GET',
+      signal,
+    }
+  )
 }
 
 export interface MagicComposeOptions {
@@ -153,23 +141,11 @@ export async function magicComposeText({
   language = 'tr',
   signal,
 }: MagicComposeOptions): Promise<MagicComposeResult> {
-  const url = `${apiBaseUrl}/ai/magic-compose`
-  const response = await fetch(url, {
+  return apiRequest<MagicComposeResult>('/ai/magic-compose', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
     body: JSON.stringify({ text, action, language }),
     signal,
   })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.message || errorData.error || 'İşlem gerçekleştirilemedi.')
-  }
-
-  return response.json()
 }
 
 export interface TranslateTextOptions {
@@ -189,22 +165,9 @@ export async function translatePostContent({
   targetLanguage = 'tr',
   signal,
 }: TranslateTextOptions): Promise<TranslateTextResult> {
-  const url = `${apiBaseUrl}/ai/translate`
-  const response = await fetch(url, {
+  return apiRequest<TranslateTextResult>('/ai/translate', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
     body: JSON.stringify({ text, targetLanguage }),
     signal,
   })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.message || errorData.error || 'Çeviri yapılamadı.')
-  }
-
-  return response.json()
 }
-

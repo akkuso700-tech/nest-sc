@@ -26,7 +26,6 @@ export function CreatorApplicationView({
   user,
   onApply,
   isApplying,
-  onViewEligibility,
   onSwitchToDemo,
 }) {
   const { t } = useTranslation()

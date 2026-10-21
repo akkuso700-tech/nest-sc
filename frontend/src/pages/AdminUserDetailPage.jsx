@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import ActionToast from '../components/feedback/ActionToast.jsx'
 import ConfirmActionDialog from '../components/feedback/ConfirmActionDialog.jsx'
@@ -47,7 +47,7 @@ function AdminUserDetailPage() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const loadUserDetail = async () => {
+  const loadUserDetail = useCallback(async () => {
     setState((curr) => ({ ...curr, isLoading: true, error: '' }))
     try {
       const payload = await getAdminUserDetail(userId)
@@ -64,11 +64,11 @@ function AdminUserDetailPage() {
         error: error.message || 'Kullanıcı detayları yüklenemedi.',
       })
     }
-  }
+  }, [userId])
 
   useEffect(() => {
     loadUserDetail()
-  }, [userId])
+  }, [loadUserDetail])
 
   async function handleRoleUpdate() {
     if (!state.data?.user || selectedRole === state.data.user.role) return
